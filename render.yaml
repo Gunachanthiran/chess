@@ -47,6 +47,18 @@ services:
         value: https://chessscope-api.onrender.com
       - key: FRONTEND_BASE_URL
         value: https://chessscope-frontend.onrender.com
+      # Bot gameplay (routers/bot_games.py -> tal_bot.choose_bot_move) runs
+      # Stockfish synchronously inside *this* service, not the worker — a
+      # real gap in the original tuning pass, which only ever set these on
+      # chessscope-worker. Left at STOCKFISH_HASH_MB's 512MB code default,
+      # a single Grandmaster-tier bot move tries to allocate a 512MB hash
+      # table alone, on a container whose *entire* memory limit is 512MB —
+      # a near-guaranteed crash, confirmed against a real "exceeded its
+      # memory limit" restart right after starting a bot game.
+      - key: STOCKFISH_THREADS
+        value: "1"
+      - key: STOCKFISH_HASH_MB
+        value: "64"
 
   # --- Celery worker, disguised as a free web service -------------------
   # Background Workers can't use Render's free plan; a Web Service can. This
