@@ -29,7 +29,8 @@ services:
     # as part of this service's own start command instead — only here, never
     # on chessscope-worker below, so two containers never race running
     # `alembic upgrade head` against each other on a simultaneous first boot.
-    dockerCommand: sh -c 'alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'
+    # No explicit `dockerCommand` — the Dockerfile's own default CMD runs
+    # scripts/start-api.sh, which does exactly this.
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -59,9 +60,12 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    dockerCommand: >-
-      sh -c 'celery -A app.celery_app worker --loglevel=info --concurrency=1 &
-      uvicorn app.worker_health:app --host 0.0.0.0 --port ${PORT:-8000}'
+    # A bare script path, not an inline shell string — Render's dockerCommand
+    # does not run through a real shell (confirmed against a real deploy: it
+    # was handed the whole string, `&&`/`&` included, as one literal command
+    # name and failed with "not found"). scripts/start-worker.sh does the
+    # actual backgrounding/chaining itself, safely, regardless.
+    dockerCommand: ./scripts/start-worker.sh
     envVars:
       - key: DATABASE_URL
         fromDatabase:
