@@ -1,0 +1,1517 @@
+/* ---------- App shell ---------- */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Full-bleed bar; the content inside is what lines up with the page grid. */
+.app__header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-nav);
+}
+
+.app__header-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 20px;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.app__title {
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.app__title-accent {
+  color: var(--accent);
+}
+
+.app__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.app__nav-link {
+  position: relative;
+  padding: 18px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.app__nav-link:hover {
+  color: var(--text);
+}
+
+.app__nav-link--active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Underline sits on the header's bottom border, so it reads as a tab. */
+.app__nav-link--active::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+
+.app__tagline {
+  margin: 0 0 0 auto;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .app__header-inner {
+    gap: 12px;
+  }
+
+  .app__tagline {
+    display: none;
+  }
+}
+
+.app__main {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+/* ---------- Generic surfaces ---------- */
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 16px;
+  box-shadow: var(--shadow-panel);
+}
+
+.panel__header {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/*
+ * A `.panel-section` is a sub-block inside a shared `.panel` — used to combine
+ * several panels (accuracy, move breakdown, moves) into one bordered card
+ * instead of three, without losing the header + divider that separated them.
+ * It intentionally carries none of `.panel`'s own background/border/padding
+ * (the enclosing `.panel` already provides that once); a top border between
+ * consecutive sections stands in for the gap that used to be three separate
+ * cards.
+ */
+.panel-section + .panel-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.button {
+  padding: 8px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.button:hover:not(:disabled) {
+  background: #31353c;
+  border-color: #454a52;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #14161a;
+  font-weight: 600;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: #a6cc5b;
+  border-color: #a6cc5b;
+}
+
+.alert {
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.alert--error {
+  background: rgba(202, 52, 49, 0.14);
+  border: 1px solid rgba(202, 52, 49, 0.5);
+  color: #f3a5a3;
+}
+
+.alert--warn {
+  background: rgba(247, 198, 49, 0.12);
+  border: 1px solid rgba(247, 198, 49, 0.4);
+  color: #f0d68a;
+}
+
+/* ---------- Start an analysis ---------- */
+
+.start {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.start__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 640px;
+}
+
+.start__title {
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.start__subtitle {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+}
+
+/* ---------- Upload / import forms ---------- */
+
+.upload-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+/* Setup screens that show one form on their own shouldn't stretch it edge to edge. */
+.upload-grid--single {
+  grid-template-columns: minmax(320px, 460px);
+  justify-content: center;
+}
+
+/* Exactly two forms side by side — `auto-fit` would let a third column appear. */
+.upload-grid--pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Equal-height cards read as one section rather than two loose boxes. The
+     shorter form's submit button is pushed to the shared baseline. */
+  align-items: stretch;
+}
+
+.upload-grid--pair .form {
+  height: 100%;
+}
+
+.upload-grid--pair .form > .button--primary {
+  margin-top: auto;
+}
+
+@media (max-width: 820px) {
+  .upload-grid--pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form p.form__hint {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.form__label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.form__textarea,
+.form__input {
+  width: 100%;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  padding: 10px;
+  font-family: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.form__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Two fields side by side (e.g. a from/to date pair), stacking when narrow. */
+.form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form__file {
+  display: inline-flex;
+  align-items: center;
+}
+
+.form__file input[type='file'] {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  max-width: 220px;
+}
+
+.form__file span {
+  display: none;
+}
+
+.form__hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* ---------- Sliders ---------- */
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.slider__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.slider__value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.slider__input {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.slider__input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.tabs__tab {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.tabs__tab--active {
+  background: var(--bg-raised);
+  color: var(--text);
+  border-color: #4a505a;
+}
+
+/* ---------- Progress ---------- */
+
+.progress {
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress__game {
+  font-size: 0.95rem;
+}
+
+.progress__bar {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.35s ease;
+}
+
+.progress__fill--failed {
+  background: var(--danger);
+}
+
+.progress__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.progress__pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.progress__counts {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.progress__counts strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Game library ---------- */
+
+.library {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.library__header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.library__title {
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.library__count {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.library__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.library__table-wrap {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.library__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.library__table th {
+  text-align: left;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.library__table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.library__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.library__table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.library__matchup {
+  font-weight: 600;
+}
+
+.library__result {
+  white-space: nowrap;
+}
+
+.library__score {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.library__date {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.library__opening {
+  color: var(--text-dim);
+}
+
+.library__eco {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-right: 6px;
+}
+
+.library__col-action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.library__pager {
+  justify-content: center;
+}
+
+.library--empty {
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ---------- Dashboard ---------- */
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dashboard__greeting {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dashboard__avatar {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.dashboard__greeting-label {
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.dashboard__name {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.dashboard__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--bg-raised), var(--bg-panel));
+}
+
+.dashboard__banner-meta {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.dashboard__section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dashboard__section-title {
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.dashboard--empty {
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.dashboard-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dashboard-card__source {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.dashboard-card__badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.dashboard-card__badge--win {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.dashboard-card__badge--loss {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.dashboard-card__badge--draw {
+  color: var(--text-dim);
+}
+
+.dashboard-card__badge--live {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.dashboard-card__players {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.92rem;
+}
+
+.dashboard-card__player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Same disc convention as the board's player bars (`.player-bar__disc`) —
+   a plain colour marker for which side this row is, not a fake avatar. */
+.dashboard-card__disc {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 12px;
+  border: 1px solid var(--border-soft);
+}
+
+.dashboard-card__disc--white {
+  background: #e8e9ea;
+}
+
+.dashboard-card__disc--black {
+  background: #14161a;
+}
+
+.dashboard-card__opening {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-sunken);
+}
+
+.dashboard-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.dashboard-card__meta {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* ---------- Login / connect ---------- */
+
+.login {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login__head {
+  text-align: center;
+}
+
+.login__title {
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+}
+
+.login__subtitle {
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+.login__connected {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login__connected-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.login__connected-row:first-of-type {
+  border-top: none;
+}
+
+.login__connected-name {
+  color: var(--text-dim);
+}
+
+.login__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.login__option {
+  text-align: center;
+  align-items: center;
+}
+
+.login__option .form__label,
+.login__option .form__input {
+  align-self: stretch;
+  text-align: left;
+}
+
+/* Header indicator, replacing the plain tagline once connected. */
+.app__connected {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.app__connected:hover {
+  color: var(--text);
+}
+
+/* Visually hidden, still announced by screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Analysis layout ---------- */
+
+.analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.analysis__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.analysis__opening {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+/* Live opening name on the play-bot header: same line as "Playing White", one
+   step brighter so the opening reads as the changing value next to it. */
+.analysis__opening-name {
+  color: var(--text);
+}
+
+.analysis__header .button {
+  margin-left: auto;
+}
+
+/*
+ * The side column's width is a *fixed* 340px, deliberately not a
+ * `minmax(280px, 360px)` range.
+ *
+ * With a range, the track sizes itself from its own content, and the move list's
+ * content changes on every single ply — SAN strings differ in length (`e4` vs
+ * `Qxf7+`), so the resolved width drifted inside that range as a game went on.
+ * Pinning the side column removes the feedback loop at its source: the board's
+ * width is now a function of the viewport alone and cannot respond to the move
+ * list's contents.
+ *
+ * 340px sits inside the old range (whose *max* was 360px and whose min the
+ * panels already rendered fine at), so the accuracy, rating, move-summary and
+ * move-list panels all keep the widths they were already being given.
+ *
+ * The board column is `auto` (sized to fit the board itself), not `1fr`
+ * (grab all remaining width). `1fr` made the column far wider than the
+ * (viewport-height-capped) board on any short/wide window, leaving a large
+ * dead-space gap between the board and the side panel — chess.com's analysis
+ * view keeps the board and panel adjacent instead. `justify-content: center`
+ * then centers the now content-sized (board + panel) pair as a group within
+ * the row, matching that layout.
+ */
+.analysis__body {
+  display: grid;
+  grid-template-columns: auto 340px;
+  justify-content: center;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .analysis__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analysis__board-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/*
+ * The board must never move, so it is never allowed to be the reason the page
+ * scrolls. `.move-list__scroll`'s own clamp (see "Move list" below) already
+ * shrinks first to absorb a short viewport, but the accuracy rings, the fixed
+ * 9-row move-breakdown table and the evaluation graph have a real combined
+ * minimum height of their own — on a short enough window even a fully
+ * collapsed move list cannot bring the sidebar's *other* content under the
+ * available space. `max-height` + `overflow-y: auto` here is the fallback for
+ * that case: it bounds the sidebar to exactly the space beside the board (the
+ * same `100vh - 201px` the move-list clamp is tuned against — 137px above the
+ * side column, 64px of page bottom padding below it), so if content still
+ * overflows, the *sidebar* scrolls as a unit instead of the page — the board
+ * stays fully visible and fixed either way.
+ */
+.analysis__side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-height: calc(100vh - 201px);
+  overflow-y: auto;
+}
+
+/* ---------- Player name strips (play-bot board) ---------- */
+
+/*
+ * Slim strip that sits directly above (opponent) and below (player) the board.
+ * Deliberately not a `.panel`: a full card's padding and elevation would compete
+ * with the board it is labelling, so this borrows the panel surface and border
+ * at a much lighter weight — closer to the thin name strips online boards use.
+ */
+.player-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel);
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.player-bar__name {
+  font-weight: 600;
+}
+
+.player-bar__meta {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+/* Estimated rating, right-aligned in the bar — same figure that used to be
+   its own sidebar panel (see `PlayerBar` in GameAnalysisPage.tsx). */
+.player-bar__rating {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+/* Plain colour disc standing in for an avatar — it says which side this player
+   has, which is real information, rather than faking a profile picture. */
+.player-bar__disc {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 12px;
+  border: 1px solid var(--border-soft);
+}
+
+.player-bar__disc--white {
+  background: #e8e9ea;
+}
+
+.player-bar__disc--black {
+  background: #14161a;
+}
+
+/* ---------- Board + eval bar ---------- */
+
+/*
+ * `justify-content: center` is a defensive no-op in the common case: the
+ * board column is now `auto`-sized to fit this row exactly (see
+ * `.analysis__body` above), so there's normally no leftover width to center
+ * within. It only does something on the rare layout where a sibling (e.g. a
+ * wide player-bar) forces `.analysis__board-column` wider than this row's own
+ * content — keeps the board+bar centered instead of flush-left in that case.
+ */
+.board-with-bar {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  justify-content: center;
+}
+
+/*
+ * `flex: 1` alone only ever grows the board to fill available *width* — with
+ * no height limit, a wide-enough viewport made the (always-square) board
+ * taller than the actual screen, so part of it was cut off / required
+ * scrolling to see.
+ *
+ * Naively adding `aspect-ratio` + `max-height` on top of `flex: 1` does not
+ * fix this: flexbox resolves the grown *width* from `flex-grow` first, and a
+ * `max-height` clamp on a flex item does not feed back into shrinking that
+ * already-resolved width to match — the two dimensions fall out of sync into
+ * a non-square box instead. So this drops `flex: 1` growth entirely and sets
+ * an explicit `width` instead, capped by three independent budgets, each
+ * expressed directly in viewport units rather than as a percentage of the
+ * parent: (a) available page width — `min(100vw, 1600px)` mirrors
+ * `.app__main`'s own cap, minus its 40px of padding, the 340px side column
+ * and 24px gap (`.analysis__body`), and 36px for the eval bar (26px) plus its
+ * gap (10px, `.board-with-bar`); (b) an absolute width ceiling (1160px) so an
+ * ultrawide monitor doesn't grow the board past what's comfortable; (c) a
+ * viewport-height budget. A percentage of the parent doesn't work here since
+ * the board column is now sized *to fit the board* (see `.analysis__body`
+ * above) — that would be circular. `aspect-ratio: 1` then derives height
+ * from *that* width cleanly, since there is no competing flex-grow algorithm
+ * fighting it anymore.
+ *
+ * The height budget (400px) is sized for the taller of this component's two
+ * hosts — the bot-play page, which adds player-name bars above and below the
+ * board that the read-only analysis page doesn't have (measured ~380px of
+ * chrome there vs ~293px on the analysis page) — plus a little headroom.
+ */
+.chessboard-wrapper {
+  flex: none;
+  width: min(100vw - 440px, 1160px, 100vh - 400px);
+  aspect-ratio: 1;
+  min-width: 0;
+  /* Containing block for the classification-badge overlay below. */
+  position: relative;
+}
+
+/* ---------- Floating classification badges on the board ---------- */
+
+/*
+ * Square overlay pinned to the top-left of the wrapper and sized from its
+ * width, so it lines up with the (always square) board no matter how tall the
+ * wrapper's flex row ends up. Never takes pointer events: the analysis board is
+ * read-only today, but the same component also backs the draggable bot board
+ * and this must never be able to swallow a drag.
+ */
+.board-badges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.board-badge {
+  position: absolute;
+  /* `left`/`top` are set inline as the badge's centre point, so pull back by
+     half the badge to centre it on that point. */
+  width: 4.25%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  animation: board-badge-in 0.14s ease-out both;
+}
+
+.board-badge__glyph {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.board-badge__glyph text {
+  fill: currentColor;
+  font-size: 52px; /* Relative to the 100x100 viewBox, so it scales with the board. */
+  font-weight: 700;
+  font-family: inherit;
+}
+
+@keyframes board-badge-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-badge {
+    animation: none;
+  }
+}
+
+.eval-bar {
+  position: relative;
+  width: 26px;
+  flex: 0 0 26px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #2f3237; /* black's share */
+  display: flex;
+}
+
+/* White's block grows from the side of the board White is playing from. */
+.eval-bar--white {
+  flex-direction: column-reverse;
+}
+
+.eval-bar--black {
+  flex-direction: column;
+}
+
+.eval-bar__white {
+  width: 100%;
+  background: #eeeeee;
+  transition: height 0.25s ease;
+}
+
+.eval-bar__label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.eval-bar__label--top {
+  top: 4px;
+}
+
+.eval-bar__label--bottom {
+  bottom: 4px;
+}
+
+.eval-bar__label--white {
+  color: #14161a;
+}
+
+.eval-bar__label--black {
+  color: #e8e9ea;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Board theme picker ---------- */
+
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Sized and bordered to match `.button` so it sits level with the mute toggle
+   in the same controls row, but square and padding-free — the swatch itself is
+   the whole control. */
+.theme-swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+.theme-swatch:hover {
+  border-color: #454a52;
+  transform: translateY(-1px);
+}
+
+.theme-swatch--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.theme-swatch__half {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-swatch:hover {
+    transform: none;
+  }
+}
+
+.controls__counter {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  min-width: 64px;
+  text-align: center;
+}
+
+.current-move {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  min-height: 24px;
+}
+
+.current-move strong {
+  color: var(--text);
+}
+
+.current-move__badge {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.current-move__best {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+/* ---------- Accuracy ---------- */
+
+.accuracy__grid {
+  display: flex;
+  justify-content: space-around;
+  gap: 16px;
+}
+
+.accuracy__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.accuracy__ring {
+  width: 84px;
+  height: 84px;
+}
+
+.accuracy__value {
+  font-size: 17px;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.accuracy__label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Move breakdown ---------- */
+
+/* One shared track so the head labels sit exactly over their count columns. */
+.move-summary__head,
+.move-summary__row {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr 2.5rem;
+  align-items: center;
+  gap: 8px;
+}
+
+.move-summary__head {
+  padding: 0 4px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.move-summary__side {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.move-summary__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.move-summary__row {
+  padding: 4px;
+  border-radius: 5px;
+}
+
+.move-summary__row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.move-summary__count {
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--text);
+}
+
+/* Empty tiers stay in place for a stable layout, but recede. */
+.move-summary__count--zero {
+  color: var(--text-dim);
+  opacity: 0.5;
+  font-weight: 500;
+}
+
+.move-summary__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.86rem;
+}
+
+.move-summary__icon {
+  flex: 0 0 1.4rem;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.move-summary__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Move list ---------- */
+
+/*
+ * The move list is the only part of the page meant to scroll — the board must
+ * stay fully visible and fixed, never pushed off-screen by a tall sidebar. A
+ * fixed 420px max-height couldn't guarantee that: on a short viewport the
+ * *rest* of the sidebar (accuracy rings, the 9-row move-breakdown table, the
+ * evaluation graph) plus this list's own 420px could add up to more than the
+ * viewport, forcing the whole page to scroll — carrying the board with it.
+ *
+ * `calc(100vh - 1086px)` is that "everything else" measured directly
+ * (`getBoundingClientRect()` on each sidebar piece at a real viewport, added
+ * up exactly): side column top offset 137px + accuracy panel 139.9px + move
+ * breakdown table 344px + this list's own header/margin 47.7px + combined
+ * panel's own padding and section dividers 66px + gap to the eval graph 16px
+ * + the eval graph 271.4px + the page's bottom padding 64px = 1086px.
+ * Whatever height is left over after that goes to the move list; `clamp()`
+ * keeps it from vanishing on a short window (90px floor — a couple of visible
+ * rows) or growing needlessly tall on a roomy one (420px ceiling, the
+ * original size). On a window too short even for the 90px floor to fit
+ * alongside everything else, `.analysis__side-column`'s own overflow (below)
+ * is the backstop — this clamp is the first line of defense, not the only one.
+ */
+.move-list__scroll {
+  max-height: clamp(90px, calc(100vh - 1086px), 420px);
+  overflow-y: auto;
+}
+
+.move-list__row {
+  display: grid;
+  grid-template-columns: 38px 1fr 1fr;
+  align-items: center;
+  gap: 4px;
+}
+
+.move-list__row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.move-list__number {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  padding-left: 4px;
+}
+
+.move-list__cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.9rem;
+  min-width: 0;
+}
+
+.move-list__cell--empty {
+  cursor: default;
+}
+
+.move-list__cell:hover:not(.move-list__cell--empty) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.move-list__cell--active {
+  background: rgba(150, 188, 75, 0.16);
+  border-color: rgba(150, 188, 75, 0.5);
+}
+
+.move-list__san {
+  font-weight: 600;
+}
+
+.move-list__icon {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.move-list--empty {
+  color: var(--text-dim);
+}
+
+/* Read-only move cells (bot games have nothing to navigate to). */
+.move-list__cell--static {
+  cursor: default;
+  color: var(--text);
+}
+
+/* ---------- Play vs bot ---------- */
+
+.bot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  margin-right: auto;
+  min-height: 24px;
+}
+
+.bot-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: bot-thinking-pulse 1s ease-in-out infinite;
+}
+
+@keyframes bot-thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bot-status__dot {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
+.bot-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: rgba(150, 188, 75, 0.12);
+  border: 1px solid rgba(150, 188, 75, 0.45);
+}
+
+.bot-result strong {
+  font-size: 1.05rem;
+}
+
+.bot-result__score {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.bot-result .button {
+  margin-left: auto;
+}
+
+/* ---------- Eval graph ---------- */
+
+.eval-graph__svg {
+  display: block;
+  width: 100%;
+  height: 180px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  background: var(--bg-sunken);
+}
+
+.eval-graph__hint {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.eval-graph--empty {
+  color: var(--text-dim);
+}

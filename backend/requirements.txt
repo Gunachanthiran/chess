@@ -1,0 +1,27 @@
+# ChessScope backend dependencies (Python 3.12+)
+# Install with:  pip install -r requirements.txt
+
+# --- API ---
+fastapi==0.141.1
+uvicorn[standard]==0.52.3
+websockets==17.0.1
+
+# --- Database ---
+SQLAlchemy==2.0.52
+alembic==1.19.1
+psycopg[binary]==3.3.4
+
+# --- Settings ---
+pydantic-settings==2.15.0
+
+# --- Async analysis ---
+celery[redis]==5.6.3
+redis==6.4.0
+
+# --- Chess + external APIs ---
+chess==1.11.2
+httpx==0.28.1
+
+# --- Tests ---
+pytest==9.1.1
+pytest-asyncio==1.4.0

@@ -1,0 +1,105 @@
+# Render Blueprint — deploys all four ChessScope services + the database in
+# one shot. In Render's dashboard: New -> Blueprint -> pick this repo.
+#
+# Service names below become each service's default onrender.com subdomain
+# (e.g. chessscope-api -> https://chessscope-api.onrender.com), IF that name
+# isn't already taken by someone else on Render. If Render has to suffix it
+# (e.g. chessscope-api-a1b2), the two `https://chessscope-api.onrender.com`
+# references below (chessscope-worker doesn't need one; only the frontend's
+# VITE_API_BASE_URL and the api service's own BACKEND_BASE_URL do) will be
+# wrong — fix by editing that one env var in Render's dashboard and
+# redeploying, no code change needed. There's no Blueprint-level way to
+# auto-inject a service's *public* URL (only its private-network host, which
+# the browser can't reach), so this one manual check after first deploy is
+# unavoidable.
+
+databases:
+  - name: chessscope-db
+    plan: free
+
+services:
+  # --- API -------------------------------------------------------------
+  - name: chessscope-api
+    type: web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    preDeployCommand: alembic upgrade head
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chessscope-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: chessscope-redis
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://chessscope-frontend.onrender.com
+      - key: BACKEND_BASE_URL
+        value: https://chessscope-api.onrender.com
+      - key: FRONTEND_BASE_URL
+        value: https://chessscope-frontend.onrender.com
+
+  # --- Celery worker, disguised as a free web service -------------------
+  # Background Workers can't use Render's free plan; a Web Service can. This
+  # runs the real `celery worker` as a background process and a two-route
+  # stub ASGI app (app/worker_health.py) in the foreground just to satisfy
+  # the "must bind $PORT" requirement of the free web-service plan. Nothing
+  # ever calls this service's HTTP routes for real work.
+  - name: chessscope-worker
+    type: web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: >-
+      sh -c 'celery -A app.celery_app worker --loglevel=info --concurrency=1 &
+      uvicorn app.worker_health:app --host 0.0.0.0 --port ${PORT:-8000}'
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chessscope-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: chessscope-redis
+          property: connectionString
+      # Conservative for a free instance's limited CPU/RAM — trades analysis
+      # depth/speed for actually fitting. Safe to raise later from Render's
+      # dashboard (no redeploy needed) if/when this moves to a paid plan.
+      - key: STOCKFISH_DEPTH
+        value: "14"
+      - key: STOCKFISH_THREADS
+        value: "1"
+      - key: STOCKFISH_HASH_MB
+        value: "64"
+      - key: ANALYSIS_POOL_SIZE
+        value: "1"
+      - key: ANALYSIS_POOL_THREADS_PER_ENGINE
+        value: "1"
+
+  # --- Redis-compatible broker / progress pub-sub -----------------------
+  - name: chessscope-redis
+    type: keyvalue
+    plan: free
+
+  # --- Frontend static build ---------------------------------------------
+  - name: chessscope-frontend
+    type: web
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      # Vite bakes this in at *build* time, not read at runtime — this must
+      # be correct before `npm run build` runs, which is exactly when Render
+      # applies it during the build step above.
+      - key: VITE_API_BASE_URL
+        value: https://chessscope-api.onrender.com
+    routes:
+      # React Router's client-side routes (e.g. /login, /analysis/:id) only
+      # exist in JS — without this, anything but the literal `/` 404s on a
+      # direct visit or a reload.
+      - source: /*
+        destination: /index.html
