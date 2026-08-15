@@ -25,7 +25,11 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    preDeployCommand: alembic upgrade head
+    # `preDeployCommand` isn't available on the free plan, so migrations run
+    # as part of this service's own start command instead — only here, never
+    # on chessscope-worker below, so two containers never race running
+    # `alembic upgrade head` against each other on a simultaneous first boot.
+    dockerCommand: sh -c 'alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -34,6 +38,7 @@ services:
       - key: REDIS_URL
         fromService:
           name: chessscope-redis
+          type: keyvalue
           property: connectionString
       - key: CORS_ORIGINS
         value: https://chessscope-frontend.onrender.com
@@ -65,6 +70,7 @@ services:
       - key: REDIS_URL
         fromService:
           name: chessscope-redis
+          type: keyvalue
           property: connectionString
       # Conservative for a free instance's limited CPU/RAM — trades analysis
       # depth/speed for actually fitting. Safe to raise later from Render's
@@ -84,6 +90,11 @@ services:
   - name: chessscope-redis
     type: keyvalue
     plan: free
+    # Both consumers (the api and worker services above) reach this over
+    # Render's private network via `fromService`, never the public internet,
+    # so blocking all external connections is the correct — and more
+    # secure — choice here, not just a way to satisfy the required field.
+    ipAllowList: []
 
   # --- Frontend static build ---------------------------------------------
   - name: chessscope-frontend
@@ -101,5 +112,6 @@ services:
       # React Router's client-side routes (e.g. /login, /analysis/:id) only
       # exist in JS — without this, anything but the literal `/` 404s on a
       # direct visit or a reload.
-      - source: /*
+      - type: rewrite
+        source: /*
         destination: /index.html
