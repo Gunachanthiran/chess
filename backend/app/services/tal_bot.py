@@ -83,14 +83,18 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # quietly making GRANDMASTER_SEARCH_DEPTH decorative. This tier gets a longer
 # leash; it still bounds the synchronous HTTP request.
 #
-# Was 20s, then trimmed back to 10s: the user felt every move as a real wait,
-# and 10s still keeps most of what the multi-threaded search (see
-# `engine_pool`) bought over the original 6s baseline — the throughput gain
-# from Threads/Hash matters more to reached depth than this last few seconds
-# of budget does. Nothing between the browser and uvicorn imposes a shorter
+# Was 20s, then 10s, now 5s — each cut for the same reason (a live opponent
+# felt every move as a real wait), most recently after deploying to a free
+# host whose CPU is a small fraction of a real core: at 10s the wait was
+# worse there than the original 20s was locally. The search essentially
+# always spends its *entire* budget before reaching depth 26 regardless of
+# host (confirmed: even on a full local core, a single-threaded search still
+# used the whole 10s rather than finishing early) — so this constant is, in
+# practice, choosing "how many seconds of search" outright, not a rarely-hit
+# safety ceiling. Nothing between the browser and uvicorn imposes a shorter
 # deadline (`apiFetch` sets no timeout and there is no proxy in front of the
 # app), so the request survives whatever this is set to.
-GRANDMASTER_TIME_LIMIT_S = 10.0
+GRANDMASTER_TIME_LIMIT_S = 5.0
 
 
 def is_grandmaster(elo: int) -> bool:
