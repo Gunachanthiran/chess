@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.db import get_db
 from app.errors import NotFoundError, ValidationError
@@ -16,6 +16,7 @@ from app.schemas.game import (
     GameListResponse,
     GameOut,
     GameResponse,
+    GameSummaryOut,
     PGNUploadRequest,
 )
 
@@ -64,6 +65,15 @@ def _game_out(game: Game, latest_completed_job_id) -> GameOut:
     )
 
 
+def _game_summary_out(game: Game, latest_completed_job_id) -> GameSummaryOut:
+    """Like `_game_out`, but for `GameSummaryOut` — critically, this never
+    touches `game.pgn`, so it never triggers the deferred column's lazy
+    load (see the `defer(Game.pgn)` in `list_games` below)."""
+    return GameSummaryOut.model_validate(game).model_copy(
+        update={"latest_completed_job_id": latest_completed_job_id}
+    )
+
+
 @router.get("", response_model=GameListResponse)
 def list_games(
     limit: int = Query(default=50, ge=1, le=200),
@@ -71,7 +81,13 @@ def list_games(
     source: GameSource | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> GameListResponse:
-    base_query = select(Game)
+    # `defer(Game.pgn)`: no page anywhere reads a listed game's PGN text, so
+    # this saves real memory/bandwidth, not just JSON payload size — up to
+    # `limit` (200) rows' worth of PGN text (a few KB each for a long game)
+    # never gets fetched from Postgres or held in Python at all, rather than
+    # being fetched and then discarded. Confirmed as a real contributor to
+    # `chessscope-api` hitting its 512MB limit on Render's free tier.
+    base_query = select(Game).options(defer(Game.pgn))
     count_query = select(func.count()).select_from(Game)
     if source is not None:
         base_query = base_query.where(Game.source == source)
@@ -95,7 +111,10 @@ def list_games(
     ).all()
 
     return GameListResponse(
-        games=[_game_out(game, latest_completed_job_id) for game, latest_completed_job_id in rows],
+        games=[
+            _game_summary_out(game, latest_completed_job_id)
+            for game, latest_completed_job_id in rows
+        ],
         total=total,
     )
 

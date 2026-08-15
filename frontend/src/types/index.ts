@@ -13,7 +13,10 @@ export type Game = {
   chess_com_game_id: string | null;
   /** The account a bulk import was run for — i.e. whose game this is. */
   imported_username: string | null;
-  pgn: string;
+  /** Present on a single-game fetch (GET /api/games/{id}); omitted from list
+   * responses (GET /api/games) — nothing in the frontend reads it, and
+   * shipping full PGN text for up to 200 games per page was pure waste. */
+  pgn?: string;
   white_name: string;
   black_name: string;
   white_elo: number | null;

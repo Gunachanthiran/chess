@@ -20,7 +20,11 @@ class LichessImportRequest(BaseModel):
     recent: bool = False
 
 
-class GameOut(BaseModel):
+class _GameFields(BaseModel):
+    """Shared columns between the full (`GameOut`) and list (`GameSummaryOut`)
+    shapes. `pgn` is the one deliberate omission here, not an oversight — see
+    `GameSummaryOut`."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -28,7 +32,6 @@ class GameOut(BaseModel):
     lichess_game_id: str | None
     chess_com_game_id: str | None
     imported_username: str | None
-    pgn: str
     white_name: str
     black_name: str
     white_elo: int | None
@@ -48,10 +51,28 @@ class GameOut(BaseModel):
     latest_completed_job_id: uuid.UUID | None = None
 
 
+class GameOut(_GameFields):
+    pgn: str
+
+
+class GameSummaryOut(_GameFields):
+    """`GameOut` without `pgn` — used for `GameListResponse` only.
+
+    No frontend page ever reads a fetched game's `pgn` (confirmed by
+    grepping the whole frontend), so shipping it back for every row of a
+    200-game page was pure waste — real enough to have contributed to
+    `chessscope-api` hitting its 512MB memory limit on Render's free tier.
+    `routers/games.py::list_games` also defers loading the `pgn` column at
+    the SQL level for the same reason: the win is in never holding a few
+    hundred KB of PGN text in memory per request, not just in trimming the
+    JSON response after the fact.
+    """
+
+
 class GameResponse(BaseModel):
     game: GameOut
 
 
 class GameListResponse(BaseModel):
-    games: list[GameOut]
+    games: list[GameSummaryOut]
     total: int
