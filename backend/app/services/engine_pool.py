@@ -29,11 +29,12 @@ MAX_UCI_ELO = 3190
 # HTTP request can never stall on the engine.
 CANDIDATE_TIME_LIMIT_S = 1.5
 
-# Wall-clock ceiling for a single `analyse` search. Depth alone is an unbounded
-# promise: how long depth N takes varies by orders of magnitude with the
-# position, so one pathological middlegame position could otherwise dominate a
-# whole game's analysis time. Whichever bound is reached first ends the search.
-ANALYSIS_TIME_LIMIT_S = 8.0
+# Wall-clock ceiling for a single `analyse` search — see
+# `Settings.ANALYSIS_TIME_LIMIT_S` for why this is configurable rather than a
+# fixed constant. Depth alone is an unbounded promise: how long depth N takes
+# varies by orders of magnitude with the position and the machine, so one
+# pathological middlegame position could otherwise dominate a whole game's
+# analysis time. Whichever bound is reached first ends the search.
 
 # Search budget for an elo-capped engine.
 #
@@ -199,9 +200,10 @@ class StockfishEngine:
         The second-best line comes from the same multipv=2 search, so a position
         is only ever handed to the engine once.
 
-        The search is bounded by depth *and* by `ANALYSIS_TIME_LIMIT_S`;
-        whichever is hit first ends it, so no single position can run away with
-        an unbounded amount of wall-clock time.
+        The search is bounded by depth *and* by
+        `settings.ANALYSIS_TIME_LIMIT_S`; whichever is hit first ends it, so no
+        single position can run away with an unbounded amount of wall-clock
+        time.
         """
         if board.is_game_over(claim_draw=False):
             return self._terminal_analysis(board).as_dict()
@@ -210,7 +212,7 @@ class StockfishEngine:
             raise EngineError("Stockfish engine is not running.", {"path": self.path})
 
         limit = chess.engine.Limit(
-            depth=depth or self.depth, time=ANALYSIS_TIME_LIMIT_S
+            depth=depth or self.depth, time=settings.ANALYSIS_TIME_LIMIT_S
         )
         try:
             infos = self._engine.analyse(board, limit, multipv=2)

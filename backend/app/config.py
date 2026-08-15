@@ -87,6 +87,18 @@ class Settings(BaseSettings):
     ANALYSIS_POOL_SIZE: int = 4
     ANALYSIS_POOL_THREADS_PER_ENGINE: int = 2
 
+    # Wall-clock ceiling for a single position's search in the full-game
+    # analysis pipeline (`engine_pool.StockfishEngine.analyse`). Whichever
+    # bound is hit first — STOCKFISH_DEPTH or this — ends the search, so one
+    # pathological position can never run away with an unbounded amount of
+    # time. On a CPU-constrained deployment (e.g. Render's free tier, ~0.1
+    # CPU) the depth bound can be the one that's *never* reached within the
+    # default 8s, silently analysing shallower than STOCKFISH_DEPTH promises
+    # — raising this (not depth, and not thread/pool counts, which don't
+    # help when the real bottleneck is a fractional CPU allocation) is the
+    # actual fix for that, at the cost of a slower job overall.
+    ANALYSIS_TIME_LIMIT_S: float = 8.0
+
     CORS_ORIGINS: str = "http://localhost:5173"
 
     LICHESS_API_BASE: str = "https://lichess.org"

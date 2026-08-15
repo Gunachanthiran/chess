@@ -89,6 +89,17 @@ services:
         value: "1"
       - key: ANALYSIS_POOL_THREADS_PER_ENGINE
         value: "1"
+      # More threads/pool size wouldn't help here — this instance only ever
+      # has ~0.1 real CPU, so extra concurrency just competes for the same
+      # fractional budget with added overhead rather than doing more work in
+      # parallel. What *was* silently costing accuracy: the 8s-per-position
+      # default (STOCKFISH_DEPTH's actual enforcement mechanism, see
+      # Settings.ANALYSIS_TIME_LIMIT_S) often wasn't enough time to reach
+      # depth 14 on this CPU budget, so some positions were being analysed
+      # shallower than configured without any visible sign of it. Raised
+      # here instead — slower jobs, but actually reaches the promised depth.
+      - key: ANALYSIS_TIME_LIMIT_S
+        value: "30"
 
   # --- Redis-compatible broker / progress pub-sub -----------------------
   - name: chessscope-redis
