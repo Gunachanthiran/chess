@@ -83,27 +83,37 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # quietly making GRANDMASTER_SEARCH_DEPTH decorative. This tier gets a longer
 # leash; it still bounds the synchronous HTTP request.
 #
-# Was 20s, then 10s, then 5s, now 2s — each cut for the same reason (a live
-# opponent felt every move as a real wait). The search essentially always
-# spends its *entire* requested budget before reaching depth 26 regardless of
-# host (confirmed: even on a full local core, a single-threaded search still
-# used the whole budget rather than finishing early) — so this constant is,
-# in practice, choosing "how many seconds of search" outright, not a
-# rarely-hit safety ceiling.
+# Was 20s, then 10s, then 5s, then 2s, now 0.5s — each cut for the same
+# reason (a live opponent felt every move as a real wait). The search
+# essentially always spends its *entire* requested budget before reaching
+# depth 26 regardless of host, so this constant is, in practice, choosing
+# "how many seconds of search" outright, not a rarely-hit safety ceiling.
 #
-# On the free-tier host this stopped being a clean 1:1 mapping, though:
-# asked for 5s, measured 10-15s real wall-clock time in production. A
+# On the free-tier host this is not a clean 1:1 mapping, though: this is
+# *requested* engine time, not *delivered* wall-clock time there. A
 # CPU-starved process (this host gets roughly a tenth of a real core) gets
 # scheduled far less often, so Stockfish's own internal clock-checking
 # between search iterations happens less frequently too — by the time it
 # next checks the clock and notices the deadline passed, more real time has
-# elapsed than the deadline itself. This constant is therefore requested
-# time, not delivered time, on that host; 2s here is aimed at landing closer
-# to the ~5s of previous rounds' real-world feel, not literally "2 seconds."
+# elapsed than the deadline itself. Measured overshoot so far: 5s requested
+# -> 10-15s real, then 2s requested -> 7s real (~3.5x). 0.5s here is that
+# measured ratio applied forward, aimed at landing near ~2s real wall-clock
+# time — an estimate again, not a guarantee, since the ratio itself has
+# varied between measurements (position complexity, host load).
+#
+# Below roughly this point, the fixed per-move cost of spawning a fresh
+# Stockfish process and completing the UCI handshake (~0.4s measured
+# locally, likely more when CPU-starved — see `engine_pool.StockfishEngine`)
+# starts to dominate over the search time itself, so further cuts here have
+# rapidly diminishing returns. The next real lever past that floor is
+# reusing one long-lived engine process across moves instead of spawning a
+# new one per move — a bigger change (needs a lifecycle-managed, lock-guarded
+# shared engine), not attempted yet since it hasn't been asked for.
+#
 # Nothing between the browser and uvicorn imposes a shorter deadline
 # (`apiFetch` sets no timeout, no proxy sits in front of the app), so the
 # request survives whatever this ends up actually taking.
-GRANDMASTER_TIME_LIMIT_S = 2.0
+GRANDMASTER_TIME_LIMIT_S = 0.5
 
 
 def is_grandmaster(elo: int) -> bool:
