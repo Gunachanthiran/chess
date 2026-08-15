@@ -83,18 +83,27 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # quietly making GRANDMASTER_SEARCH_DEPTH decorative. This tier gets a longer
 # leash; it still bounds the synchronous HTTP request.
 #
-# Was 20s, then 10s, now 5s — each cut for the same reason (a live opponent
-# felt every move as a real wait), most recently after deploying to a free
-# host whose CPU is a small fraction of a real core: at 10s the wait was
-# worse there than the original 20s was locally. The search essentially
-# always spends its *entire* budget before reaching depth 26 regardless of
+# Was 20s, then 10s, then 5s, now 2s — each cut for the same reason (a live
+# opponent felt every move as a real wait). The search essentially always
+# spends its *entire* requested budget before reaching depth 26 regardless of
 # host (confirmed: even on a full local core, a single-threaded search still
-# used the whole 10s rather than finishing early) — so this constant is, in
-# practice, choosing "how many seconds of search" outright, not a rarely-hit
-# safety ceiling. Nothing between the browser and uvicorn imposes a shorter
-# deadline (`apiFetch` sets no timeout and there is no proxy in front of the
-# app), so the request survives whatever this is set to.
-GRANDMASTER_TIME_LIMIT_S = 5.0
+# used the whole budget rather than finishing early) — so this constant is,
+# in practice, choosing "how many seconds of search" outright, not a
+# rarely-hit safety ceiling.
+#
+# On the free-tier host this stopped being a clean 1:1 mapping, though:
+# asked for 5s, measured 10-15s real wall-clock time in production. A
+# CPU-starved process (this host gets roughly a tenth of a real core) gets
+# scheduled far less often, so Stockfish's own internal clock-checking
+# between search iterations happens less frequently too — by the time it
+# next checks the clock and notices the deadline passed, more real time has
+# elapsed than the deadline itself. This constant is therefore requested
+# time, not delivered time, on that host; 2s here is aimed at landing closer
+# to the ~5s of previous rounds' real-world feel, not literally "2 seconds."
+# Nothing between the browser and uvicorn imposes a shorter deadline
+# (`apiFetch` sets no timeout, no proxy sits in front of the app), so the
+# request survives whatever this ends up actually taking.
+GRANDMASTER_TIME_LIMIT_S = 2.0
 
 
 def is_grandmaster(elo: int) -> bool:
