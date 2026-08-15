@@ -546,59 +546,116 @@
   line-height: 1.5;
 }
 
-/* ---------- Dashboard ---------- */
+/* ---------- Dashboard (premium redesign pilot) ----------
+ *
+ * Scoped deliberately: every rule below lives under `.dashboard*` /
+ * `.dashboard-card*` classes that only this page uses, and any shared base
+ * class (`.button`, `.panel`) is only ever overridden *within* a `.dashboard`
+ * descendant selector, never redefined at its own class name. Nothing here
+ * changes how Login, Analysis, Play Bot or Library look — this is step one
+ * of a piloted rollout, not a global restyle.
+ */
 
 .dashboard {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 28px;
+  isolation: isolate; /* new stacking context, so the glow layer below stays behind this page's own content without smearing over the fixed header */
+  animation: dashboard-fade-in 0.4s ease both;
+}
+
+@keyframes dashboard-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Ambient colour behind the page — without it, the cards' translucency below
+   has nothing to blur *against* and just reads as plain dark panels. Fixed
+   (not absolute) so it doesn't affect this page's own scroll height. */
+.dashboard::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(650px circle at 12% -5%, rgba(150, 188, 75, 0.1), transparent 60%),
+    radial-gradient(550px circle at 92% 10%, rgba(94, 158, 214, 0.07), transparent 55%);
 }
 
 .dashboard__greeting {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .dashboard__avatar {
-  width: 56px;
-  height: 56px;
-  flex: 0 0 56px;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
   border-radius: 50%;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  color: var(--accent);
+  color: #14161a;
+  background: linear-gradient(135deg, var(--accent), #cbe390);
+  box-shadow: 0 0 0 1px rgba(150, 188, 75, 0.3), 0 10px 28px -10px rgba(150, 188, 75, 0.6);
 }
 
 .dashboard__greeting-label {
   color: var(--text-dim);
   font-size: 0.95rem;
+  letter-spacing: 0.01em;
 }
 
 .dashboard__name {
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .dashboard__banner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 18px;
-  border-radius: var(--radius-panel);
-  border: 1px solid var(--border);
-  background: linear-gradient(135deg, var(--bg-raised), var(--bg-panel));
+  padding: 18px 22px;
+  border-radius: 16px;
+  border: 1px solid rgba(150, 188, 75, 0.25);
+  background: linear-gradient(135deg, rgba(150, 188, 75, 0.14), rgba(39, 42, 48, 0.5));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 36px -16px rgba(150, 188, 75, 0.35);
 }
 
 .dashboard__banner-meta {
   color: var(--text-dim);
   font-size: 0.88rem;
+}
+
+/* Lifts just the banner's own primary button beyond the flat shared
+   `.button--primary` — a descendant override, not a redefinition, so
+   nothing outside the dashboard is affected. */
+.dashboard__banner .button--primary {
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #86ba3f);
+  box-shadow: 0 6px 18px -6px rgba(150, 188, 75, 0.7);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dashboard__banner .button--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px -6px rgba(150, 188, 75, 0.8);
 }
 
 .dashboard__section-head {
@@ -608,8 +665,49 @@
 }
 
 .dashboard__section-title {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
+  font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+/* Pill segmented control — distinct from the shared `.tabs`/`.tabs__tab`
+   (still used as-is by the Bulk Import form) so this page's tab styling
+   never leaks anywhere else. */
+.dashboard__tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+}
+
+.dashboard__tab {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dashboard__tab:hover:not(.dashboard__tab--active) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dashboard__tab--active {
+  background: linear-gradient(135deg, var(--accent), #82b23a);
+  color: #14161a;
+  font-weight: 700;
+  box-shadow: 0 6px 18px -6px rgba(150, 188, 75, 0.55);
 }
 
 .dashboard--empty {
@@ -620,13 +718,26 @@
 .dashboard__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .dashboard-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(31, 33, 38, 0.6);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(150, 188, 75, 0.3);
+  box-shadow: 0 18px 42px -18px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(150, 188, 75, 0.08);
 }
 
 .dashboard-card__head {
@@ -645,39 +756,52 @@
 }
 
 .dashboard-card__badge {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  border: 1px solid transparent;
   white-space: nowrap;
 }
 
 .dashboard-card__badge--win {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: #14161a;
+  background: linear-gradient(135deg, var(--accent), #cbe390);
 }
 
 .dashboard-card__badge--loss {
-  color: var(--danger);
-  border-color: var(--danger);
+  color: #fff;
+  background: linear-gradient(135deg, var(--danger), #e2716d);
 }
 
-.dashboard-card__badge--draw {
+.dashboard-card__badge--draw,
+.dashboard-card__badge--neutral {
   color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border);
 }
 
 .dashboard-card__badge--live {
-  color: var(--warn);
-  border-color: var(--warn);
+  color: #1a1506;
+  background: linear-gradient(135deg, var(--warn), #ffe08a);
+  animation: dashboard-live-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes dashboard-live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(247, 198, 49, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(247, 198, 49, 0);
+  }
 }
 
 .dashboard-card__players {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   font-size: 0.92rem;
 }
 
@@ -708,10 +832,10 @@
 .dashboard-card__opening {
   font-size: 0.82rem;
   color: var(--text-dim);
-  padding: 6px 10px;
+  padding: 7px 11px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--bg-sunken);
+  border-radius: 10px;
+  background: rgba(22, 24, 28, 0.6);
 }
 
 .dashboard-card__foot {
@@ -727,6 +851,39 @@
   color: var(--text-dim);
   font-size: 0.8rem;
   white-space: nowrap;
+}
+
+/* Same descendant-override approach as `.dashboard__banner .button--primary`
+   above — only the buttons inside a dashboard card get the gradient/lift
+   treatment, the shared `.button`/`.button--primary` classes are untouched. */
+.dashboard-card__foot .button {
+  border-radius: 10px;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.dashboard-card__foot .button--primary {
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #86ba3f);
+  box-shadow: 0 6px 16px -6px rgba(150, 188, 75, 0.6);
+}
+
+.dashboard-card__foot .button--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -6px rgba(150, 188, 75, 0.75);
+}
+
+.dashboard-card__foot .button:hover:not(:disabled):not(.button--primary) {
+  transform: translateY(-1px);
+  border-color: rgba(150, 188, 75, 0.35);
+}
+
+.dashboard__pager {
+  justify-content: center;
+}
+
+.dashboard__pager .button {
+  border-radius: 10px;
 }
 
 /* ---------- Login / connect ---------- */

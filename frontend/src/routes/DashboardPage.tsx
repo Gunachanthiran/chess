@@ -309,14 +309,14 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
         <h3 className="dashboard__section-title">Analyze Your Games</h3>
       </div>
 
-      <div className="tabs" role="tablist" aria-label="Filter games">
+      <div className="dashboard__tabs" role="tablist" aria-label="Filter games">
         {TABS.map((item) => (
           <button
             key={item.id}
             type="button"
             role="tab"
             aria-selected={tab === item.id}
-            className={`tabs__tab${tab === item.id ? ' tabs__tab--active' : ''}`}
+            className={`dashboard__tab${tab === item.id ? ' dashboard__tab--active' : ''}`}
             onClick={() => changeTab(item.id)}
           >
             {item.label}
@@ -363,7 +363,7 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
       )}
 
       {!loading && !error && total > PAGE_SIZE && (
-        <div className="controls library__pager">
+        <div className="controls dashboard__pager">
           <button
             className="button"
             type="button"
