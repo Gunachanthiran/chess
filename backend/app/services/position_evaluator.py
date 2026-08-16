@@ -19,9 +19,21 @@ from app.services import lichess_cloud_eval
 from app.services.engine_pool import ANALYSIS_MULTIPV, StockfishEngine
 
 # A cached eval is only worth using if it is at least as deep as the local
-# search it replaces, and never below this floor - a shallow cached entry is
-# strictly worse than what local Stockfish would produce.
-MIN_CLOUD_DEPTH = 20
+# search it replaces (`_required_depth` takes the max of this and the local
+# engine's own `depth`) - this is only a backstop below that, an absolute
+# sanity floor so a local depth configured unusually low couldn't accept a
+# near-worthless cached entry.
+#
+# Was 20, well above production's STOCKFISH_DEPTH=14 (see render.yaml) -
+# which meant cloud hits were being held to a *stricter* bar than local
+# Stockfish itself was ever configured to meet, rejecting perfectly good
+# depth-14-to-19 cached evals and forcing a several-second local search that
+# could do no better. Free-tier analysis time is dominated by exactly these
+# unnecessary local searches, so this is a real, no-quality-cost speedup:
+# every real deployment's local depth (14 in prod, `Settings.STOCKFISH_DEPTH`
+# default 18 in dev) sits above this floor, so it - not this constant - is
+# what actually decides the bar, matching the docstring above.
+MIN_CLOUD_DEPTH = 10
 
 # Keys of the `analyse()` contract, used to strip the cloud response's extra
 # `depth` field so both paths return exactly the same shape.
