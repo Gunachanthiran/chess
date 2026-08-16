@@ -23,6 +23,48 @@ function pick(lines: string[], seed: number): string {
   return lines[((seed % lines.length) + lines.length) % lines.length];
 }
 
+const PIECE_NAMES: Record<string, string> = {
+  K: 'King',
+  Q: 'Queen',
+  R: 'Rook',
+  B: 'Bishop',
+  N: 'Knight',
+};
+
+/**
+ * SAN (`Nd3`, `Qxf7+`, `e8=Q`, `O-O`) to plain spoken English (`Knight on
+ * d3`, `Queen takes on f7, check`, `Pawn on e8 promoting to Queen`, `Castles
+ * kingside`) — coordinate algebraic notation reads fine on a screen but is
+ * exactly the kind of thing that sounds like noise spoken aloud, and is no
+ * clearer written out in a comment either. SAN self-encodes everything this
+ * needs (piece letter, capture, destination, promotion, check/mate) without
+ * requiring the board position, so this is a pure string transform.
+ */
+export function naturalizeSan(san: string): string {
+  if (san.startsWith('O-O-O')) return `Castles queenside${checkSuffix(san)}`;
+  if (san.startsWith('O-O')) return `Castles kingside${checkSuffix(san)}`;
+
+  const body = san.replace(/[+#]$/, '');
+  const promotionMatch = body.match(/=([QRBN])$/);
+  const promotion = promotionMatch ? ` promoting to ${PIECE_NAMES[promotionMatch[1]]}` : '';
+  const withoutPromotion = promotionMatch ? body.slice(0, -promotionMatch[0].length) : body;
+
+  const pieceLetter = /^[KQRBN]/.exec(withoutPromotion)?.[0];
+  const pieceName = pieceLetter ? PIECE_NAMES[pieceLetter] : 'Pawn';
+
+  const destMatch = /[a-h][1-8]$/.exec(withoutPromotion);
+  const dest = destMatch ? destMatch[0] : withoutPromotion;
+  const verb = withoutPromotion.includes('x') ? 'takes on' : 'on';
+
+  return `${pieceName} ${verb} ${dest}${promotion}${checkSuffix(san)}`;
+}
+
+function checkSuffix(san: string): string {
+  if (san.endsWith('#')) return ', checkmate';
+  if (san.endsWith('+')) return ', check';
+  return '';
+}
+
 /** UCI (`e7e8q`) to SAN (`e8=Q`) for one move, given the position it's played from. */
 function uciToSan(fen: string, uci: string): string | null {
   try {
@@ -110,9 +152,10 @@ function bestMoveSentence(move: MoveAnalysis): string {
       ? uciToSan(move.fen_before, move.best_move_uci)
       : null;
   if (!bestSan) return '';
+  const bestPhrase = naturalizeSan(bestSan);
   const drop = Math.round(move.win_pct_before - move.win_pct_after);
-  if (drop > 0) return ` The best move was ${bestSan}, keeping ${drop} more points of winning chances.`;
-  return ` The best move was ${bestSan}.`;
+  if (drop > 0) return ` The best move was ${bestPhrase}, keeping ${drop} more points of winning chances.`;
+  return ` The best move was ${bestPhrase}.`;
 }
 
 const TEMPLATES: Record<Classification, string[]> = {
@@ -143,5 +186,5 @@ const SUBOPTIMAL_TIERS = new Set<Classification>(['inaccuracy', 'mistake', 'blun
 export function commentaryForAnalysisMove(move: MoveAnalysis): string {
   const template = pick(TEMPLATES[move.classification] ?? BEST_LINES, move.ply);
   const suffix = SUBOPTIMAL_TIERS.has(move.classification) ? bestMoveSentence(move) : '';
-  return template.replace('{san}', move.san) + suffix;
+  return template.replace('{san}', naturalizeSan(move.san)) + suffix;
 }

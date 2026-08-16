@@ -1163,10 +1163,76 @@
   }
 }
 
+/*
+ * The analysis page (not the bot-play page — both share `.analysis__body`,
+ * but only this one has a recommendations/coach column) adds a third,
+ * narrower track on the *left*. A modifier class, not a change to the base
+ * rule above: `PlayBotPage` renders exactly two children into that grid
+ * (board, moves), so giving the shared rule a third template column would
+ * auto-place its two items into tracks 1 and 2 — pushing the board into the
+ * new narrow column and leaving a blank 380px gap where the board used to
+ * be, instead of the untouched two-column layout it still wants.
+ *
+ * Explicit `grid-column` per child, not relying on source order, because
+ * `GameAnalysisPage.tsx` deliberately keeps the *board* first in the DOM
+ * (see that file) so a single-column mobile layout stacks the board above
+ * the text panels rather than below them — desktop's left placement here is
+ * purely visual, independent of that order.
+ */
+.analysis__body--with-recommendations {
+  grid-template-columns: 260px auto 380px;
+}
+
+.analysis__body--with-recommendations .analysis__recommendations-column {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.analysis__body--with-recommendations .analysis__board-column {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.analysis__body--with-recommendations .analysis__side-column {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+@media (max-width: 900px) {
+  /*
+   * Single column again — both the template itself and every child's
+   * placement. The template reset is not redundant with the base
+   * `.analysis__body` rule's own mobile reset above: that rule and this
+   * modifier's unconditional 3-column definition have *equal* specificity
+   * (one class each), so without this the modifier — being later in source
+   * order — would keep winning at every width, mobile included, leaving the
+   * page trying to lay out a 260px-auto-380px grid inside a 375px viewport.
+   */
+  .analysis__body--with-recommendations {
+    grid-template-columns: 1fr;
+  }
+
+  /* An explicit leftover `grid-column: 2`/`3` would ask the browser to place
+     these in columns this narrower template no longer has. */
+  .analysis__body--with-recommendations .analysis__recommendations-column,
+  .analysis__body--with-recommendations .analysis__board-column,
+  .analysis__body--with-recommendations .analysis__side-column {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
 .analysis__board-column {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+}
+
+.analysis__recommendations-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -1302,6 +1368,22 @@
   min-width: 0;
   /* Containing block for the classification-badge overlay below. */
   position: relative;
+}
+
+/*
+ * The analysis page's extra 260px left column + its own 24px gap (see
+ * `.analysis__body--with-recommendations` above) isn't in the base budget
+ * above, which was sized for the bot-play page's plain two-column layout —
+ * without this, the analysis board would sit 284px wider than it actually
+ * has room for. Higher specificity (two classes) than the base rule so it
+ * wins there regardless of source order, and gated to `min-width: 901px`
+ * specifically so it can never outrank the mobile single-column override
+ * below on specificity alone — the two are disjoint ranges instead.
+ */
+@media (min-width: 901px) {
+  .analysis__body--with-recommendations .chessboard-wrapper {
+    width: min(100vw - 764px, 1160px, 100vh - 400px);
+  }
 }
 
 /*
@@ -1973,4 +2055,56 @@
   font-size: 1.15rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Coach panel ---------- */
+
+.coach {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coach__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coach__avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+}
+
+.coach__name {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.coach__mute {
+  margin-left: auto;
+  padding: 6px 10px;
+}
+
+/* Speech-bubble read: a sunken surface with a rounded corner pulled in
+   toward the avatar, echoing a chat bubble without needing an actual
+   pseudo-element tail. */
+.coach__text {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  border-top-left-radius: 2px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }

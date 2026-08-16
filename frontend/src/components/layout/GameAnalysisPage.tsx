@@ -7,6 +7,7 @@ import { EvalGraph } from '../moves/EvalGraph';
 import { AccuracyPanel } from '../analysis/AccuracyPanel';
 import { MoveSummaryPanel } from '../analysis/MoveSummaryPanel';
 import { RecommendationsPanel } from '../analysis/RecommendationsPanel';
+import { CoachPanel } from '../analysis/CoachPanel';
 import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useCoachVoice } from '../../lib/coachVoice';
@@ -196,7 +197,7 @@ export function GameAnalysisPage({
         </button>
       </header>
 
-      <div className="analysis__body">
+      <div className="analysis__body analysis__body--with-recommendations">
         <section className="analysis__board-column">
           <PlayerBar
             side={topPlayer.side}
@@ -255,16 +256,6 @@ export function GameAnalysisPage({
             >
               {muted ? '🔇' : '🔊'}
             </button>
-            <button
-              className="button"
-              type="button"
-              onClick={toggleCoachMuted}
-              title={coachMuted ? 'Turn on coach commentary' : 'Turn off coach commentary'}
-              aria-label={coachMuted ? 'Turn on coach commentary' : 'Turn off coach commentary'}
-              aria-pressed={!coachMuted}
-            >
-              {coachMuted ? '🎙️' : '🗣️'}
-            </button>
             <BoardThemePicker />
           </div>
 
@@ -291,9 +282,20 @@ export function GameAnalysisPage({
               <span>Starting position — use ← → Home End to navigate</span>
             )}
           </div>
-
-          <RecommendationsPanel upcomingMove={upcomingMove} />
         </section>
+
+        {/*
+          DOM order is board, then recommendations, then accuracy/moves — the
+          board comes first on purpose so a narrow (single-column) viewport
+          stacks it above the text panels instead of making the user scroll
+          past commentary to reach it. Desktop's three-column layout still
+          puts this one visually on the *left* via an explicit `grid-column`
+          in App.css, independent of this source order.
+        */}
+        <aside className="analysis__recommendations-column">
+          <RecommendationsPanel upcomingMove={upcomingMove} />
+          <CoachPanel move={currentMove} muted={coachMuted} onToggleMute={toggleCoachMuted} />
+        </aside>
 
         <aside className="analysis__side-column">
           {/* Accuracy, move breakdown and the move list share one card instead
