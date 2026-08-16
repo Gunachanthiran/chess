@@ -1,9 +1,50 @@
 /* ---------- App shell ---------- */
 
 .app {
+  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  isolation: isolate; /* new stacking context, so the glow below stays behind every page's own content instead of smearing over it */
+}
+
+/* Ambient colour behind the *whole* app, not just the dashboard — every
+   `.panel` below is translucent (see `.panel`) and reads as flat, dull glass
+   without something to blur against. `fixed`, not `absolute`, so it never
+   affects any page's own scroll height, and one declaration here covers
+   every route instead of each page needing its own copy. */
+.app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(650px circle at 12% -5%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%),
+    radial-gradient(550px circle at 92% 10%, color-mix(in srgb, #5e9ed6 8%, transparent), transparent 55%);
+}
+
+/* Every page root (`.dashboard`, `.analysis`, `.library`, `.login`, `.start`)
+   opts into this one shared animation instead of each page defining its own
+   copy — a small settle-in on arrival rather than content just snapping into
+   place, applied consistently across the whole app. */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dashboard,
+.analysis,
+.library,
+.login,
+.start {
+  animation: page-fade-in 0.4s ease both;
 }
 
 /* Full-bleed bar; the content inside is what lines up with the page grid. */
@@ -11,7 +52,9 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--bg-panel);
+  background: color-mix(in srgb, var(--bg-panel) 82%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-nav);
 }
@@ -156,18 +199,31 @@
 
 .app__main {
   width: 100%;
-  max-width: 1600px;
+  /* Raised from 1600px so a wide monitor's extra room actually reaches the
+     page — the chessboard's own width formula (below) derives its ultrawide
+     ceiling directly from this number specifically so the two can never
+     disagree about how much space is really available. */
+  max-width: 2000px;
   margin: 0 auto;
   padding: 24px 20px 64px;
 }
 
 /* ---------- Generic surfaces ---------- */
 
+/*
+ * Frosted glass, not a flat fill — the same treatment `.dashboard-card`
+ * piloted before being promoted here to the shared class every page's cards
+ * actually use. Needs `.app::before`'s ambient glow behind it (see the app
+ * shell, top of file) to read as glass rather than as a slightly-lighter
+ * flat rectangle; the two are a matched pair, not independent choices.
+ */
 .panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-panel) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   border-radius: var(--radius-panel);
   padding: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--shadow-panel);
 }
 
@@ -202,12 +258,17 @@
   background: var(--bg-raised);
   color: var(--text);
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
 }
 
 .button:hover:not(:disabled) {
   background: var(--button-hover-bg);
   border-color: var(--button-hover-border);
+  transform: translateY(-1px);
+}
+
+.button:active:not(:disabled) {
+  transform: none;
 }
 
 .button:disabled {
@@ -215,16 +276,20 @@
   cursor: not-allowed;
 }
 
+/* Gradient + glow, not a flat accent fill — the one call-to-action treatment
+   every primary button in the app shares, piloted on the dashboard first. */
 .button--primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border-color: transparent;
   color: var(--accent-contrast);
   font-weight: 600;
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .button--primary:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent-soft);
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent));
+  border-color: transparent;
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--accent) 75%, transparent);
 }
 
 .alert {
@@ -455,26 +520,42 @@
   cursor: not-allowed;
 }
 
+/* Pill/segmented control — same treatment as the dashboard's own tab strip
+   (`.dashboard__tabs`/`.dashboard__tab`, piloted first), promoted here so
+   every other source/mode toggle in the app (bulk import, player search)
+   matches instead of looking like an older, plainer control. */
 .tabs {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid var(--border);
 }
 
 .tabs__tab {
   flex: 1;
   padding: 8px 10px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border);
+  border-radius: 10px;
+  border: none;
   background: transparent;
   color: var(--text-dim);
+  font-weight: 500;
   cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.tabs__tab:hover:not(.tabs__tab--active) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .tabs__tab--active {
-  background: var(--bg-raised);
-  color: var(--text);
-  border-color: var(--border-soft);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: var(--accent-contrast);
+  font-weight: 700;
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 /* ---------- Progress ---------- */
@@ -664,37 +745,9 @@
  */
 
 .dashboard {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 28px;
-  isolation: isolate; /* new stacking context, so the glow layer below stays behind this page's own content without smearing over the fixed header */
-  animation: dashboard-fade-in 0.4s ease both;
-}
-
-@keyframes dashboard-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Ambient colour behind the page — without it, the cards' translucency below
-   has nothing to blur *against* and just reads as plain dark panels. Fixed
-   (not absolute) so it doesn't affect this page's own scroll height. */
-.dashboard::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(650px circle at 12% -5%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
-    radial-gradient(550px circle at 92% 10%, rgba(94, 158, 214, 0.07), transparent 55%);
 }
 
 .dashboard__greeting {
@@ -756,21 +809,6 @@
 .dashboard__banner-meta {
   color: var(--text-dim);
   font-size: 0.88rem;
-}
-
-/* Lifts just the banner's own primary button beyond the flat shared
-   `.button--primary` — a descendant override, not a redefinition, so
-   nothing outside the dashboard is affected. */
-.dashboard__banner .button--primary {
-  border: none;
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 70%, transparent);
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-}
-
-.dashboard__banner .button--primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--accent) 80%, transparent);
 }
 
 .dashboard__section-head {
@@ -841,16 +879,17 @@
   gap: 18px;
 }
 
+/* Background/border/blur now come from the shared `.panel` glass treatment
+   (every card here already carries both classes) — this only adds what a
+   dashboard card specifically needs on top: a rounder corner and the
+   hover-lift below, since these cards (unlike most other panels) are
+   clickable. */
 .dashboard-card {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
   border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
-  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
@@ -973,29 +1012,11 @@
   white-space: nowrap;
 }
 
-/* Same descendant-override approach as `.dashboard__banner .button--primary`
-   above — only the buttons inside a dashboard card get the gradient/lift
-   treatment, the shared `.button`/`.button--primary` classes are untouched. */
+/* The shared `.button`/`.button--primary` classes (App.css, top) already give
+   every button the gradient/lift treatment now — this only tightens the
+   corner radius for a card-footer button specifically. */
 .dashboard-card__foot .button {
   border-radius: 10px;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease,
-    border-color 0.16s ease;
-}
-
-.dashboard-card__foot .button--primary {
-  border: none;
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 60%, transparent);
-}
-
-.dashboard-card__foot .button--primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--accent) 75%, transparent);
-}
-
-.dashboard-card__foot .button:hover:not(:disabled):not(.button--primary) {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .dashboard__pager {
@@ -1345,25 +1366,37 @@
  * a non-square box instead. So this drops `flex: 1` growth entirely and sets
  * an explicit `width` instead, capped by three independent budgets, each
  * expressed directly in viewport units rather than as a percentage of the
- * parent: (a) available page width — `min(100vw, 1600px)` mirrors
- * `.app__main`'s own cap, minus its 40px of padding, the 380px side column
- * and 24px gap (`.analysis__body`), and 36px for the eval bar (26px) plus its
- * gap (10px, `.board-with-bar`); (b) an absolute width ceiling (1160px) so an
- * ultrawide monitor doesn't grow the board past what's comfortable; (c) a
+ * parent: (a) available page width, minus its 40px of padding, the 380px
+ * side column and 24px gap (`.analysis__body`), and 36px for the eval bar
+ * (26px) plus its gap (10px, `.board-with-bar`); (b) an ultrawide ceiling —
+ * 1520px, i.e. `.app__main`'s own 2000px cap minus that identical 480px
+ * budget, so the two can never disagree about what actually fits; (c) a
  * viewport-height budget. A percentage of the parent doesn't work here since
  * the board column is now sized *to fit the board* (see `.analysis__body`
  * above) — that would be circular. `aspect-ratio: 1` then derives height
  * from *that* width cleanly, since there is no competing flex-grow algorithm
  * fighting it anymore.
  *
- * The height budget (400px) is sized for the taller of this component's two
+ * (b) is not a free-standing choice: an earlier version of this ceiling
+ * (1500px, picked independently of `.app__main`) let the board demand more
+ * width than a wide monitor's *actual* centered, capped content box had left
+ * once the side columns were subtracted, overflowing the board on top of
+ * them rather than being constrained by them — budget (a)'s `100vw` term is
+ * the raw viewport, not `.app__main`'s capped content width, so once the
+ * viewport passed roughly 2000px, (a) stopped being the binding constraint
+ * and this ceiling took over instead, at a value bigger than the page really
+ * had room for. Deriving it from the same cap `.app__main` itself uses is
+ * what makes that structurally impossible instead of just numerically
+ * unlikely.
+ *
+ * The height budget (340px) is sized for the taller of this component's two
  * hosts — the bot-play page, which adds player-name bars above and below the
  * board that the read-only analysis page doesn't have (measured ~380px of
  * chrome there vs ~293px on the analysis page) — plus a little headroom.
  */
 .chessboard-wrapper {
   flex: none;
-  width: min(100vw - 480px, 1160px, 100vh - 400px);
+  width: min(100vw - 480px, 1520px, 100vh - 340px);
   aspect-ratio: 1;
   min-width: 0;
   /* Containing block for the classification-badge overlay below. */
@@ -1379,10 +1412,15 @@
  * wins there regardless of source order, and gated to `min-width: 901px`
  * specifically so it can never outrank the mobile single-column override
  * below on specificity alone — the two are disjoint ranges instead.
+ *
+ * The ultrawide ceiling is `.app__main`'s 2000px cap minus this page's own
+ * 764px budget (1236px, not the base rule's 1520px) — same derivation as the
+ * base rule above, just with the extra left column's 284px already
+ * subtracted out of it too.
  */
 @media (min-width: 901px) {
   .analysis__body--with-recommendations .chessboard-wrapper {
-    width: min(100vw - 764px, 1160px, 100vh - 400px);
+    width: min(100vw - 764px, 1236px, 100vh - 340px);
   }
 }
 
@@ -1404,7 +1442,11 @@
  */
 @media (max-width: 900px) {
   .chessboard-wrapper {
-    width: min(100vw - 76px, 100vh - 250px, 560px);
+    /* 560px -> 680px: this range covers tablets too, not just phones, and a
+       680px cap still comfortably clears a phone's own `100vw - 76px` budget
+       (the binding constraint there anyway) while giving a tablet in
+       portrait a noticeably bigger board than before. */
+    width: min(100vw - 76px, 100vh - 250px, 680px);
   }
 }
 

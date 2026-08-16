@@ -347,9 +347,10 @@ export function ChessBoard({
           lightSquareStyle: { backgroundColor: colors.light },
           darkSquareStyle: { backgroundColor: colors.dark },
           boardStyle: {
-            borderRadius: '4px',
+            borderRadius: '10px',
             overflow: 'hidden',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+            boxShadow:
+              '0 20px 48px -16px rgba(0, 0, 0, 0.55), 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent)',
           },
         }}
       />
