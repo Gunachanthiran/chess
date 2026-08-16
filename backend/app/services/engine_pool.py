@@ -310,12 +310,35 @@ class StockfishEngine:
         that same time budget across more root moves, so a time-bounded search
         settles at a marginally shallower effective depth than it used to —
         an acceptable trade for what was otherwise a second engine call away.
+
+        Clears the hash table immediately before searching. `evaluate_positions`
+        (analyze_game.py) calls this once per position on *one* shared engine
+        for a whole game, so without this, position N's transposition table
+        still carries every earlier position's entries into position N+1's
+        search - measured directly: the exact same position, same depth, same
+        engine settings, gave a different score and node count purely
+        depending on what had been searched on that engine beforehand (+55cp
+        fresh vs +58cp after one unrelated earlier position). That's the
+        actual mechanism behind "the same game gives a different report in a
+        different session" - a re-analysis run doesn't reliably repeat the
+        first run's exact sequence of cloud-eval hits and local fallbacks
+        (Lichess's cache, a rate-limit hiccup tripping the circuit breaker,
+        etc.), so two runs' local searches see different histories and
+        therefore different hash state at any given position, cascading into
+        different classifications game-wide. A cleared hash makes each
+        position's result depend only on the position and the configured
+        search budget, matching a search run in complete isolation - verified
+        node-for-node, score-for-score identical to a freshly spawned process.
+        `Clear Hash` is a UCI "button" option: sending it (value ignored)
+        triggers the clear immediately, it isn't a persistent setting.
         """
         if board.is_game_over(claim_draw=False):
             return self._terminal_analysis(board).as_dict()
 
         if self._engine is None:
             raise EngineError("Stockfish engine is not running.", {"path": self.path})
+
+        self._engine.configure({"Clear Hash": None})
 
         limit = chess.engine.Limit(
             depth=depth or self.depth, time=settings.ANALYSIS_TIME_LIMIT_S
