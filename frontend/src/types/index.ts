@@ -85,11 +85,12 @@ export type MoveAnalysis = {
   top_moves: TopMove[] | null;
 };
 
-/** One ranked candidate move — `eval_cp_before`/`_after`'s sibling for a
- * position rather than a single number: `cp`/`mate` are White-POV, exactly
- * like every other evaluation field on `MoveAnalysis`. */
+/** One ranked candidate *line* — the engine's expected continuation for both
+ * sides, not just its first move, best line first. `cp`/`mate` score the
+ * position after `sans[0]` only, White-POV exactly like every other
+ * evaluation field on `MoveAnalysis`. */
 export type TopMove = {
-  uci: string;
+  sans: string[];
   cp: number | null;
   mate: number | null;
 };

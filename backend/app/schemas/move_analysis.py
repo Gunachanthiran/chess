@@ -8,10 +8,13 @@ from app.models.move_analysis import MoveClassification, Side
 
 
 class TopMoveOut(BaseModel):
-    """One ranked candidate from `MoveAnalysis.top_moves` — the "Stockfish
-    recommends" panel's data, best move first."""
+    """One ranked candidate line from `MoveAnalysis.top_moves` — the
+    "Stockfish recommends" panel's data. `sans` is the full principal
+    variation (best move first, followed by the engine's expected
+    continuation for both sides), not just the immediate move; `cp`/`mate`
+    score the position after that first move only."""
 
-    uci: str
+    sans: list[str]
     cp: int | None
     mate: int | None
 

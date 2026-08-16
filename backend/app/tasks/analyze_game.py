@@ -445,18 +445,20 @@ def _second_best_gap(analysis: dict, side: Side) -> int | None:
 
 
 def _top_moves_json(analysis: dict) -> list[dict] | None:
-    """`analysis["top_moves"]` (raw `chess.Move` objects) to the JSON-storable
-    shape `MoveAnalysis.top_moves` expects. `None` when the analysis carries no
-    `top_moves` key at all (defensive - every real path sets it, even to `[]`),
-    so a row is never written with a value that looks like "the engine had no
-    candidates" when the truth is "this data was never computed"."""
+    """`analysis["top_moves"]` (already plain `{"sans": [...], "cp", "mate"}`
+    dicts — see `engine_pool.analyse()`/`lichess_cloud_eval._parse()`) to the
+    JSON-storable shape `MoveAnalysis.top_moves` expects. `None` when the
+    analysis carries no `top_moves` key at all (defensive - every real path
+    sets it, even to `[]`), so a row is never written with a value that looks
+    like "the engine had no candidates" when the truth is "this data was
+    never computed"."""
     top_moves = analysis.get("top_moves")
     if top_moves is None:
         return None
     return [
-        {"uci": item["move"].uci(), "cp": item["cp"], "mate": item["mate"]}
+        {"sans": item["sans"], "cp": item["cp"], "mate": item["mate"]}
         for item in top_moves
-        if item.get("move") is not None
+        if item.get("sans")
     ]
 
 

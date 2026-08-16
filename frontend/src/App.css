@@ -1618,15 +1618,14 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .recommendations__row {
-  display: grid;
-  grid-template-columns: 20px 1fr auto;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 10px;
-  padding: 6px 4px;
+  padding: 8px;
   border-radius: var(--radius-control);
 }
 
@@ -1634,21 +1633,55 @@
   background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
-.recommendations__rank {
-  color: var(--text-dim);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.recommendations__san {
-  font-weight: 600;
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-}
-
+/* A fixed-width pill rather than plain inline text — same "reads at a
+   glance, independent of the prose next to it" job as a classification
+   badge, just for a number instead of a word. */
 .recommendations__eval {
-  color: var(--text-dim);
-  font-size: 0.85rem;
+  flex: 0 0 auto;
+  min-width: 44px;
+  text-align: center;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.recommendations__line {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--text);
+  /* The figurine glyphs (♘♗♜ etc., see RecommendationsPanel.tsx) live in the
+     Unicode "Miscellaneous Symbols" block, which the base UI font stack
+     doesn't necessarily cover even on platforms that have a symbol font
+     installed — explicit fallbacks here are what actually gets the browser
+     to look there instead of silently substituting a tofu box. */
+  font-family:
+    -apple-system,
+    'Segoe UI Symbol',
+    'Apple Symbols',
+    'Noto Sans Symbols',
+    'DejaVu Sans',
+    sans-serif;
+}
+
+.recommendations__toggle {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.recommendations__toggle:hover {
+  color: var(--text);
 }
 
 /* ---------- Accuracy ---------- */

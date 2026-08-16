@@ -31,6 +31,13 @@ MAX_UCI_ELO = 3190
 # each extra line is extra search work inside the same time-bounded budget.
 ANALYSIS_MULTIPV = 3
 
+# How many plies of each candidate's principal variation `analyse()` keeps,
+# not just its first move — the engine already searches this whole line to
+# produce the move's score, so reading further into `info["pv"]` costs
+# nothing extra; this only bounds how much of it gets converted to SAN and
+# stored.
+PV_DISPLAY_PLIES = 10
+
 # Wall-clock ceiling for a single `analyse_candidates` search, so a synchronous
 # HTTP request can never stall on the engine.
 CANDIDATE_TIME_LIMIT_S = 1.5
@@ -257,11 +264,11 @@ class StockfishEngine:
 
         top_moves: list[dict] = []
         for info in infos:
-            move = _first_pv_move(info)
-            if move is None:
+            sans = _pv_to_sans(board, info.get("pv"), PV_DISPLAY_PLIES)
+            if not sans:
                 continue
             cp, mate = _score_to_white_pov(info)
-            top_moves.append({"move": move, "cp": cp, "mate": mate})
+            top_moves.append({"sans": sans, "cp": cp, "mate": mate})
 
         return EngineAnalysis(
             cp=best_cp,
@@ -350,3 +357,21 @@ def _first_pv_move(info: dict) -> chess.Move | None:
     if pv:
         return pv[0]
     return None
+
+
+def _pv_to_sans(board: chess.Board, pv: list[chess.Move] | None, limit: int) -> list[str]:
+    """The first `limit` moves of `pv`, as SAN, replayed on a scratch copy of
+    `board` — never the board `analyse()` was actually called with. `is_legal`
+    is a defensive check, not an expected failure: a `pv` straight from the
+    engine's own search is legal by construction, but stopping at the first
+    move that somehow isn't is safer than a SAN conversion raising mid-line."""
+    if not pv:
+        return []
+    sans: list[str] = []
+    working = board.copy(stack=False)
+    for move in pv[:limit]:
+        if not working.is_legal(move):
+            break
+        sans.append(working.san(move))
+        working.push(move)
+    return sans

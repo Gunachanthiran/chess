@@ -23,6 +23,7 @@ import chess
 import httpx
 
 from app.config import settings
+from app.services.engine_pool import PV_DISPLAY_PLIES
 
 logger = logging.getLogger(__name__)
 
@@ -235,17 +236,19 @@ def _parse(payload: object, fen: str) -> dict | None:
         second_cp, second_mate = _score(pvs[1])
 
     # Same shape as `StockfishEngine.analyse()`'s own `top_moves` — see that
-    # method for why the panel this feeds needs a ranked pool, not just one
-    # move. Built from every returned pv, not just the first two.
+    # method for why the panel this feeds needs full ranked lines, not just
+    # one move each. Lichess already sends the whole line per pv (`moves` is
+    # space-separated UCI, not a single token), so this is a parse, not a
+    # second lookup.
     top_moves: list[dict] = []
     for pv in pvs:
         if not isinstance(pv, dict):
             continue
-        move = _first_move(pv, board)
-        if move is None:
+        sans = _pv_sans(pv, board, PV_DISPLAY_PLIES)
+        if not sans:
             continue
         move_cp, move_mate = _score(pv)
-        top_moves.append({"move": move, "cp": move_cp, "mate": move_mate})
+        top_moves.append({"sans": sans, "cp": move_cp, "mate": move_mate})
 
     return {
         "cp": cp,
@@ -278,6 +281,32 @@ def _first_move(pv: dict, board: chess.Board) -> chess.Move | None:
         return board.parse_uci(tokens[0])
     except ValueError:  # covers both invalid and illegal UCI
         return None
+
+
+def _pv_sans(pv: dict, board: chess.Board, limit: int) -> list[str]:
+    """The first `limit` plies of one pv entry's `moves` string, as SAN.
+
+    Same Chess960 castling normalisation as `_first_move` (`parse_uci`, not
+    `Move.from_uci`), applied token by token as the scratch board walks
+    forward — a later token can only be trusted once every token before it
+    has actually been played, since disambiguation and castling notation
+    both depend on the position at that point in the line, not the starting
+    one `_first_move` alone would check.
+    """
+    moves = pv.get("moves")
+    if not isinstance(moves, str):
+        return []
+
+    sans: list[str] = []
+    working = board.copy()
+    for token in moves.split()[:limit]:
+        try:
+            move = working.parse_uci(token)
+        except ValueError:
+            break
+        sans.append(working.san(move))
+        working.push(move)
+    return sans
 
 
 def _score(pv: dict) -> tuple[int | None, int | None]:
