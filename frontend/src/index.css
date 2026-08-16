@@ -1,3 +1,10 @@
+/*
+ * Colour scheme: `lib/colorScheme.ts` toggles `data-theme` on <html>, which
+ * this block and its `[data-theme="light"]` override below both key off.
+ * Everything else in the app (App.css included) reads these custom
+ * properties rather than literal colours, so the two blocks here are the
+ * *entire* theme — no other file needs to know a light mode exists at all.
+ */
 :root {
   --bg: #14161a;
   --bg-panel: #1f2126;
@@ -6,14 +13,36 @@
   --text: #e8e9ea;
   --text-dim: #9aa0a8;
   --accent: #96bc4b;
+  /* Lighter/deeper tints of --accent, for gradient endpoints and hover/glow
+     states — kept as named tokens (not computed) so a theme can pick tints
+     that actually look right for its own hue, not just a mechanical
+     lighten/darken of whatever --accent happens to be. */
+  --accent-soft: #cbe390;
+  --accent-strong: #86ba3f;
+  /* Text colour *on* an accent-coloured surface (buttons, badges). */
+  --accent-contrast: #14161a;
   --danger: #ca3431;
   --warn: #f7c631;
+  --warn-soft: #ffe08a;
+  --warn-contrast: #1a1506;
+
+  /* Alert body text — a *readable* tint against `.alert--error`/`--warn`'s
+     own translucent tinted background (see App.css), which is a different
+     job than --danger/--warn's own (saturated fills for badges/buttons) and
+     so needs its own per-theme value rather than reusing those directly. */
+  --alert-error-text: #f3a5a3;
+  --alert-warn-text: #f0d68a;
 
   /* Recessed surfaces that sit *below* a panel: inputs, the eval graph plot,
      progress troughs. Darker than --bg-panel so they read as cut into it. */
   --bg-sunken: #16181c;
   /* Hairline highlight along a panel's top edge — reads as a lit surface. */
   --border-soft: #3d424a;
+  /* `.button`'s hover state — was a literal colour on the class itself
+     before the light theme existed; a token now that there are two answers
+     for "slightly lighter than the button" depending on scheme. */
+  --button-hover-bg: #31353c;
+  --button-hover-border: #454a52;
 
   /* Card elevation. Two stacked shadows: a tight contact shadow plus a wider
      ambient one, which is what stops flat dark cards from looking like paper
@@ -33,6 +62,39 @@
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* White & gold. Same token names, warm light values — every rule elsewhere
+   in the app that already reads `var(--bg)`/`var(--accent)`/etc. re-themes
+   automatically; nothing outside this block has to know this exists. */
+:root[data-theme='light'] {
+  --bg: #faf7f0;
+  --bg-panel: #ffffff;
+  --bg-raised: #f4eeda;
+  --border: #e2d9bd;
+  --text: #2a2620;
+  --text-dim: #7a7261;
+  --accent: #c9a227;
+  --accent-soft: #e8cf7a;
+  --accent-strong: #a8841c;
+  --accent-contrast: #2a2011;
+  --danger: #b3392b;
+  --warn: #b8860b;
+  --warn-soft: #dcb655;
+  --warn-contrast: #2a2011;
+
+  --alert-error-text: #8f2b21;
+  --alert-warn-text: #7a5c05;
+
+  --bg-sunken: #f1ead6;
+  --border-soft: #d9cca0;
+  --button-hover-bg: #efe6cd;
+  --button-hover-border: #d6c69a;
+
+  --shadow-panel: 0 1px 3px rgba(120, 96, 30, 0.12), 0 1px 2px rgba(120, 96, 30, 0.08);
+  --shadow-nav: 0 1px 0 rgba(120, 96, 30, 0.08);
+
+  color-scheme: light;
 }
 
 * {

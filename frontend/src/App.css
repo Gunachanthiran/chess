@@ -76,11 +76,42 @@
   background: var(--accent);
 }
 
+/* Groups the tagline/connection-indicator with the theme toggle so the pair
+   moves as one unit — was just `.app__tagline`'s own margin-left: auto
+   before there was a second thing that needed to sit next to it. */
+.app__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
 .app__tagline {
-  margin: 0 0 0 auto;
+  margin: 0;
   color: var(--text-dim);
   font-size: 0.82rem;
   white-space: nowrap;
+}
+
+.app__theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.app__theme-toggle:hover {
+  transform: translateY(-1px) rotate(-8deg);
+  border-color: var(--accent);
+  background: var(--button-hover-bg);
 }
 
 @media (max-width: 720px) {
@@ -145,8 +176,8 @@
 }
 
 .button:hover:not(:disabled) {
-  background: #31353c;
-  border-color: #454a52;
+  background: var(--button-hover-bg);
+  border-color: var(--button-hover-border);
 }
 
 .button:disabled {
@@ -157,13 +188,13 @@
 .button--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #14161a;
+  color: var(--accent-contrast);
   font-weight: 600;
 }
 
 .button--primary:hover:not(:disabled) {
-  background: #a6cc5b;
-  border-color: #a6cc5b;
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
 }
 
 .alert {
@@ -176,13 +207,13 @@
 .alert--error {
   background: rgba(202, 52, 49, 0.14);
   border: 1px solid rgba(202, 52, 49, 0.5);
-  color: #f3a5a3;
+  color: var(--alert-error-text);
 }
 
 .alert--warn {
   background: rgba(247, 198, 49, 0.12);
   border: 1px solid rgba(247, 198, 49, 0.4);
-  color: #f0d68a;
+  color: var(--alert-warn-text);
 }
 
 /* ---------- Start an analysis ---------- */
@@ -342,10 +373,50 @@
   font-weight: 600;
 }
 
+/* Native range styling only reliably matched the current theme via
+   `accent-color` for the thumb — the unfilled track itself stayed a plain
+   browser default that didn't consistently track `color-scheme` across
+   engines (it rendered near-black even in the light theme). Styling the
+   track explicitly with our own tokens makes it theme-correct everywhere
+   instead of hoping the browser gets it right. */
 .slider__input {
   width: 100%;
   margin: 0;
-  accent-color: var(--accent);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+.slider__input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.slider__input::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.slider__input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
   cursor: pointer;
 }
 
@@ -373,7 +444,7 @@
 .tabs__tab--active {
   background: var(--bg-raised);
   color: var(--text);
-  border-color: #4a505a;
+  border-color: var(--border-soft);
 }
 
 /* ---------- Progress ---------- */
@@ -500,7 +571,7 @@
 }
 
 .library__table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 .library__matchup {
@@ -586,7 +657,7 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(650px circle at 12% -5%, rgba(150, 188, 75, 0.1), transparent 60%),
+    radial-gradient(650px circle at 12% -5%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
     radial-gradient(550px circle at 92% 10%, rgba(94, 158, 214, 0.07), transparent 55%);
 }
 
@@ -606,9 +677,9 @@
   justify-content: center;
   font-size: 1.6rem;
   font-weight: 700;
-  color: #14161a;
-  background: linear-gradient(135deg, var(--accent), #cbe390);
-  box-shadow: 0 0 0 1px rgba(150, 188, 75, 0.3), 0 10px 28px -10px rgba(150, 188, 75, 0.6);
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), 0 10px 28px -10px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .dashboard__greeting-label {
@@ -631,11 +702,11 @@
   gap: 16px;
   padding: 18px 22px;
   border-radius: 16px;
-  border: 1px solid rgba(150, 188, 75, 0.25);
-  background: linear-gradient(135deg, rgba(150, 188, 75, 0.14), rgba(39, 42, 48, 0.5));
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--bg-raised) 50%, transparent));
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 12px 36px -16px rgba(150, 188, 75, 0.35);
+  box-shadow: 0 12px 36px -16px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .dashboard__banner-meta {
@@ -648,14 +719,14 @@
    nothing outside the dashboard is affected. */
 .dashboard__banner .button--primary {
   border: none;
-  background: linear-gradient(135deg, var(--accent), #86ba3f);
-  box-shadow: 0 6px 18px -6px rgba(150, 188, 75, 0.7);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 70%, transparent);
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .dashboard__banner .button--primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 8px 22px -6px rgba(150, 188, 75, 0.8);
+  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--accent) 80%, transparent);
 }
 
 .dashboard__section-head {
@@ -681,7 +752,7 @@
   width: fit-content;
   max-width: 100%;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--border);
 }
 
@@ -700,14 +771,14 @@
 
 .dashboard__tab:hover:not(.dashboard__tab--active) {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .dashboard__tab--active {
-  background: linear-gradient(135deg, var(--accent), #82b23a);
-  color: #14161a;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: var(--accent-contrast);
   font-weight: 700;
-  box-shadow: 0 6px 18px -6px rgba(150, 188, 75, 0.55);
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .dashboard--empty {
@@ -727,8 +798,8 @@
   flex-direction: column;
   gap: 12px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(31, 33, 38, 0.6);
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -736,8 +807,8 @@
 
 .dashboard-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(150, 188, 75, 0.3);
-  box-shadow: 0 18px 42px -18px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(150, 188, 75, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 18px 42px -18px rgba(0, 0, 0, 0.55), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .dashboard-card__head {
@@ -766,8 +837,8 @@
 }
 
 .dashboard-card__badge--win {
-  color: #14161a;
-  background: linear-gradient(135deg, var(--accent), #cbe390);
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
 }
 
 .dashboard-card__badge--loss {
@@ -778,13 +849,13 @@
 .dashboard-card__badge--draw,
 .dashboard-card__badge--neutral {
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   border-color: var(--border);
 }
 
 .dashboard-card__badge--live {
-  color: #1a1506;
-  background: linear-gradient(135deg, var(--warn), #ffe08a);
+  color: var(--warn-contrast);
+  background: linear-gradient(135deg, var(--warn), var(--warn-soft));
   animation: dashboard-live-pulse 2.2s ease-in-out infinite;
 }
 
@@ -835,7 +906,7 @@
   padding: 7px 11px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(22, 24, 28, 0.6);
+  background: color-mix(in srgb, var(--bg-sunken) 70%, transparent);
 }
 
 .dashboard-card__foot {
@@ -864,18 +935,18 @@
 
 .dashboard-card__foot .button--primary {
   border: none;
-  background: linear-gradient(135deg, var(--accent), #86ba3f);
-  box-shadow: 0 6px 16px -6px rgba(150, 188, 75, 0.6);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .dashboard-card__foot .button--primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px -6px rgba(150, 188, 75, 0.75);
+  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--accent) 75%, transparent);
 }
 
 .dashboard-card__foot .button:hover:not(:disabled):not(.button--primary) {
   transform: translateY(-1px);
-  border-color: rgba(150, 188, 75, 0.35);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .dashboard__pager {
@@ -1333,7 +1404,7 @@
 }
 
 .theme-swatch:hover {
-  border-color: #454a52;
+  border-color: var(--button-hover-border);
   transform: translateY(-1px);
 }
 
@@ -1460,7 +1531,7 @@
 }
 
 .move-summary__row:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 .move-summary__count {
@@ -1535,7 +1606,7 @@
 }
 
 .move-list__row:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 .move-list__number {
@@ -1564,12 +1635,12 @@
 }
 
 .move-list__cell:hover:not(.move-list__cell--empty) {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .move-list__cell--active {
-  background: rgba(150, 188, 75, 0.16);
-  border-color: rgba(150, 188, 75, 0.5);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .move-list__san {
@@ -1635,8 +1706,8 @@
   flex-wrap: wrap;
   padding: 12px 14px;
   border-radius: var(--radius-control);
-  background: rgba(150, 188, 75, 0.12);
-  border: 1px solid rgba(150, 188, 75, 0.45);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .bot-result strong {

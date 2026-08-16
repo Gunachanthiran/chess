@@ -6,6 +6,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="ChessScope — self-hosted chess game analysis" />
     <title>ChessScope</title>
+    <!--
+      Applies the persisted colour scheme before any CSS/React loads, so a
+      user who picked "light" never sees a flash of the dark default while
+      the app boots. `lib/colorScheme.ts` owns this preference at runtime;
+      this is only the one-time synchronous read that has to happen before
+      first paint, which a React effect is structurally too late for.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('chessscope.color-scheme');
+          if (stored === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {
+          // Private mode / storage disabled — default dark stays as-is.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -7,6 +7,7 @@ import { AnalysisRoute } from './routes/AnalysisRoute';
 import { PlayBotSetupRoute } from './routes/PlayBotSetupRoute';
 import { PlayBotRoute } from './routes/PlayBotRoute';
 import { GameLibraryPage } from './components/layout/GameLibraryPage';
+import { ColorSchemeToggle } from './components/layout/ColorSchemeToggle';
 import { useBotGame } from './hooks/useBotGame';
 import { useAccountStatus } from './hooks/useAccountStatus';
 import { unlockAudio } from './lib/sound';
@@ -130,18 +131,21 @@ export default function App() {
           {/* The mute toggle stays with the board — `useSoundEffects` is owned by
               each playing/analysing page, so a copy up here would have its own
               disconnected state. This keeps the bar balanced instead. */}
-          {connectedName ? (
-            <button
-              type="button"
-              className="app__connected"
-              onClick={() => navigate('/login')}
-              title="Manage connected accounts"
-            >
-              Connected as {connectedName}
-            </button>
-          ) : (
-            <p className="app__tagline">Self-hosted game analysis</p>
-          )}
+          <div className="app__header-actions">
+            {connectedName ? (
+              <button
+                type="button"
+                className="app__connected"
+                onClick={() => navigate('/login')}
+                title="Manage connected accounts"
+              >
+                Connected as {connectedName}
+              </button>
+            ) : (
+              <p className="app__tagline">Self-hosted game analysis</p>
+            )}
+            <ColorSchemeToggle />
+          </div>
         </div>
       </header>
 
