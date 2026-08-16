@@ -117,10 +117,26 @@
 @media (max-width: 720px) {
   .app__header-inner {
     gap: 12px;
+    /* The nav's own links (below) never shrank below their natural width —
+       `.app__title` + `.app__nav` + `.app__header-actions` add up to well
+       over 600px at their natural sizes, wider than any phone, which forced
+       the *entire page* to scroll horizontally to reach the right edge of
+       the header. Wrapping the nav onto its own row is a real second row of
+       chrome, not a squeeze, so it stays legible instead of shrinking nav
+       labels down to illegibility trying to force one row to fit. */
+    flex-wrap: wrap;
+    row-gap: 4px;
   }
 
   .app__tagline {
     display: none;
+  }
+
+  .app__nav {
+    /* Full-width second row, after the title/actions row above it. */
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
   }
 }
 
@@ -540,6 +556,12 @@
 .library__table-wrap {
   padding: 0;
   overflow-x: auto;
+  /* A flex item's default content-based minimum width (see
+     `.analysis__board-column` for the same fix) otherwise wins over
+     `overflow-x: auto` here: the wrap would just grow to fit the table
+     instead of clipping/scrolling it, dragging the whole page into
+     horizontal scroll on any viewport narrower than the table itself. */
+  min-width: 0;
 }
 
 .library__table {
@@ -733,6 +755,11 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+}
+
+.dashboard__sync {
+  font-size: 0.82rem;
+  padding: 6px 12px;
 }
 
 .dashboard__section-title {
@@ -1078,7 +1105,7 @@
 }
 
 /*
- * The side column's width is a *fixed* 340px, deliberately not a
+ * The side column's width is a *fixed* 380px, deliberately not a
  * `minmax(280px, 360px)` range.
  *
  * With a range, the track sizes itself from its own content, and the move list's
@@ -1088,9 +1115,9 @@
  * width is now a function of the viewport alone and cannot respond to the move
  * list's contents.
  *
- * 340px sits inside the old range (whose *max* was 360px and whose min the
- * panels already rendered fine at), so the accuracy, rating, move-summary and
- * move-list panels all keep the widths they were already being given.
+ * 380px (was 340px — widened for a roomier move list) comfortably clears the
+ * old range's 360px max, so the accuracy, rating, move-summary and move-list
+ * panels all still render exactly as before, just with more breathing room.
  *
  * The board column is `auto` (sized to fit the board itself), not `1fr`
  * (grab all remaining width). `1fr` made the column far wider than the
@@ -1102,7 +1129,7 @@
  */
 .analysis__body {
   display: grid;
-  grid-template-columns: auto 340px;
+  grid-template-columns: auto 380px;
   justify-content: center;
   gap: 24px;
   align-items: start;
@@ -1231,7 +1258,7 @@
  * an explicit `width` instead, capped by three independent budgets, each
  * expressed directly in viewport units rather than as a percentage of the
  * parent: (a) available page width — `min(100vw, 1600px)` mirrors
- * `.app__main`'s own cap, minus its 40px of padding, the 340px side column
+ * `.app__main`'s own cap, minus its 40px of padding, the 380px side column
  * and 24px gap (`.analysis__body`), and 36px for the eval bar (26px) plus its
  * gap (10px, `.board-with-bar`); (b) an absolute width ceiling (1160px) so an
  * ultrawide monitor doesn't grow the board past what's comfortable; (c) a
@@ -1248,11 +1275,33 @@
  */
 .chessboard-wrapper {
   flex: none;
-  width: min(100vw - 440px, 1160px, 100vh - 400px);
+  width: min(100vw - 480px, 1160px, 100vh - 400px);
   aspect-ratio: 1;
   min-width: 0;
   /* Containing block for the classification-badge overlay below. */
   position: relative;
+}
+
+/*
+ * The desktop width formula above is built entirely around the two-column
+ * layout — `100vw` minus the fixed side column, its gap, and the eval bar —
+ * which goes *negative* the moment the viewport itself is narrower than that
+ * fixed budget (~480px), collapsing the board to nothing (`width` computes
+ * to a negative length, which is invalid and resolves to 0). Below 900px the
+ * layout is already single-column (`.analysis__body`'s own breakpoint
+ * above), so the board can just claim the page's own content width instead:
+ * `.app__main`'s 20px side padding on each edge is the only budget left to
+ * subtract. Deliberately placed *after* the base `.chessboard-wrapper` rule,
+ * not folded into that other single-column media query earlier in the file
+ * — two rules targeting the same selector at equal specificity resolve by
+ * source order regardless of which one sits inside a media query, so a
+ * conditional override placed *before* the unconditional base rule loses to
+ * it even while its own condition is true. This one has to come after.
+ */
+@media (max-width: 900px) {
+  .chessboard-wrapper {
+    width: min(100vw - 76px, 100vh - 250px, 560px);
+  }
 }
 
 /* ---------- Floating classification badges on the board ---------- */
@@ -1588,13 +1637,14 @@
  * + the eval graph 271.4px + the page's bottom padding 64px = 1086px.
  * Whatever height is left over after that goes to the move list; `clamp()`
  * keeps it from vanishing on a short window (90px floor — a couple of visible
- * rows) or growing needlessly tall on a roomy one (420px ceiling, the
- * original size). On a window too short even for the 90px floor to fit
- * alongside everything else, `.analysis__side-column`'s own overflow (below)
- * is the backstop — this clamp is the first line of defense, not the only one.
+ * rows) or growing needlessly tall on a roomy one (560px ceiling, raised from
+ * 420px so a tall monitor shows meaningfully more of the game at once). On a
+ * window too short even for the 90px floor to fit alongside everything else,
+ * `.analysis__side-column`'s own overflow (below) is the backstop — this
+ * clamp is the first line of defense, not the only one.
  */
 .move-list__scroll {
-  max-height: clamp(90px, calc(100vh - 1086px), 420px);
+  max-height: clamp(90px, calc(100vh - 1086px), 560px);
   overflow-y: auto;
 }
 

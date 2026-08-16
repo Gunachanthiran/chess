@@ -6,6 +6,7 @@ import type { Classification } from '../types';
  */
 export const CLASSIFICATION_COLORS: Record<Classification, string> = {
   brilliant: '#1baaa6',
+  great: '#4f97d1',
   best: '#96bc4b',
   excellent: '#96bc4b',
   good: '#95b776',
@@ -19,6 +20,7 @@ export const CLASSIFICATION_COLORS: Record<Classification, string> = {
 /** Compact glyph rendered next to the SAN in the move list. */
 export const CLASSIFICATION_ICONS: Record<Classification, string> = {
   brilliant: '!!',
+  great: '✦',
   best: '★',
   excellent: '!',
   good: '✓',
@@ -32,6 +34,7 @@ export const CLASSIFICATION_ICONS: Record<Classification, string> = {
 /** Human label used in tooltips and the detail strip under the board. */
 export const CLASSIFICATION_LABELS: Record<Classification, string> = {
   brilliant: 'Brilliant',
+  great: 'Great move',
   best: 'Best move',
   excellent: 'Excellent',
   good: 'Good',

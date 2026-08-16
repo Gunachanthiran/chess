@@ -91,6 +91,41 @@ def create_bot_game(
     return _refreshed(db, bot_game)
 
 
+def undo_last_move(db: Session, bot_game: BotGame) -> BotGame:
+    """Roll back to the player's own turn: drop the bot's reply and the
+    player move that provoked it, in one step.
+
+    Undoing just the bot's move and leaving the player's move standing would
+    put the board in a state the player never actually chose to sit in, so
+    the two always come off together. This also un-ends a game the bot's
+    reply had just finished (checkmate/stalemate/draw) — the point of undo
+    here is "let me try something else", not "review a shorter game".
+    """
+    moves = load_moves(db, bot_game)
+    moves_sorted = sorted(moves, key=lambda row: row.ply)
+
+    if not moves_sorted or all(move.is_bot_move for move in moves_sorted):
+        # Nothing the player has done yet — e.g. the bot just played its
+        # opening move as White and it's the player's very first turn.
+        raise ConflictError(
+            "Nothing to undo yet.",
+            {"bot_game_id": str(bot_game.id)},
+            code="NOTHING_TO_UNDO",
+        )
+
+    to_remove = [moves_sorted[-1]]
+    if moves_sorted[-1].is_bot_move and len(moves_sorted) >= 2:
+        to_remove.append(moves_sorted[-2])
+
+    for move in to_remove:
+        db.delete(move)
+
+    bot_game.status = BotGameStatus.in_progress
+    bot_game.result = None
+    db.commit()
+    return _refreshed(db, bot_game)
+
+
 def submit_player_move(db: Session, bot_game: BotGame, uci: str) -> BotGame:
     """Apply the human's move, then the bot's reply, updating the game status."""
     if bot_game.status is not BotGameStatus.in_progress:

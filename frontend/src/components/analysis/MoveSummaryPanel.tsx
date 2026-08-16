@@ -17,6 +17,7 @@ type MoveSummaryPanelProps = {
  */
 const DISPLAY_ORDER: Classification[] = [
   'brilliant',
+  'great',
   'best',
   'excellent',
   'good',

@@ -29,6 +29,13 @@ MISTAKE_MAX_DROP = 20.0
 BRILLIANT_MIN_WIN_PCT = 20.0
 SACRIFICE_MIN_PAWNS = 1
 
+# A "best" move is upgraded to "great" when every alternative falls off by at
+# least this much (mover POV centipawns) — the single clearly-right move in a
+# sharp position, not merely *a* good one. Well below FORCED_GAP_CP: forced
+# means there was barely a choice at all, great means there was a real choice
+# and only one branch survives it.
+GREAT_GAP_CP = 150
+
 PIECE_VALUES: dict[chess.PieceType, int] = {
     chess.PAWN: 1,
     chess.KNIGHT: 3,
@@ -80,6 +87,16 @@ def classify_move(
         and win_pct_before >= BRILLIANT_MIN_WIN_PCT
     ):
         return MoveClassification.brilliant
+
+    # 5. Great overrides "best" when it was the only real option — a
+    # sacrifice takes priority (rule 4) since giving up material to force the
+    # position is the more notable feat.
+    if (
+        band is MoveClassification.best
+        and second_best_gap_cp is not None
+        and second_best_gap_cp > GREAT_GAP_CP
+    ):
+        return MoveClassification.great
 
     return band
 

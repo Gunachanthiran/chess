@@ -49,6 +49,7 @@ export type AnalysisJob = {
 
 export type Classification =
   | 'brilliant'
+  | 'great'
   | 'best'
   | 'excellent'
   | 'good'

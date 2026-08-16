@@ -43,3 +43,15 @@ export function submitBotMove(
     signal,
   });
 }
+
+/**
+ * POST /api/bot-games/{id}/undo — rolls back the bot's last reply *and* the
+ * player move that provoked it in one step, so the player always lands back
+ * on their own turn (see `bot_game_service.undo_last_move`).
+ */
+export function undoBotMove(id: string, signal?: AbortSignal): Promise<BotGameResponse> {
+  return apiFetch<BotGameResponse>(`/api/bot-games/${encodeURIComponent(id)}/undo`, {
+    method: 'POST',
+    signal,
+  });
+}

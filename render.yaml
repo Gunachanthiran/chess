@@ -104,14 +104,22 @@ services:
       # More threads/pool size wouldn't help here — this instance only ever
       # has ~0.1 real CPU, so extra concurrency just competes for the same
       # fractional budget with added overhead rather than doing more work in
-      # parallel. What *was* silently costing accuracy: the 8s-per-position
-      # default (STOCKFISH_DEPTH's actual enforcement mechanism, see
-      # Settings.ANALYSIS_TIME_LIMIT_S) often wasn't enough time to reach
-      # depth 14 on this CPU budget, so some positions were being analysed
-      # shallower than configured without any visible sign of it. Raised
-      # here instead — slower jobs, but actually reaches the promised depth.
+      # parallel.
+      #
+      # This value was 30s, aimed at reliably reaching depth 14. It reached
+      # it, but at a real wall-clock cost that made a whole game's analysis
+      # look hung: the same CPU-starvation overshoot measured for the bot's
+      # per-move budget (tal_bot.py — a *requested* Stockfish search time
+      # inflates 2-3.5x in real time on this host) applies here too, and
+      # with ANALYSIS_POOL_SIZE=1 every position is fully sequential, so a
+      # ~40-move game at "30s/position" was actually more like 40-70 minutes
+      # of real waiting with zero visible feedback beyond a progress bar.
+      # Cut to 5s so a game finishes in single-digit minutes instead —
+      # trading search depth (position analysis will usually land well
+      # short of the depth-14 ceiling above) for a job that visibly
+      # completes. Safe to raise back once this is off the free tier.
       - key: ANALYSIS_TIME_LIMIT_S
-        value: "30"
+        value: "5"
 
   # --- Redis-compatible broker / progress pub-sub -----------------------
   - name: chessscope-redis

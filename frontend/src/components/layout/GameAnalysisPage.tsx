@@ -8,6 +8,8 @@ import { AccuracyPanel } from '../analysis/AccuracyPanel';
 import { MoveSummaryPanel } from '../analysis/MoveSummaryPanel';
 import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { useCoachVoice } from '../../lib/coachVoice';
+import { commentaryForAnalysisMove } from '../../lib/coach';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
 import { accuracyColor, classificationColor, classificationLabel } from '../../styles/classification-colors';
 import type { Game, MoveAnalysis } from '../../types';
@@ -76,10 +78,12 @@ export function GameAnalysisPage({
 
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
   const { muted, toggleMuted, playForMove } = useSoundEffects();
+  const { muted: coachMuted, toggleMuted: toggleCoachMuted, speak } = useCoachVoice();
 
-  // Sound on navigation. Every navigation path in the app — prev/next buttons,
-  // move-row clicks, arrow keys, Home/End, eval-graph clicks — can only move
-  // `currentMoveIndex`, so watching that one value covers all of them.
+  // Sound + coach commentary on navigation. Every navigation path in the app
+  // — prev/next buttons, move-row clicks, arrow keys, Home/End, eval-graph
+  // clicks — can only move `currentMoveIndex`, so watching that one value
+  // covers all of them.
   //
   // `playedRef` records the (move list, index) whose sound already played. It
   // starts null so mount is silent, and re-running the effect with unchanged
@@ -96,9 +100,11 @@ export function GameAnalysisPage({
     if (previous.index === currentMoveIndex) return; // Effect re-ran, nothing moved.
     if (currentMoveIndex <= 0) return; // Starting position — no move to sound.
 
-    const san = moves[currentMoveIndex - 1]?.san;
-    if (san) playForMove(san);
-  }, [currentMoveIndex, moves, playForMove]);
+    const move = moves[currentMoveIndex - 1];
+    if (!move) return;
+    playForMove(move.san);
+    speak(commentaryForAnalysisMove(move));
+  }, [currentMoveIndex, moves, playForMove, speak]);
 
   // Keyboard navigation. Bound at the document so the board is reachable
   // without focusing it first, but skipped while the user is typing.
@@ -242,6 +248,16 @@ export function GameAnalysisPage({
               aria-pressed={muted}
             >
               {muted ? '🔇' : '🔊'}
+            </button>
+            <button
+              className="button"
+              type="button"
+              onClick={toggleCoachMuted}
+              title={coachMuted ? 'Turn on coach commentary' : 'Turn off coach commentary'}
+              aria-label={coachMuted ? 'Turn on coach commentary' : 'Turn off coach commentary'}
+              aria-pressed={!coachMuted}
+            >
+              {coachMuted ? '🎙️' : '🗣️'}
             </button>
             <BoardThemePicker />
           </div>

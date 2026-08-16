@@ -33,6 +33,7 @@ class Side(str, enum.Enum):
 
 class MoveClassification(str, enum.Enum):
     brilliant = "brilliant"
+    great = "great"
     best = "best"
     excellent = "excellent"
     good = "good"

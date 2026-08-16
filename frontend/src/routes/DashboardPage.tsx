@@ -3,12 +3,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listGames } from '../api/games';
 import { listBotGames } from '../api/botGames';
 import { createAnalysisJob } from '../api/analysis';
+import { createImportJob } from '../api/imports';
 import { errorMessage } from '../api/client';
 import type { UseAccountStatusResult } from '../hooks/useAccountStatus';
 import { ImportProgress } from '../components/analysis/ImportProgress';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
 import { isGrandmasterElo } from '../lib/botConstants';
-import type { BotGameSummary, Game, GameSource } from '../types';
+import type { BotGameSummary, Game, GameSource, ImportSource } from '../types';
+
+/** One connected account queued for `handleSync`. */
+type SyncTarget = { source: ImportSource; username: string };
 
 type Tab = 'all' | 'lichess' | 'chess_com' | 'bots' | 'imported';
 
@@ -171,10 +175,72 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
   const [startingId, setStartingId] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [inProgressBotGame, setInProgressBotGame] = useState<BotGameSummary | null>(null);
+  // Chess.com/Lichess never push new games to us — the library is only ever
+  // as fresh as the last import. `syncQueue` drives the "Sync latest games"
+  // button through one `ImportProgress` job per connected account in turn
+  // (the same rendering path the OAuth/connect-form imports already use),
+  // rather than trying to run both accounts' jobs at once.
+  const [syncQueue, setSyncQueue] = useState<SyncTarget[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const importJobId = searchParams.get('import_job');
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
+
+  const setImportJobId = useCallback(
+    (jobId: string) => {
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set('import_job', jobId);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const startNextSync = useCallback(
+    async (queue: SyncTarget[]) => {
+      const [next, ...rest] = queue;
+      if (!next) {
+        setSyncing(false);
+        return;
+      }
+      setSyncQueue(rest);
+      try {
+        // Only pull what's newer than the most recent game we already have
+        // for this source, instead of re-walking the player's entire
+        // archive history every time the button is pressed.
+        const latest = await listGames({ limit: 1, offset: 0, source: next.source });
+        const latestPlayedAt = latest.games[0]?.played_at ?? latest.games[0]?.created_at;
+        const since = latestPlayedAt ? Date.parse(latestPlayedAt) : undefined;
+        const response = await createImportJob({
+          source: next.source,
+          username: next.username,
+          since,
+        });
+        setImportJobId(response.job.id);
+      } catch (err) {
+        setSyncError(errorMessage(err));
+        setSyncing(false);
+        setSyncQueue([]);
+      }
+    },
+    [setImportJobId],
+  );
+
+  const handleSync = () => {
+    const queue: SyncTarget[] = [];
+    if (status?.chess_com) queue.push({ source: 'chess_com', username: status.chess_com.username });
+    if (status?.lichess) queue.push({ source: 'lichess', username: status.lichess.username });
+    if (queue.length === 0) return;
+    setSyncing(true);
+    setSyncError(null);
+    void startNextSync(queue);
+  };
 
   const changeTab = useCallback((next: Tab) => {
     setTab(next);
@@ -260,7 +326,15 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
       },
       { replace: true },
     );
-  }, [setSearchParams]);
+    // A sync-triggered job clearing out is the cue to start the next queued
+    // account, if any — this is the only place both the OAuth/connect-form
+    // import path and the Sync button's queue path rejoin.
+    setSyncQueue((queue) => {
+      if (queue.length > 0) void startNextSync(queue);
+      else setSyncing(false);
+      return queue;
+    });
+  }, [setSearchParams, startNextSync]);
 
   const displayName = status?.lichess?.username ?? status?.chess_com?.username ?? 'there';
 
@@ -307,7 +381,24 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
 
       <div className="dashboard__section-head">
         <h3 className="dashboard__section-title">Analyze Your Games</h3>
+        {(status?.chess_com || status?.lichess) && (
+          <button
+            className="button dashboard__sync"
+            type="button"
+            onClick={handleSync}
+            disabled={syncing || importJobId !== null}
+            title="Pull any games played since your last import"
+          >
+            {syncing
+              ? syncQueue.length > 0
+                ? `Syncing… (${syncQueue.length} more)`
+                : 'Syncing…'
+              : '⟳ Sync latest games'}
+          </button>
+        )}
       </div>
+
+      {syncError && <div className="alert alert--error">{syncError}</div>}
 
       <div className="dashboard__tabs" role="tablist" aria-label="Filter games">
         {TABS.map((item) => (

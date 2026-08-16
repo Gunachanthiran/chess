@@ -17,7 +17,7 @@ const HEIGHT = 220;
 const MID_Y = HEIGHT / 2;
 
 /** Classifications worth flagging as dots on the curve. */
-const NOTABLE = new Set(['blunder', 'mistake', 'inaccuracy', 'brilliant']);
+const NOTABLE = new Set(['blunder', 'mistake', 'inaccuracy', 'brilliant', 'great']);
 
 /**
  * Evaluation over the whole game, one point per navigation index (0 = start).

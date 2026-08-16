@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import type { Move, Square } from 'chess.js';
-import { createBotGame, getBotGame, submitBotMove } from '../api/botGame';
+import { createBotGame, getBotGame, submitBotMove, undoBotMove } from '../api/botGame';
 import { ApiError, errorMessage } from '../api/client';
 import type { BotColor, BotGame, BotGameMove, LegalMoveTarget } from '../types';
 
@@ -16,6 +16,10 @@ export type BotGameHook = {
   botThinking: boolean;
   /** True while POST /api/bot-games is in flight. */
   creating: boolean;
+  /** True while POST /undo is in flight. */
+  undoing: boolean;
+  /** Whether there is a player move on the board for `undoMove` to roll back. */
+  canUndo: boolean;
   /** Last error message, already narrowed to a string via `errorMessage`. */
   error: string | null;
   /** Resolves the new game's id on success, `null` on failure (see `error`). */
@@ -56,6 +60,12 @@ export type BotGameHook = {
    * flight, not that side's turn).
    */
   legalMovesFrom: (square: string) => LegalMoveTarget[];
+  /**
+   * Rolls back to the player's own turn: undoes the bot's last reply and the
+   * player move before it together. Resolves `true` on success, `false` if
+   * there was nothing to undo or the request failed (see `error`).
+   */
+  undoMove: () => Promise<boolean>;
   /** Drops the current game so the setup form can start a fresh one. */
   reset: () => void;
 };
@@ -147,6 +157,7 @@ export function useBotGame(): BotGameHook {
   const [botGame, setBotGame] = useState<BotGame | null>(null);
   const [botThinking, setBotThinking] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<{ fen: string; uci: string } | null>(null);
 
@@ -329,11 +340,41 @@ export function useBotGame(): BotGameHook {
     [],
   );
 
+  const undoMove = useCallback(async (): Promise<boolean> => {
+    const game = botGameRef.current;
+    if (!game) return false;
+    // Same single-flight guard as `attemptMove` — an undo racing a drop
+    // (or a second undo click) would send two writes against one game.
+    if (inFlightRef.current) return false;
+
+    inFlightRef.current = true;
+    setUndoing(true);
+    setError(null);
+    try {
+      const data = await undoBotMove(game.id);
+      botGameRef.current = data.bot_game;
+      setBotGame(data.bot_game);
+      return true;
+    } catch (err) {
+      setError(errorMessage(err));
+      return false;
+    } finally {
+      inFlightRef.current = false;
+      setUndoing(false);
+    }
+  }, []);
+
+  // At least one move the player actually chose is on the board — the bot's
+  // opening move (as White, before the player has moved at all) does not
+  // count, matching `undo_last_move`'s own "nothing to undo yet" guard.
+  const canUndo = (botGame?.moves ?? []).some((move) => !move.is_bot_move);
+
   const reset = useCallback(() => {
     botGameRef.current = null;
     inFlightRef.current = false;
     setBotGame(null);
     setBotThinking(false);
+    setUndoing(false);
     setError(null);
     setOptimistic(null);
   }, []);
@@ -344,6 +385,8 @@ export function useBotGame(): BotGameHook {
     lastMoveUci,
     botThinking,
     creating,
+    undoing,
+    canUndo,
     error,
     createGame,
     loadGame,
@@ -351,6 +394,7 @@ export function useBotGame(): BotGameHook {
     isLegalMove,
     sanForMove,
     legalMovesFrom,
+    undoMove,
     reset,
   };
 }

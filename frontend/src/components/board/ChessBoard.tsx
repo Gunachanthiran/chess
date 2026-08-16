@@ -1,6 +1,6 @@
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
-import type { PieceDropHandlerArgs, PieceHandlerArgs } from 'react-chessboard';
+import type { PieceDropHandlerArgs, PieceHandlerArgs, SquareHandlerArgs } from 'react-chessboard';
 import {
   classificationColor,
   classificationIcon,
@@ -24,21 +24,29 @@ type ChessBoardProps = {
   lastMoveUci?: string | null;
   boardOrientation?: 'white' | 'black';
   /**
-   * Opt-in drag & drop. Defaults to `false` so the analysis page — which never
-   * sets it — stays read-only exactly as before.
+   * Opt-in interactivity — drag & drop *and* click-to-move both live behind
+   * this one flag, since every board that wants one wants the other.
+   * Defaults to `false` so the analysis page — which never sets it — stays
+   * read-only exactly as before.
    */
   allowDragging?: boolean;
   /**
-   * Called when a piece is dropped. Return `true` to accept the drop (the board
-   * suppresses the snap-back animation and waits for the next `displayFen`),
-   * `false` to reject it. `targetSquare` is `null` when dropped off the board.
+   * Called with the two squares of a completed move, whether it arrived by
+   * dropping a dragged piece or by two clicks (see `handleSquareClick`).
+   * Return `true` to accept the drop (the board suppresses the snap-back
+   * animation and waits for the next `displayFen`), `false` to reject it.
+   * `targetSquare` is `null` when a *drag* was dropped off the board — a
+   * click-to-move completion always has a real target square, since it is
+   * only ever triggered by clicking an actual legal destination.
    */
   onPieceDrop?: (args: PieceDropHandlerArgs) => boolean;
   /**
-   * Legal destinations for a piece the player has just picked up, used to draw
-   * the chess.com-style dots and capture rings. Optional and only consulted
-   * while `allowDragging` is true, so the read-only analysis board — which
-   * passes neither — is completely unaffected.
+   * Legal destinations for a piece the player has just picked up (by drag)
+   * or clicked (the first tap of a click-to-move pair), used to draw the
+   * chess.com-style dots/capture rings and to decide what a click on a given
+   * square means. Optional and only consulted while `allowDragging` is true,
+   * so the read-only analysis board — which passes neither — is completely
+   * unaffected.
    *
    * Must be referentially stable (a `useCallback` with no deps), since it is a
    * dependency of the `squareStyles` memo.
@@ -171,34 +179,115 @@ export function ChessBoard({
   // nothing else, and is cleared on drop, on drag-cancel, and defensively
   // whenever the position changes underneath us.
   const [dragOrigin, setDragOrigin] = useState<string | null>(null);
+  // Click-to-move's equivalent of `dragOrigin`: the square tapped first, held
+  // across the gap between two separate clicks (a drag has both ends of the
+  // gesture in one continuous pointer interaction; a click sequence does not,
+  // so this has to survive between renders in a way `dragOrigin` never needs
+  // to). The two are mutually exclusive — starting a real drag clears this,
+  // and `legalMovesFor` is reused unchanged as the single source of truth for
+  // both, so the click and drag paths can never disagree about what is legal.
+  //
+  // Kept as a ref *and* a state value, not just state: `handleSquareClick`
+  // has to branch on "what was the previous selection" while also submitting
+  // a move — a `setState(prev => ...)` updater is the wrong place for that,
+  // since React may invoke an updater more than once per commit (StrictMode's
+  // dev double-invoke does this deliberately, to surface exactly this kind of
+  // impurity), which would submit the same move twice. The ref gives a plain,
+  // single-read synchronous value to branch on; the state half exists only to
+  // trigger the re-render `squareStyles` needs to draw the highlight.
+  const [selectedOrigin, setSelectedOriginState] = useState<string | null>(null);
+  const selectedOriginRef = useRef<string | null>(null);
+
+  const setSelectedOrigin = useCallback((next: string | null) => {
+    selectedOriginRef.current = next;
+    setSelectedOriginState(next);
+  }, []);
 
   const clearDragOrigin = useCallback(() => {
     // Functional update so a no-op clear does not schedule a render.
     setDragOrigin((current) => (current === null ? current : null));
   }, []);
 
+  const clearSelection = useCallback(() => setSelectedOrigin(null), [setSelectedOrigin]);
+
   useLayoutEffect(() => {
     setRenderedFen(displayFen);
     clearDragOrigin();
-  }, [displayFen, clearDragOrigin]);
+    clearSelection();
+  }, [displayFen, clearDragOrigin, clearSelection]);
 
-  const handlePieceDrag = useCallback(({ square }: PieceHandlerArgs) => {
-    // Belt-and-braces alongside the app-wide gesture listener in `App.tsx`:
-    // picking up a piece is unambiguously a direct, trusted user gesture, so
-    // unlocking right here guarantees the move-sound path is never the first
-    // thing to touch the AudioContext. `unlockAudio()` is a no-op once the
-    // context is already running, so this costs nothing on every later drag.
-    unlockAudio();
-    // `square` is null for spare pieces, which this board never renders.
-    setDragOrigin(square);
-  }, []);
+  const handlePieceDrag = useCallback(
+    ({ square }: PieceHandlerArgs) => {
+      // Belt-and-braces alongside the app-wide gesture listener in `App.tsx`:
+      // picking up a piece is unambiguously a direct, trusted user gesture, so
+      // unlocking right here guarantees the move-sound path is never the first
+      // thing to touch the AudioContext. `unlockAudio()` is a no-op once the
+      // context is already running, so this costs nothing on every later drag.
+      unlockAudio();
+      // `square` is null for spare pieces, which this board never renders.
+      setDragOrigin(square);
+      // A real drag starting takes over from any pending click-selection.
+      clearSelection();
+    },
+    [clearSelection],
+  );
 
   const handlePieceDrop = useCallback(
     (args: PieceDropHandlerArgs): boolean => {
       clearDragOrigin();
+      clearSelection();
       return onPieceDrop ? onPieceDrop(args) : false;
     },
-    [clearDragOrigin, onPieceDrop],
+    [clearDragOrigin, clearSelection, onPieceDrop],
+  );
+
+  const handleSquareClick = useCallback(
+    ({ square }: SquareHandlerArgs) => {
+      if (!legalMovesFor) return;
+      unlockAudio();
+
+      const current = selectedOriginRef.current;
+
+      if (current === null) {
+        // Nothing selected yet — only a piece with a legal move (i.e. one
+        // belonging to the side to move) can start a selection.
+        if (legalMovesFor(square).length > 0) setSelectedOrigin(square);
+        return;
+      }
+
+      if (square === current) {
+        clearSelection(); // Tapping the same piece again deselects it.
+        return;
+      }
+
+      const isLegalTarget = legalMovesFor(current).some((target) => target.to === square);
+      if (isLegalTarget) {
+        clearSelection();
+        // `onPieceDrop` is the same completion path a drag ends on, so
+        // click-to-move and drag-and-drop share every bit of the actual
+        // move-submission logic (sound, optimistic state, the API call) —
+        // this component only ever decides *which* two squares to submit.
+        // Called as a plain statement here, never from inside a state
+        // updater, so it runs exactly once per click no matter how React
+        // schedules the `setSelectedOrigin` calls around it.
+        onPieceDrop?.({
+          sourceSquare: current,
+          targetSquare: square,
+          piece: { isSparePiece: false, position: current, pieceType: '' },
+        });
+        return;
+      }
+
+      // Not a legal destination from the current selection: switch to it if
+      // it is itself selectable (another of the mover's own pieces),
+      // otherwise treat the click as a cancel.
+      if (legalMovesFor(square).length > 0) {
+        setSelectedOrigin(square);
+      } else {
+        clearSelection();
+      }
+    },
+    [legalMovesFor, onPieceDrop, setSelectedOrigin, clearSelection],
   );
 
   const squareStyles = useMemo(() => {
@@ -211,11 +300,15 @@ export function ChessBoard({
       styles[to] = { backgroundColor: HIGHLIGHT };
     }
 
+    // The active origin is whichever gesture is live — a drag in progress, or
+    // a pending click-selection — the two never coexist (see `handlePieceDrag`).
+    const activeOrigin = dragOrigin ?? selectedOrigin;
+
     // Markers are gated on `allowDragging` as well as on the callback being
     // supplied, so they can never appear on a read-only board.
-    if (allowDragging && legalMovesFor && dragOrigin) {
-      styles[dragOrigin] = { ...styles[dragOrigin], backgroundColor: ORIGIN_HIGHLIGHT };
-      legalMovesFor(dragOrigin).forEach((target) => {
+    if (allowDragging && legalMovesFor && activeOrigin) {
+      styles[activeOrigin] = { ...styles[activeOrigin], backgroundColor: ORIGIN_HIGHLIGHT };
+      legalMovesFor(activeOrigin).forEach((target) => {
         styles[target.to] = {
           ...styles[target.to],
           backgroundImage: target.capture ? CAPTURE_RING : MOVE_DOT,
@@ -224,7 +317,7 @@ export function ChessBoard({
     }
 
     return styles;
-  }, [lastMoveUci, allowDragging, legalMovesFor, dragOrigin]);
+  }, [lastMoveUci, allowDragging, legalMovesFor, dragOrigin, selectedOrigin]);
 
   const badgePosition = useMemo(
     () => (moveBadge ? squareBadgePosition(moveBadge.square, boardOrientation) : null),
@@ -241,7 +334,11 @@ export function ChessBoard({
           allowDragging: allowDragging ?? false,
           ...(onPieceDrop ? { onPieceDrop: handlePieceDrop } : {}),
           ...(allowDragging && legalMovesFor
-            ? { onPieceDrag: handlePieceDrag, onPieceDragCancel: clearDragOrigin }
+            ? {
+                onPieceDrag: handlePieceDrag,
+                onPieceDragCancel: clearDragOrigin,
+                onSquareClick: handleSquareClick,
+              }
             : {}),
           allowDrawingArrows: false,
           showNotation: true,

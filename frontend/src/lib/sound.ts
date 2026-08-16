@@ -382,6 +382,70 @@ export const SoundEffects = {
   },
 
   /**
+   * Castling: two pieces move in one turn (king then rook), so this is two
+   * `playMove`-style strikes back to back rather than one — the rook's is
+   * lower and a touch quieter, reading as the second, lighter piece landing
+   * right after the king's.
+   */
+  playCastle(): void {
+    withContext((ctx) => {
+      noiseBurst(ctx, {
+        duration: jitter(0.016, 0.15),
+        peak: 0.15,
+        cutoff: jitter(2700, 0.1),
+        type: 'bandpass',
+        q: 0.6,
+      });
+      woodStrike(ctx, { freq: jitter(390, 0.03), peak: 0.22, duration: 0.065, brightness: 0.55 });
+
+      const rookDelay = jitter(0.09, 0.1);
+      noiseBurst(ctx, {
+        delay: rookDelay,
+        duration: jitter(0.014, 0.15),
+        peak: 0.12,
+        cutoff: jitter(2200, 0.1),
+        type: 'bandpass',
+        q: 0.6,
+      });
+      woodStrike(ctx, {
+        freq: jitter(330, 0.03),
+        delay: rookDelay,
+        peak: 0.17,
+        duration: 0.06,
+        brightness: 0.45,
+      });
+    });
+  },
+
+  /**
+   * Promotion: a normal strike (the pawn landing) immediately followed by a
+   * short ascending shimmer — three quick high notes a major third and a
+   * minor third apart, evoking the pawn "becoming" a new, higher-value piece
+   * without going as far as the full `playGameEnd` fanfare.
+   */
+  playPromote(): void {
+    withContext((ctx) => {
+      noiseBurst(ctx, {
+        duration: jitter(0.016, 0.15),
+        peak: 0.14,
+        cutoff: jitter(2700, 0.1),
+        type: 'bandpass',
+        q: 0.6,
+      });
+      woodStrike(ctx, { freq: jitter(390, 0.03), peak: 0.2, duration: 0.06, brightness: 0.55 });
+
+      const shimmer = [
+        { freq: 1046.5, delay: 0.045 }, // C6
+        { freq: 1318.51, delay: 0.09 }, // E6
+        { freq: 1567.98, delay: 0.135 }, // G6
+      ];
+      shimmer.forEach(({ freq, delay }) => {
+        tone(ctx, { freq, delay, duration: 0.16, peak: 0.08, type: 'triangle', attack: 0.004 });
+      });
+    });
+  },
+
+  /**
    * Dull low double-thunk for a rejected move — deliberately unmusical.
    *
    * Two square waves 8Hz apart beat against each other, and the lowpassed noise

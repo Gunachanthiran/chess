@@ -42,7 +42,10 @@ class TestForced:
         assert classify(second_best_gap_cp=501) is MoveClassification.forced
 
     def test_gap_exactly_at_threshold_is_not_forced(self):
-        assert classify(second_best_gap_cp=500) is MoveClassification.best
+        # Not forced (the >500 threshold is strict) but still a big enough
+        # gap over GREAT_GAP_CP (150) to count as "great" rather than plain
+        # "best" — see TestGreat below for the tier's own dedicated tests.
+        assert classify(second_best_gap_cp=500) is MoveClassification.great
 
     def test_missing_gap_information_is_not_forced(self):
         assert classify(second_best_gap_cp=None) is MoveClassification.best
@@ -122,6 +125,37 @@ class TestBrilliant:
     def test_brilliant_does_not_override_book(self):
         assert (
             classify(is_book=True, ply=4, is_sacrifice=True, win_pct_before=70.0)
+            is MoveClassification.book
+        )
+
+
+class TestGreat:
+    def test_large_gap_to_second_best_is_great(self):
+        assert classify(second_best_gap_cp=200) is MoveClassification.great
+
+    def test_gap_at_the_great_threshold_is_not_great(self):
+        # GREAT_GAP_CP's own boundary is strict, same as FORCED_GAP_CP's.
+        assert classify(second_best_gap_cp=150) is MoveClassification.best
+
+    def test_small_gap_stays_plain_best(self):
+        assert classify(second_best_gap_cp=20) is MoveClassification.best
+
+    def test_great_only_applies_to_the_best_band(self):
+        # A 3-point drop is "good", not "best" — a wide gap to the second
+        # choice doesn't retroactively make a worse move great.
+        assert classify(win_pct_drop=3.0, second_best_gap_cp=200) is MoveClassification.good
+
+    def test_sacrifice_outranks_great(self):
+        # A sound sacrifice with a wide gap to the alternatives is brilliant,
+        # not great — rule 4 (brilliant) is checked before rule 5 (great).
+        assert (
+            classify(is_sacrifice=True, win_pct_before=70.0, second_best_gap_cp=200)
+            is MoveClassification.brilliant
+        )
+
+    def test_great_does_not_override_book(self):
+        assert (
+            classify(is_book=True, ply=4, second_best_gap_cp=200)
             is MoveClassification.book
         )
 
