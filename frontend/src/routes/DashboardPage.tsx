@@ -7,6 +7,7 @@ import { createImportJob } from '../api/imports';
 import { errorMessage } from '../api/client';
 import type { UseAccountStatusResult } from '../hooks/useAccountStatus';
 import { ImportProgress } from '../components/analysis/ImportProgress';
+import { DashboardGridSkeleton } from '../components/common/Skeleton';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
 import { isGrandmasterElo } from '../lib/botConstants';
 import type { BotGameSummary, Game, GameSource, ImportSource } from '../types';
@@ -425,7 +426,7 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
       {error && <div className="alert alert--error">{error}</div>}
       {startError && <div className="alert alert--error">{startError}</div>}
 
-      {loading && <div className="panel">Loading…</div>}
+      {loading && <DashboardGridSkeleton />}
 
       {!loading && !error && tab === 'bots' && botGames.length === 0 && (
         <div className="panel dashboard--empty">No bot games yet — play one from Play Bot.</div>

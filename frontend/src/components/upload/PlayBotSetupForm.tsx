@@ -166,7 +166,11 @@ export function PlayBotSetupForm({
       {error && <div className="alert alert--error">{error}</div>}
 
       <div className="form__row">
-        <button className="button button--primary" type="submit" disabled={busy}>
+        <button
+          className={`button button--primary${busy ? ' button--loading' : ''}`}
+          type="submit"
+          disabled={busy}
+        >
           {busy ? 'Setting up…' : 'Start game'}
         </button>
         {onCancel && (

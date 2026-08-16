@@ -27,7 +27,15 @@ MISTAKE_MAX_DROP = 20.0
 # A brilliant move must be winning enough to be a real sacrifice rather than a
 # desperate swindle, and must give up at least this much material.
 BRILLIANT_MIN_WIN_PCT = 20.0
-SACRIFICE_MIN_PAWNS = 1
+# Above this, the mover is already crushing — giving back material there is
+# mopping up, not a notable find, even if it's still technically sound.
+BRILLIANT_MAX_WIN_PCT = 95.0
+# Was 1: flagged plain trades (win a pawn, hand it straight back for
+# compensation) as "brilliant" since the one-ply lookahead in
+# `is_material_sacrifice` only has to see *a* pawn go missing. A real
+# sacrifice-the-kind-that-earns-an-exclamation-mark gives up at least a minor
+# piece's worth.
+SACRIFICE_MIN_PAWNS = 3
 
 # A "best" move is upgraded to "great" when every alternative falls off by at
 # least this much (mover POV centipawns) — the single clearly-right move in a
@@ -84,7 +92,7 @@ def classify_move(
     if (
         band is MoveClassification.best
         and is_sacrifice
-        and win_pct_before >= BRILLIANT_MIN_WIN_PCT
+        and BRILLIANT_MIN_WIN_PCT <= win_pct_before <= BRILLIANT_MAX_WIN_PCT
     ):
         return MoveClassification.brilliant
 

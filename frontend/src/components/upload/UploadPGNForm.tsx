@@ -95,7 +95,11 @@ export function UploadPGNForm({ onAnalysisStarted }: UploadPGNFormProps) {
 
       {error && <div className="alert alert--error">{error}</div>}
 
-      <button className="button button--primary" type="submit" disabled={submitting}>
+      <button
+        className={`button button--primary${submitting ? ' button--loading' : ''}`}
+        type="submit"
+        disabled={submitting}
+      >
         {submitting ? 'Starting analysis…' : 'Upload & analyse'}
       </button>
     </form>

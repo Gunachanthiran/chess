@@ -113,7 +113,11 @@ export function ImportFromLichessForm({ onAnalysisStarted }: ImportFromLichessFo
 
       {error && <div className="alert alert--error">{error}</div>}
 
-      <button className="button button--primary" type="submit" disabled={submitting}>
+      <button
+        className={`button button--primary${submitting ? ' button--loading' : ''}`}
+        type="submit"
+        disabled={submitting}
+      >
         {submitting ? 'Importing…' : 'Import & analyse'}
       </button>
     </form>

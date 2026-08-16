@@ -5,6 +5,7 @@ import { createAnalysisJob } from '../../api/analysis';
 import { errorMessage } from '../../api/client';
 import { BulkImportForm } from '../upload/BulkImportForm';
 import { ImportProgress } from '../analysis/ImportProgress';
+import { LibraryRowsSkeleton } from '../common/Skeleton';
 import { describeMatchup, formatPlayedAt } from '../../lib/gameDisplay';
 import type { Game } from '../../types';
 
@@ -147,7 +148,24 @@ export function GameLibraryPage() {
 
       {startError && <div className="alert alert--error">{startError}</div>}
 
-      {loading && <div className="panel">Loading games…</div>}
+      {loading && (
+        <div className="panel library__table-wrap">
+          <table className="library__table">
+            <thead>
+              <tr>
+                <th scope="col">Game</th>
+                <th scope="col">Result</th>
+                <th scope="col">Date</th>
+                <th scope="col">Opening</th>
+                <th scope="col" className="library__col-action">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <LibraryRowsSkeleton />
+          </table>
+        </div>
+      )}
 
       {!loading && !error && games.length === 0 && (
         <div className="panel library--empty">

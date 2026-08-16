@@ -7,6 +7,7 @@ long-lived engine processes later only requires keeping `analyse()`'s contract.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 
 import chess
@@ -114,6 +115,55 @@ class EngineAnalysis:
         }
 
 
+# --- Shared, long-lived processes ------------------------------------------
+#
+# Everything above assumes one `StockfishEngine` = one UCI process, opened and
+# quit around a single search. That is the right shape for the analysis
+# pipeline (a Celery task that runs many positions back to back inside one
+# `with` block), but wrong for the bot: `choose_bot_move` is called once per
+# synchronous HTTP request, so "open" meant "spawn a fresh process, do the UCI
+# handshake, configure it" on *every single move* - pure fixed overhead paid
+# again and again, and the dominant cost of a bot move on a CPU-starved host
+# (see tal_bot.GRANDMASTER_TIME_LIMIT_S's history of chasing this exact
+# latency by cutting search time, which was never the actual bottleneck).
+#
+# `reuse_process=True` opts a `StockfishEngine` into a small process cache
+# keyed by binary path instead: the same handful of subprocesses persist for
+# the life of the app, `configure()` (cheap - just UCI setoption commands, not
+# a restart) re-applies elo/threads/hash on every call. Guarded by a lock
+# because two bot-move requests racing to spawn the first process must not
+# both `popen_uci`, and because the UCI stdin/stdout protocol itself is not
+# safe to use from two threads at once.
+_shared_process_lock = threading.Lock()
+_shared_processes: dict[str, chess.engine.SimpleEngine] = {}
+
+
+def _shared_process(path: str) -> chess.engine.SimpleEngine:
+    with _shared_process_lock:
+        engine = _shared_processes.get(path)
+        if engine is None:
+            try:
+                engine = chess.engine.SimpleEngine.popen_uci(path)
+            except (OSError, chess.engine.EngineError) as exc:
+                raise EngineError(
+                    "Could not start Stockfish.", {"path": path, "reason": str(exc)}
+                ) from exc
+            _shared_processes[path] = engine
+        return engine
+
+
+def shutdown_shared_processes() -> None:
+    """Quit every cached shared process. Called from the app's shutdown hook
+    so a reload/exit doesn't leave orphaned Stockfish processes behind."""
+    with _shared_process_lock:
+        for engine in _shared_processes.values():
+            try:
+                engine.quit()
+            except Exception:  # noqa: BLE001 - never mask shutdown on this
+                pass
+        _shared_processes.clear()
+
+
 class StockfishEngine:
     """Context manager wrapping a single Stockfish UCI process."""
 
@@ -124,6 +174,7 @@ class StockfishEngine:
         elo: int | None = None,
         threads: int | None = None,
         hash_mb: int | None = None,
+        reuse_process: bool = False,
     ) -> None:
         self.path = path or settings.STOCKFISH_PATH
         self.depth = depth or settings.STOCKFISH_DEPTH
@@ -139,19 +190,25 @@ class StockfishEngine:
         # Only an elo-capped engine gets a node budget; full-strength callers
         # keep the unbounded depth-only search they have always had.
         self.nodes = None if self.elo is None else nodes_for_elo(self.elo)
+        # See "Shared, long-lived processes" above - the bot sets this, the
+        # analysis pipeline never does.
+        self.reuse_process = reuse_process
         self._engine: chess.engine.SimpleEngine | None = None
 
     # --- lifecycle ---------------------------------------------------------
 
     def open(self) -> "StockfishEngine":
         if self._engine is None:
-            try:
-                self._engine = chess.engine.SimpleEngine.popen_uci(self.path)
-            except (OSError, chess.engine.EngineError) as exc:
-                raise EngineError(
-                    "Could not start Stockfish.",
-                    {"path": self.path, "reason": str(exc)},
-                ) from exc
+            if self.reuse_process:
+                self._engine = _shared_process(self.path)
+            else:
+                try:
+                    self._engine = chess.engine.SimpleEngine.popen_uci(self.path)
+                except (OSError, chess.engine.EngineError) as exc:
+                    raise EngineError(
+                        "Could not start Stockfish.",
+                        {"path": self.path, "reason": str(exc)},
+                    ) from exc
 
             # Resource configuration, applied to *every* engine instance: the
             # bot's, the analysis pipeline's, elo-capped and full-strength
@@ -196,10 +253,32 @@ class StockfishEngine:
                         "Could not limit Stockfish strength.",
                         {"path": self.path, "elo": self.elo, "reason": str(exc)},
                     ) from exc
+            elif self.reuse_process:
+                # A shared process may carry an elo cap left behind by a
+                # *previous* caller (a different game's practice-tier move,
+                # say) - a freshly spawned process never needs this since it
+                # starts with UCI_LimitStrength already off, but a reused one
+                # must be told explicitly or a later Grandmaster-tier request
+                # would silently inherit someone else's strength cap.
+                try:
+                    self._engine.configure({"UCI_LimitStrength": False})
+                except (chess.engine.EngineError, ValueError) as exc:
+                    self.close()
+                    raise EngineError(
+                        "Could not reset Stockfish strength limit.",
+                        {"path": self.path, "reason": str(exc)},
+                    ) from exc
         return self
 
     def close(self) -> None:
         if self._engine is not None:
+            if self.reuse_process:
+                # The process itself outlives this wrapper - see "Shared,
+                # long-lived processes" above - so closing just detaches this
+                # instance from it rather than quitting it out from under
+                # whichever caller uses it next.
+                self._engine = None
+                return
             try:
                 self._engine.quit()
             except Exception:  # noqa: BLE001 - never mask the original error

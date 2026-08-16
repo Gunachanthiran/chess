@@ -11,7 +11,7 @@ import { CoachPanel } from '../analysis/CoachPanel';
 import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useCoachVoice } from '../../lib/coachVoice';
-import { commentaryForAnalysisMove } from '../../lib/coach';
+import { commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
 import { accuracyColor, classificationColor, classificationLabel } from '../../styles/classification-colors';
 import type { Game, MoveAnalysis } from '../../types';
@@ -105,7 +105,9 @@ export function GameAnalysisPage({
     const move = moves[currentMoveIndex - 1];
     if (!move) return;
     playForMove(move.san);
-    speak(commentaryForAnalysisMove(move));
+    if (isNotableMove(move.classification)) {
+      speak(commentaryForAnalysisMove(move));
+    }
   }, [currentMoveIndex, moves, playForMove, speak]);
 
   // Keyboard navigation. Bound at the document so the board is reachable

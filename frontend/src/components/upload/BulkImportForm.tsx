@@ -177,7 +177,11 @@ export function BulkImportForm({ onImportStarted, onCancel }: BulkImportFormProp
       {error && <div className="alert alert--error">{error}</div>}
 
       <div className="form__row">
-        <button className="button button--primary" type="submit" disabled={submitting}>
+        <button
+          className={`button button--primary${submitting ? ' button--loading' : ''}`}
+          type="submit"
+          disabled={submitting}
+        >
           {submitting ? 'Starting import…' : 'Start import'}
         </button>
         {onCancel && (

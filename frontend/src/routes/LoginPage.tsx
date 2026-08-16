@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { connectChessCom, disconnectChessCom, disconnectLichess, lichessLoginUrl } from '../api/auth';
 import { errorMessage } from '../api/client';
+import { PanelSkeleton } from '../components/common/Skeleton';
 import type { UseAccountStatusResult } from '../hooks/useAccountStatus';
 import type { AccountConnection } from '../types';
 
@@ -96,7 +97,7 @@ export function LoginPage({ account }: LoginPageProps) {
   };
 
   if (loading) {
-    return <div className="panel form">Loading…</div>;
+    return <PanelSkeleton />;
   }
 
   return (

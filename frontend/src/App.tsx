@@ -9,6 +9,7 @@ import { PlayBotSetupRoute } from './routes/PlayBotSetupRoute';
 import { PlayBotRoute } from './routes/PlayBotRoute';
 import { GameLibraryPage } from './components/layout/GameLibraryPage';
 import { ColorSchemeToggle } from './components/layout/ColorSchemeToggle';
+import { PanelSkeleton } from './components/common/Skeleton';
 import { useBotGame } from './hooks/useBotGame';
 import { useAccountStatus } from './hooks/useAccountStatus';
 import { unlockAudio } from './lib/sound';
@@ -179,7 +180,7 @@ export default function App() {
 
       <main className="app__main">
         {accountLoading || gateBlocksRender ? (
-          <div className="panel">Loading…</div>
+          <PanelSkeleton />
         ) : (
           <Routes>
             <Route path="/login" element={<LoginPage account={account} />} />

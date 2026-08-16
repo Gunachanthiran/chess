@@ -29,6 +29,7 @@ drifting into draws by shuffling.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 import chess
@@ -119,6 +120,16 @@ GRANDMASTER_TIME_LIMIT_S = 0.5
 def is_grandmaster(elo: int) -> bool:
     """True when `elo` selects the unrestricted full-strength tier."""
     return elo >= GRANDMASTER_ELO
+
+
+# Every bot move shares the same handful of long-lived Stockfish processes
+# (see `engine_pool`'s "Shared, long-lived processes") instead of spawning a
+# fresh one per move - that spawn-and-handshake cost used to be paid on every
+# single move and was the dominant part of a move's latency, not the search
+# itself. The UCI protocol isn't safe for two threads to drive at once, so
+# this lock serialises actual engine use across concurrent bot games; it does
+# not serialise anything else about a request.
+_BOT_ENGINE_LOCK = threading.Lock()
 
 # How many candidate moves to re-rank. Wider than the obvious 5: a speculative
 # sacrifice is exactly the kind of move a top engine ranks 6th-8th, so a pool of
@@ -255,17 +266,19 @@ def choose_bot_move(board: chess.Board, elo: int, aggression: int) -> chess.Move
     material at the tier whose job is to not lose.
     """
     if is_grandmaster(elo):
-        engine = StockfishEngine(elo=None, depth=GRANDMASTER_SEARCH_DEPTH)
+        engine = StockfishEngine(
+            elo=None, depth=GRANDMASTER_SEARCH_DEPTH, reuse_process=True
+        )
         depth = GRANDMASTER_SEARCH_DEPTH
         time_limit = GRANDMASTER_TIME_LIMIT_S
         multipv = GRANDMASTER_MULTIPV
     else:
-        engine = StockfishEngine(elo=elo)
+        engine = StockfishEngine(elo=elo, reuse_process=True)
         depth = BOT_SEARCH_DEPTH
         time_limit = None
         multipv = BOT_MULTIPV
 
-    with engine:
+    with _BOT_ENGINE_LOCK, engine:
         candidates = engine.analyse_candidates(
             board, depth=depth, multipv=multipv, time_limit=time_limit
         )

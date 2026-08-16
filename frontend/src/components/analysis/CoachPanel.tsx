@@ -1,4 +1,4 @@
-import { commentaryForAnalysisMove } from '../../lib/coach';
+import { commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
 import type { MoveAnalysis } from '../../types';
 
 type CoachPanelProps = {
@@ -18,9 +18,11 @@ type CoachPanelProps = {
  * separate speak-on-navigation effect's own timing.
  */
 export function CoachPanel({ move, muted, onToggleMute }: CoachPanelProps) {
-  const text = move
-    ? commentaryForAnalysisMove(move)
-    : "Step through the game and I'll walk you through it.";
+  const text = !move
+    ? "Step through the game and I'll walk you through it."
+    : isNotableMove(move.classification)
+      ? commentaryForAnalysisMove(move)
+      : 'Nothing to flag here — keeping quiet through the routine moves.';
 
   return (
     <div className="panel coach">

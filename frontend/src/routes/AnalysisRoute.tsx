@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AnalysisProgress } from '../components/analysis/AnalysisProgress';
 import { GameAnalysisPage } from '../components/layout/GameAnalysisPage';
+import { PanelSkeleton } from '../components/common/Skeleton';
 import { useMoveAnalysis } from '../hooks/useMoveAnalysis';
 import { getAnalysisJob } from '../api/analysis';
 import { getGame } from '../api/games';
@@ -72,7 +73,7 @@ export function AnalysisRoute() {
   }
 
   if (loading || !job) {
-    return <div className="panel">Loading…</div>;
+    return <PanelSkeleton />;
   }
 
   if (job.status !== 'completed') {
@@ -88,7 +89,7 @@ export function AnalysisRoute() {
 
   return (
     <>
-      {analysis.loading && <div className="panel">Loading analysis…</div>}
+      {analysis.loading && <PanelSkeleton lines={5} />}
       {analysis.error && (
         <div className="panel">
           <div className="alert alert--error">{analysis.error}</div>

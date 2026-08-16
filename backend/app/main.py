@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.errors import ChessScopeError
 from app.routers import analysis, auth, bot_games, games, imports, lichess, players, ws
+from app.services import engine_pool
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,6 +68,13 @@ async def unhandled_error_handler(_: Request, exc: Exception) -> JSONResponse:
 @app.get("/health", tags=["meta"])
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.on_event("shutdown")
+def _shutdown_engines() -> None:
+    """Quit the bot's shared Stockfish processes (see `engine_pool`) so a
+    reload/exit never leaves one running as an orphan."""
+    engine_pool.shutdown_shared_processes()
 
 
 app.include_router(games.router, prefix="/api")

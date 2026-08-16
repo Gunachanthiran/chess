@@ -175,6 +175,18 @@ const TEMPLATES: Record<Classification, string[]> = {
 const SUBOPTIMAL_TIERS = new Set<Classification>(['inaccuracy', 'mistake', 'blunder']);
 
 /**
+ * Tiers worth the coach interrupting for. Routine moves (book/good/best/
+ * excellent/inaccuracy/forced) happen on nearly every ply — narrating each
+ * one is noise, not coaching. Only the moves a human commentator would
+ * actually stop for get a line.
+ */
+const NOTABLE_TIERS = new Set<Classification>(['brilliant', 'great', 'mistake', 'blunder']);
+
+export function isNotableMove(classification: Classification): boolean {
+  return NOTABLE_TIERS.has(classification);
+}
+
+/**
  * One coaching sentence for a single analysed move: the tier's own line
  * covers *what's wrong* (or what's notable), and for the tiers where
  * something genuinely was wrong, `bestMoveSentence` appends the explicit

@@ -3,6 +3,7 @@ import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { PanelSkeleton } from '../common/Skeleton';
 import type { BotGameHook } from '../../hooks/useBotGame';
 import { isGrandmasterElo } from '../../lib/botConstants';
 import type { BotGame, BotGameMove } from '../../types';
@@ -180,7 +181,7 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
     // game by id — genuinely still loading, not failed, so it gets a neutral
     // message rather than the error framing below.
     if (creating && !error) {
-      return <div className="panel form">Loading game…</div>;
+      return <PanelSkeleton />;
     }
     return (
       <div className="panel form">

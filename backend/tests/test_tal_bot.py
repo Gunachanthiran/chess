@@ -499,7 +499,9 @@ class TestGrandmasterRouting:
         tal_bot.choose_bot_move(board, elo=elo, aggression=3)
 
         engine = recording_engine.instances[0]
-        assert engine.kwargs == {"elo": elo}  # no depth override, elo passed through
+        # no depth override, elo passed through; reuse_process=True is the
+        # shared-Stockfish-process opt-in every bot-tier engine now sets.
+        assert engine.kwargs == {"elo": elo, "reuse_process": True}
         assert engine.calls[0]["depth"] == tal_bot.BOT_SEARCH_DEPTH
         assert engine.calls[0]["time_limit"] is None  # keeps the 1.5s default
         assert engine.calls[0]["multipv"] == tal_bot.BOT_MULTIPV
