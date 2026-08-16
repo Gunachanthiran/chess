@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { DashboardPage } from './routes/DashboardPage';
 import { LoginPage } from './routes/LoginPage';
 import { AnalyzeLandingPage } from './routes/AnalyzeLandingPage';
+import { PlayerSearchPage } from './routes/PlayerSearchPage';
 import { AnalysisRoute } from './routes/AnalysisRoute';
 import { PlayBotSetupRoute } from './routes/PlayBotSetupRoute';
 import { PlayBotRoute } from './routes/PlayBotRoute';
@@ -18,10 +19,14 @@ import './App.css';
  * and reading a finished one back are both "Analyze" as far as the user is
  * concerned.
  */
-type NavSection = 'dashboard' | 'analyze' | 'library' | 'play';
+type NavSection = 'dashboard' | 'analyze' | 'library' | 'play' | 'players';
 
 function sectionForPath(pathname: string): NavSection {
   if (pathname.startsWith('/library')) return 'library';
+  // Checked before `/play`, which `/players` would otherwise also match —
+  // `startsWith('/play')` doesn't stop at the path segment boundary, so
+  // `/players` needs to be ruled out first rather than made a prefix of it.
+  if (pathname.startsWith('/players')) return 'players';
   if (pathname.startsWith('/play')) return 'play';
   if (pathname.startsWith('/analyze')) return 'analyze';
   return 'dashboard';
@@ -90,11 +95,34 @@ export default function App() {
 
   const activeSection = sectionForPath(location.pathname);
 
+  // On a narrow viewport `.app__nav` scrolls horizontally within itself
+  // (App.css) rather than overflowing the page, which means the active tab
+  // can land off-screen — five items' natural width no longer fits one row
+  // on a phone. Scrolling it into view on every section change keeps "where
+  // am I" visible without requiring a manual swipe first.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // `inline: 'end'`, not `'nearest'` — `'nearest'` treats an element that is
+    // even partially visible as already satisfied and never finishes the
+    // scroll, which is exactly the half-cut-off state this is meant to fix.
+    navRef.current
+      ?.querySelector('.app__nav-link--active')
+      ?.scrollIntoView({ inline: 'end', block: 'nearest' });
+    // `connected` is a dependency, not just `activeSection`: `<nav>` is only
+    // rendered at all once `connected` becomes true (below), so the very
+    // first opportunity `navRef.current` is non-null arrives on *that*
+    // transition, not on a section change — a `[activeSection]`-only effect
+    // would run once too early (nav doesn't exist yet, a harmless no-op) and
+    // then never again, since the URL-derived section it depends on hasn't
+    // itself changed.
+  }, [activeSection, connected]);
+
   const navItems: { section: NavSection; label: string; path: string }[] = [
     { section: 'dashboard', label: 'Dashboard', path: '/' },
     { section: 'analyze', label: 'Analyze', path: '/analyze' },
     { section: 'library', label: 'Library', path: '/library' },
     { section: 'play', label: 'Play Bot', path: '/play' },
+    { section: 'players', label: 'Players', path: '/players' },
   ];
 
   const connectedName = status?.lichess?.username ?? status?.chess_com?.username ?? null;
@@ -110,7 +138,7 @@ export default function App() {
           {/* No point navigating around a gated app before there's anything
               behind the gate — the nav only appears once connected. */}
           {connected && (
-            <nav className="app__nav" aria-label="Main">
+            <nav className="app__nav" aria-label="Main" ref={navRef}>
               {navItems.map((item) => {
                 const isActive = item.section === activeSection;
                 return (
@@ -161,6 +189,7 @@ export default function App() {
             <Route path="/analysis/:jobId" element={<AnalysisRoute />} />
             <Route path="/play" element={<PlayBotSetupRoute bot={bot} />} />
             <Route path="/play/:gameId" element={<PlayBotRoute bot={bot} />} />
+            <Route path="/players" element={<PlayerSearchPage />} />
           </Routes>
         )}
       </main>

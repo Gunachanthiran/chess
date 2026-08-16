@@ -361,6 +361,7 @@ def analyze_game(job_id: str) -> dict:
                 win_pct_before=win_before,
                 win_pct_after=win_after,
                 classification=classification,
+                top_moves=_top_moves_json(before),
             )
             rows.append(row)
             pending.append(row)
@@ -441,6 +442,22 @@ def _second_best_gap(analysis: dict, side: Side) -> int | None:
         _to_cp(analysis["second_best_cp"], analysis["second_best_mate"]), side
     )
     return best - second
+
+
+def _top_moves_json(analysis: dict) -> list[dict] | None:
+    """`analysis["top_moves"]` (raw `chess.Move` objects) to the JSON-storable
+    shape `MoveAnalysis.top_moves` expects. `None` when the analysis carries no
+    `top_moves` key at all (defensive - every real path sets it, even to `[]`),
+    so a row is never written with a value that looks like "the engine had no
+    candidates" when the truth is "this data was never computed"."""
+    top_moves = analysis.get("top_moves")
+    if top_moves is None:
+        return None
+    return [
+        {"uci": item["move"].uci(), "cp": item["cp"], "mate": item["mate"]}
+        for item in top_moves
+        if item.get("move") is not None
+    ]
 
 
 def _as_uuid(value: str) -> uuid.UUID:

@@ -7,7 +7,7 @@ long-lived engine processes later only requires keeping `analyse()`'s contract.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import chess
 import chess.engine
@@ -24,6 +24,12 @@ TERMINAL_MATE = 1
 # Callers may pass anything; values outside the range are clamped, not rejected.
 MIN_UCI_ELO = 1320
 MAX_UCI_ELO = 3190
+
+# How many ranked candidate moves `analyse()` requests from Stockfish — one
+# search covers both classification's `second_best_gap_cp` (needs 2) and the
+# "Stockfish recommends" panel (wants a short list, not just one). Kept small:
+# each extra line is extra search work inside the same time-bounded budget.
+ANALYSIS_MULTIPV = 3
 
 # Wall-clock ceiling for a single `analyse_candidates` search, so a synchronous
 # HTTP request can never stall on the engine.
@@ -82,6 +88,13 @@ class EngineAnalysis:
     best_move: chess.Move | None
     second_best_cp: int | None = None
     second_best_mate: int | None = None
+    # The engine's ranked pool of candidate moves at this position — the
+    # "Stockfish recommends" panel's data source. `list[dict]` (not
+    # `list[CandidateMove]`) so this is the exact shape both `analyse()` and
+    # the Lichess cloud-eval fallback (`lichess_cloud_eval._parse`) produce,
+    # letting `position_evaluator.evaluate_position` pass either straight
+    # through unchanged. Empty, never `None`, when nothing is available.
+    top_moves: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -90,6 +103,7 @@ class EngineAnalysis:
             "best_move": self.best_move,
             "second_best_cp": self.second_best_cp,
             "second_best_mate": self.second_best_mate,
+            "top_moves": self.top_moves,
         }
 
 
@@ -195,15 +209,21 @@ class StockfishEngine:
     # --- analysis ----------------------------------------------------------
 
     def analyse(self, board: chess.Board, depth: int | None = None) -> dict:
-        """Analyse `board`, returning cp/mate/best_move (+ the 2nd-best score).
+        """Analyse `board`, returning cp/mate/best_move, the 2nd-best score, and
+        a ranked pool of the top `ANALYSIS_MULTIPV` candidate moves.
 
-        The second-best line comes from the same multipv=2 search, so a position
-        is only ever handed to the engine once.
+        Every line comes from the one `multipv=ANALYSIS_MULTIPV` search, so a
+        position is only ever handed to the engine once — the "Stockfish
+        recommends" panel's data costs nothing beyond what this call already
+        did for classification's `second_best_gap_cp`.
 
         The search is bounded by depth *and* by
         `settings.ANALYSIS_TIME_LIMIT_S`; whichever is hit first ends it, so no
         single position can run away with an unbounded amount of wall-clock
-        time.
+        time. Asking for one more PV line than before (3 instead of 2) spends
+        that same time budget across more root moves, so a time-bounded search
+        settles at a marginally shallower effective depth than it used to —
+        an acceptable trade for what was otherwise a second engine call away.
         """
         if board.is_game_over(claim_draw=False):
             return self._terminal_analysis(board).as_dict()
@@ -215,7 +235,7 @@ class StockfishEngine:
             depth=depth or self.depth, time=settings.ANALYSIS_TIME_LIMIT_S
         )
         try:
-            infos = self._engine.analyse(board, limit, multipv=2)
+            infos = self._engine.analyse(board, limit, multipv=ANALYSIS_MULTIPV)
         except chess.engine.EngineError as exc:
             raise EngineError(
                 "Stockfish failed to analyse a position.",
@@ -235,12 +255,21 @@ class StockfishEngine:
         if len(infos) > 1:
             second_cp, second_mate = _score_to_white_pov(infos[1])
 
+        top_moves: list[dict] = []
+        for info in infos:
+            move = _first_pv_move(info)
+            if move is None:
+                continue
+            cp, mate = _score_to_white_pov(info)
+            top_moves.append({"move": move, "cp": cp, "mate": mate})
+
         return EngineAnalysis(
             cp=best_cp,
             mate=best_mate,
             best_move=best_move,
             second_best_cp=second_cp,
             second_best_mate=second_mate,
+            top_moves=top_moves,
         ).as_dict()
 
     def analyse_candidates(

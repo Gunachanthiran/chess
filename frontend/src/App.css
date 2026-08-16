@@ -136,7 +136,21 @@
     /* Full-width second row, after the title/actions row above it. */
     order: 3;
     flex-basis: 100%;
-    justify-content: center;
+    /* `min-width: 0` is what actually lets `overflow-x` engage below — a flex
+       item's default content-based minimum width otherwise wins (same fix as
+       `.library__table-wrap`), and five nav items' *natural* width is wider
+       than a typical phone even on this row by itself. `flex-start`, not
+       `center`: on an overflowing centered row the first item scrolls off
+       both edges symmetrically, which is a much worse starting scroll
+       position than starting at the actual first item. */
+    min-width: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  .app__nav-link {
+    padding: 14px 8px;
+    font-size: 0.88rem;
   }
 }
 
@@ -702,6 +716,14 @@
   color: var(--accent-contrast);
   background: linear-gradient(135deg, var(--accent), var(--accent-soft));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), 0 10px 28px -10px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* A real Chess.com avatar photo, same size/glow as the coloured-initial
+   fallback above — an `<img>` in place of that `<div>`, not a modifier of it,
+   since the two have nothing in common but their box. */
+.dashboard__avatar--photo {
+  object-fit: cover;
+  background: var(--bg-sunken);
 }
 
 .dashboard__greeting-label {
@@ -1506,6 +1528,47 @@
   font-size: 0.82rem;
 }
 
+/* ---------- Stockfish recommendations ---------- */
+
+.recommendations__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recommendations__row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-radius: var(--radius-control);
+}
+
+.recommendations__row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.recommendations__rank {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.recommendations__san {
+  font-weight: 600;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.recommendations__eval {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Accuracy ---------- */
 
 .accuracy__grid {
@@ -1792,4 +1855,122 @@
 
 .eval-graph--empty {
   color: var(--text-dim);
+}
+
+/* ---------- Player search ---------- */
+
+.player-result {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.player-result__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Same "coloured-initial circle, or a real photo" pattern as
+   `.dashboard__avatar` / `.dashboard__avatar--photo`, at a smaller size for a
+   result card rather than a page greeting. */
+.player-result__avatar {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+}
+
+.player-result__avatar--photo {
+  object-fit: cover;
+  background: var(--bg-sunken);
+}
+
+.player-result__name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-result__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+}
+
+.player-result__meta {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.player-result__link {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.player-result__record {
+  display: flex;
+  gap: 10px;
+}
+
+.player-result__record-item {
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.player-result__record-item--win {
+  color: var(--accent-strong);
+}
+
+.player-result__record-item--loss {
+  color: var(--danger);
+}
+
+.player-result__record-item--draw {
+  color: var(--text-dim);
+}
+
+.player-result__ratings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 10px;
+}
+
+.player-result__rating {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+
+.player-result__rating-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.player-result__rating-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }

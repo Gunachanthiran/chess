@@ -3,8 +3,6 @@ import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
-import { useCoachVoice } from '../../lib/coachVoice';
-import { commentaryForPlayMove } from '../../lib/coach';
 import type { BotGameHook } from '../../hooks/useBotGame';
 import { isGrandmasterElo } from '../../lib/botConstants';
 import type { BotGame, BotGameMove } from '../../types';
@@ -113,7 +111,6 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
     undoMove,
   } = bot;
   const { muted, toggleMuted, playForMove, playIllegal } = useSoundEffects();
-  const { muted: coachMuted, toggleMuted: toggleCoachMuted, speak } = useCoachVoice();
 
   // True for exactly one server response: the one following a move the
   // player just made in this tab. Set synchronously in `handlePieceDrop`
@@ -165,20 +162,18 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
 
     const timers: number[] = [];
     fresh.forEach((move, position) => {
-      if (skipFirst && position === 0) return; // Already sounded (and spoken) on drop.
-      const line = commentaryForPlayMove(move.san, move.is_bot_move, move.ply);
+      if (skipFirst && position === 0) return; // Already sounded on drop.
       if (!skipFirst && position === 0) {
         playForMove(move.san);
-        speak(line);
       } else {
-        const delay = position * REPLY_SOUND_DELAY_MS;
-        timers.push(window.setTimeout(() => playForMove(move.san), delay));
-        timers.push(window.setTimeout(() => speak(line), delay));
+        timers.push(
+          window.setTimeout(() => playForMove(move.san), position * REPLY_SOUND_DELAY_MS),
+        );
       }
     });
 
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [botGame, playForMove, speak]);
+  }, [botGame, playForMove]);
 
   if (!botGame) {
     // A direct visit or reload lands here first while `PlayBotRoute` loads the
@@ -220,12 +215,8 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
     }
     // Play now, synchronously, inside the drop — the one point in this whole
     // flow that is still directly on the stack of a real user gesture. See
-    // `justPlayedRef`'s comment above for why this matters. Speech synthesis
-    // is gated by a similar user-gesture requirement in some browsers, so the
-    // coach's remark on the player's own move is spoken from right here too,
-    // not from the effect below.
+    // `justPlayedRef`'s comment above for why this matters.
     playForMove(san);
-    speak(commentaryForPlayMove(san, false, (botGame?.moves.length ?? 0) + 1));
     justPlayedRef.current = true;
     void attemptMove(sourceSquare, targetSquare).then((accepted) => {
       if (!accepted) {
@@ -338,16 +329,6 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
               aria-pressed={muted}
             >
               {muted ? '🔇' : '🔊'}
-            </button>
-            <button
-              className="button"
-              type="button"
-              onClick={toggleCoachMuted}
-              title={coachMuted ? 'Turn on coach commentary' : 'Turn off coach commentary'}
-              aria-label={coachMuted ? 'Turn on coach commentary' : 'Turn off coach commentary'}
-              aria-pressed={!coachMuted}
-            >
-              {coachMuted ? '🎙️' : '🗣️'}
             </button>
             <BoardThemePicker />
             <button className="button" type="button" onClick={onExit}>

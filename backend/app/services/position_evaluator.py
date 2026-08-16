@@ -16,7 +16,7 @@ from __future__ import annotations
 import chess
 
 from app.services import lichess_cloud_eval
-from app.services.engine_pool import StockfishEngine
+from app.services.engine_pool import ANALYSIS_MULTIPV, StockfishEngine
 
 # A cached eval is only worth using if it is at least as deep as the local
 # search it replaces, and never below this floor - a shallow cached entry is
@@ -25,7 +25,14 @@ MIN_CLOUD_DEPTH = 20
 
 # Keys of the `analyse()` contract, used to strip the cloud response's extra
 # `depth` field so both paths return exactly the same shape.
-ANALYSIS_KEYS = ("cp", "mate", "best_move", "second_best_cp", "second_best_mate")
+ANALYSIS_KEYS = (
+    "cp",
+    "mate",
+    "best_move",
+    "second_best_cp",
+    "second_best_mate",
+    "top_moves",
+)
 
 
 def evaluate_position(
@@ -53,7 +60,7 @@ def evaluate_position(
             if cloud_session is None
             else cloud_session.fetch
         )
-        cloud = lookup(board.fen(), multipv=2)
+        cloud = lookup(board.fen(), multipv=ANALYSIS_MULTIPV)
         if _is_usable(cloud, engine, depth):
             return {key: cloud[key] for key in ANALYSIS_KEYS}
 

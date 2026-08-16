@@ -17,7 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -95,6 +95,17 @@ class MoveAnalysis(Base):
         ),
         nullable=False,
     )
+
+    # Stockfish's ranked candidate moves *from this position* (i.e. for
+    # `fen_before`, not the move actually played) — the "Stockfish
+    # recommends" panel's data. `[{"uci": str, "cp": int|None, "mate":
+    # int|None}, ...]`, best first, typically length `ANALYSIS_MULTIPV`
+    # (engine_pool.py). Nullable rather than defaulted to `[]`: rows written
+    # before this column existed have no recommendation data at all, and
+    # `None` keeps that genuinely absent rather than indistinguishable from
+    # "the engine had no candidates" (which the terminal-position case does
+    # produce, as a real `[]`).
+    top_moves: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

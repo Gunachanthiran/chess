@@ -52,9 +52,19 @@ def _connection_out(connection: AccountConnection | None) -> ConnectionOut | Non
 @router.get("/status", response_model=AuthStatusResponse)
 def get_status(db: Session = Depends(get_db)) -> AuthStatusResponse:
     connections = account_connections.get_status(db)
+
+    chess_com = _connection_out(connections.get(GameSource.chess_com))
+    if chess_com is not None:
+        # Lichess has no profile-picture feature at all, so only the Chess.com
+        # side ever gets a real lookup. Best-effort (see `fetch_avatar_url`):
+        # a slow or unreachable Chess.com must never fail the whole status
+        # check the rest of the app gates on.
+        avatar_url = chesscom_client.fetch_avatar_url(chess_com.username)
+        chess_com = chess_com.model_copy(update={"avatar_url": avatar_url})
+
     return AuthStatusResponse(
         lichess=_connection_out(connections.get(GameSource.lichess)),
-        chess_com=_connection_out(connections.get(GameSource.chess_com)),
+        chess_com=chess_com,
     )
 
 

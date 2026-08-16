@@ -6,6 +6,7 @@ import { MoveList } from '../moves/MoveList';
 import { EvalGraph } from '../moves/EvalGraph';
 import { AccuracyPanel } from '../analysis/AccuracyPanel';
 import { MoveSummaryPanel } from '../analysis/MoveSummaryPanel';
+import { RecommendationsPanel } from '../analysis/RecommendationsPanel';
 import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useCoachVoice } from '../../lib/coachVoice';
@@ -143,6 +144,11 @@ export function GameAnalysisPage({
   }, [goToPrev, goToNext, goToStart, goToEnd]);
 
   const currentMove = currentMoveIndex > 0 ? moves[currentMoveIndex - 1] : null;
+  // The move about to be played *from* the position currently on the board —
+  // distinct from `currentMove` (the one just played to reach it). Feeds
+  // `RecommendationsPanel`; `null` once navigation reaches the final recorded
+  // position, since there is no "next move" left to recommend one for.
+  const upcomingMove = currentMoveIndex < moves.length ? moves[currentMoveIndex] : null;
 
   // Classification bubble floated over the square the current move landed on.
   // `lastMoveUci` is already the current move's UCI, so characters 2-4 are its
@@ -285,6 +291,8 @@ export function GameAnalysisPage({
               <span>Starting position — use ← → Home End to navigate</span>
             )}
           </div>
+
+          <RecommendationsPanel upcomingMove={upcomingMove} />
         </section>
 
         <aside className="analysis__side-column">

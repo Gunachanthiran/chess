@@ -19,6 +19,10 @@ ENGINE_RESULT = {
     "best_move": chess.Move.from_uci("d2d4"),
     "second_best_cp": 20,
     "second_best_mate": None,
+    "top_moves": [
+        {"move": chess.Move.from_uci("d2d4"), "cp": 31, "mate": None},
+        {"move": chess.Move.from_uci("e2e4"), "cp": 20, "mate": None},
+    ],
 }
 
 
@@ -29,6 +33,10 @@ def cloud_result(depth: int, **overrides) -> dict:
         "best_move": chess.Move.from_uci("e2e4"),
         "second_best_cp": 19,
         "second_best_mate": None,
+        "top_moves": [
+            {"move": chess.Move.from_uci("e2e4"), "cp": 25, "mate": None},
+            {"move": chess.Move.from_uci("d2d4"), "cp": 19, "mate": None},
+        ],
         "depth": depth,
     }
     result.update(overrides)

@@ -337,13 +337,20 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
   }, [setSearchParams, startNextSync]);
 
   const displayName = status?.lichess?.username ?? status?.chess_com?.username ?? 'there';
+  // Lichess has no avatar feature at all, so this is Chess.com-or-nothing —
+  // `null` falls back to the plain coloured-initial circle below.
+  const avatarUrl = status?.chess_com?.avatar_url ?? null;
 
   return (
     <div className="dashboard">
       <div className="dashboard__greeting">
-        <div className="dashboard__avatar" aria-hidden="true">
-          {displayName.slice(0, 1).toUpperCase()}
-        </div>
+        {avatarUrl ? (
+          <img className="dashboard__avatar dashboard__avatar--photo" src={avatarUrl} alt="" />
+        ) : (
+          <div className="dashboard__avatar" aria-hidden="true">
+            {displayName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
         <div>
           <div className="dashboard__greeting-label">{greeting()},</div>
           <h2 className="dashboard__name">{displayName}</h2>

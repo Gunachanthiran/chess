@@ -79,6 +79,19 @@ export type MoveAnalysis = {
   win_pct_before: number;
   win_pct_after: number;
   classification: Classification;
+  /** Stockfish's ranked candidates for this position, best first. `null` for
+   * rows analysed before this existed; `[]` is a real "nothing to suggest"
+   * (a terminal position). */
+  top_moves: TopMove[] | null;
+};
+
+/** One ranked candidate move — `eval_cp_before`/`_after`'s sibling for a
+ * position rather than a single number: `cp`/`mate` are White-POV, exactly
+ * like every other evaluation field on `MoveAnalysis`. */
+export type TopMove = {
+  uci: string;
+  cp: number | null;
+  mate: number | null;
 };
 
 /** Response shape of GET /api/analysis/jobs/{job_id}/moves */
@@ -215,6 +228,9 @@ export type BotGameSummaryListResponse = {
 export type AccountConnection = {
   username: string;
   connected_at: string;
+  /** Chess.com avatar image URL, or `null` (no custom avatar, lookup failed,
+   * or this is a Lichess connection — Lichess has no avatar feature). */
+  avatar_url: string | null;
 };
 
 /** Response shape of GET /api/auth/status */
@@ -266,4 +282,27 @@ export type ImportProgressFrame = {
   games_imported?: number;
   games_skipped?: number;
   error?: string;
+};
+
+/* ---------- Player search ---------- */
+
+export type PlayerRating = {
+  format: string;
+  rating: number | null;
+};
+
+/** Response shape of GET /api/players/lookup — a public profile looked up by
+ * username, unrelated to any connected account. */
+export type PlayerLookup = {
+  source: ImportSource;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  title: string | null;
+  country: string | null;
+  profile_url: string | null;
+  wins: number | null;
+  losses: number | null;
+  draws: number | null;
+  ratings: PlayerRating[];
 };

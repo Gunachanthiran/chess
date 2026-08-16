@@ -234,12 +234,26 @@ def _parse(payload: object, fen: str) -> dict | None:
     if len(pvs) > 1 and isinstance(pvs[1], dict):
         second_cp, second_mate = _score(pvs[1])
 
+    # Same shape as `StockfishEngine.analyse()`'s own `top_moves` — see that
+    # method for why the panel this feeds needs a ranked pool, not just one
+    # move. Built from every returned pv, not just the first two.
+    top_moves: list[dict] = []
+    for pv in pvs:
+        if not isinstance(pv, dict):
+            continue
+        move = _first_move(pv, board)
+        if move is None:
+            continue
+        move_cp, move_mate = _score(pv)
+        top_moves.append({"move": move, "cp": move_cp, "mate": move_mate})
+
     return {
         "cp": cp,
         "mate": mate,
         "best_move": best_move,
         "second_best_cp": second_cp,
         "second_best_mate": second_mate,
+        "top_moves": top_moves,
         "depth": _depth(payload),
     }
 

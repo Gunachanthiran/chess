@@ -23,6 +23,45 @@ REQUEST_TIMEOUT = httpx.Timeout(20.0)
 DEFAULT_MAX_GAMES = 100
 
 
+def fetch_player_profile(username: str) -> dict:
+    """Chess.com's public player-profile payload — name, title, avatar, etc."""
+    user = (username or "").strip()
+    if not user:
+        raise ValidationError("A Chess.com username is required.")
+
+    url = f"{settings.CHESSCOM_API_BASE.rstrip('/')}/player/{user}"
+    return _get(url, context={"username": user})
+
+
+def fetch_player_stats(username: str) -> dict:
+    """Chess.com's public per-format stats payload: ratings and W/L/D records."""
+    user = (username or "").strip()
+    if not user:
+        raise ValidationError("A Chess.com username is required.")
+
+    url = f"{settings.CHESSCOM_API_BASE.rstrip('/')}/player/{user}/stats"
+    return _get(url, context={"username": user})
+
+
+def fetch_avatar_url(username: str) -> str | None:
+    """The player's Chess.com avatar image URL, or `None`.
+
+    Best-effort only, unlike every other function in this module: a missing
+    or unreachable avatar must never break the page that wants to show it (the
+    dashboard greeting, a player-search result). Most players have never set
+    a custom avatar at all — Chess.com simply omits the `avatar` key rather
+    than sending a placeholder — which is indistinguishable here from "the
+    lookup failed" and is handled identically: the caller falls back to its
+    own default.
+    """
+    try:
+        profile = fetch_player_profile(username)
+    except ExternalAPIError:
+        return None
+    avatar = profile.get("avatar")
+    return avatar if isinstance(avatar, str) and avatar.strip() else None
+
+
 def fetch_archive_urls(username: str) -> list[str]:
     """Every monthly archive URL for a player, oldest month first."""
     user = (username or "").strip()
