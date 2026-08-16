@@ -106,20 +106,26 @@ services:
       # fractional budget with added overhead rather than doing more work in
       # parallel.
       #
-      # This value was 30s, aimed at reliably reaching depth 14. It reached
-      # it, but at a real wall-clock cost that made a whole game's analysis
-      # look hung: the same CPU-starvation overshoot measured for the bot's
-      # per-move budget (tal_bot.py — a *requested* Stockfish search time
-      # inflates 2-3.5x in real time on this host) applies here too, and
-      # with ANALYSIS_POOL_SIZE=1 every position is fully sequential, so a
-      # ~40-move game at "30s/position" was actually more like 40-70 minutes
-      # of real waiting with zero visible feedback beyond a progress bar.
-      # Cut to 5s so a game finishes in single-digit minutes instead —
-      # trading search depth (position analysis will usually land well
-      # short of the depth-14 ceiling above) for a job that visibly
-      # completes. Safe to raise back once this is off the free tier.
+      # Was cut from 30s to 5s specifically to make a whole game's analysis
+      # finish in single-digit minutes instead of 40-70 (the same
+      # CPU-starvation overshoot measured for the bot's per-move budget —
+      # tal_bot.py — applies here too, and ANALYSIS_POOL_SIZE=1 makes every
+      # position fully sequential). That traded away more than intended,
+      # though: at 5s most positions were landing well short of the
+      # depth-14 ceiling above rather than occasionally - the accuracy
+      # numbers this produces read meaningfully more generous than
+      # chess.com's own (which searches deeper), because a shallow search
+      # simply doesn't find every inaccuracy a deeper one would. Restored to
+      # 30s - the value this file's own history already established as what
+      # actually reaches depth 14 reliably - since a correct number that
+      # takes longer is worth more here than a fast, over-generous one. A
+      # full game can now take on the order of 40-70 minutes to analyse on
+      # this tier; the LAN dev setup (frontend/vite.config.ts, this repo's
+      # local STOCKFISH_DEPTH=18) is the fast path for day-to-day use, this
+      # is for when only production is reachable and correctness matters
+      # more than speed.
       - key: ANALYSIS_TIME_LIMIT_S
-        value: "5"
+        value: "30"
 
   # --- Redis-compatible broker / progress pub-sub -----------------------
   - name: chessscope-redis
