@@ -179,6 +179,19 @@
 }
 
 @media (max-width: 900px) {
+  /* The critical piece: without this, `.app` stays a *row* and the sidebar
+     below — now styled full-width to act as a top bar — fights `.app__body`
+     for space in that same row instead of stacking above it. `.app__body`
+     (flex: 1) got squeezed to a computed width of 0 as a result, its content
+     rendering at its own natural width regardless and overflowing the whole
+     page horizontally — every page was affected, not just visually cluttered
+     ones; the dashboard's cards were just wide enough to make it easy to
+     miss in a screenshot despite `document.documentElement.scrollWidth`
+     already disagreeing with the viewport. */
+  .app {
+    flex-direction: column;
+  }
+
   .app__sidebar {
     position: sticky;
     width: 100%;
@@ -945,6 +958,13 @@
   white-space: nowrap;
 }
 
+.library__actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .library__date {
   color: var(--text-dim);
   white-space: nowrap;
@@ -968,6 +988,23 @@
 
 .library__pager {
   justify-content: center;
+}
+
+@media (max-width: 640px) {
+  /* Opening (5th column) is the least essential for a quick scan — dropping
+     it here means Game/Result/Accuracy/Date/Actions have a real shot at
+     fitting a phone width without the table needing to scroll sideways at
+     all in the common case (it still can, via `.library__table-wrap`'s own
+     `overflow-x`, if a long player name pushes it over anyway). */
+  .library__table th:nth-child(5),
+  .library__table td:nth-child(5) {
+    display: none;
+  }
+
+  .library__table th,
+  .library__table td {
+    padding: 10px 8px;
+  }
 }
 
 .library--empty {
@@ -1393,6 +1430,37 @@
   border-radius: 10px;
 }
 
+.dashboard-card__reviewed-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dashboard-card__reanalyse {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+.dashboard-card__reanalyse svg {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes reanalyse-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dashboard-card__reanalyse-icon--spinning {
+  animation: reanalyse-spin 0.8s linear infinite;
+}
+
 .dashboard__pager {
   justify-content: center;
 }
@@ -1541,6 +1609,23 @@
 
 .analysis__header .button {
   margin-left: auto;
+}
+
+/* Was a single `.button` (the rule above pushes it to the header's right
+   edge via its own auto margin); now a small group, so the margin moves to
+   the group itself and gets explicitly zeroed on the buttons inside it —
+   otherwise the first button's *own* auto margin, still matched by the rule
+   above, would fight for space inside this now-nested flex context instead
+   of just sitting next to its sibling. */
+.analysis__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.analysis__header-actions .button {
+  margin-left: 0;
 }
 
 /*

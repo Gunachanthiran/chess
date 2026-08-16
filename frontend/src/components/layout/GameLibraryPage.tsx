@@ -7,6 +7,7 @@ import { BulkImportForm } from '../upload/BulkImportForm';
 import { ImportProgress } from '../analysis/ImportProgress';
 import { LibraryRowsSkeleton } from '../common/Skeleton';
 import { AccuracyBadge } from '../common/AccuracyBadge';
+import { IconRefresh } from '../common/Icons';
 import { describeMatchup, formatPlayedAt } from '../../lib/gameDisplay';
 import type { Game } from '../../types';
 
@@ -224,14 +225,42 @@ export function GameLibraryPage() {
                       )}
                     </td>
                     <td className="library__col-action">
-                      <button
-                        className="button"
-                        type="button"
-                        onClick={() => void handleAnalyse(game)}
-                        disabled={startingId !== null}
-                      >
-                        {startingId === game.id ? 'Starting…' : 'Analyze'}
-                      </button>
+                      {game.latest_completed_job_id ? (
+                        <div className="library__actions-cell">
+                          <button
+                            className="button dashboard-card__reanalyse"
+                            type="button"
+                            onClick={() => void handleAnalyse(game)}
+                            disabled={startingId !== null}
+                            title="Re-analyse with the latest engine settings"
+                            aria-label="Re-analyse this game"
+                          >
+                            <IconRefresh
+                              className={
+                                startingId === game.id
+                                  ? 'dashboard-card__reanalyse-icon--spinning'
+                                  : undefined
+                              }
+                            />
+                          </button>
+                          <button
+                            className="button"
+                            type="button"
+                            onClick={() => navigate(`/analysis/${game.latest_completed_job_id}`)}
+                          >
+                            Reviewed
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="button button--primary"
+                          type="button"
+                          onClick={() => void handleAnalyse(game)}
+                          disabled={startingId !== null}
+                        >
+                          {startingId === game.id ? 'Starting…' : 'Analyze'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

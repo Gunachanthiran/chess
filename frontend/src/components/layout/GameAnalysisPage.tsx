@@ -14,6 +14,7 @@ import { useCoachVoice } from '../../lib/coachVoice';
 import { commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
 import { accuracyColor, classificationColor, classificationLabel } from '../../styles/classification-colors';
+import { IconRefresh } from '../common/Icons';
 import type { Game, MoveAnalysis } from '../../types';
 
 type GameAnalysisPageProps = {
@@ -22,6 +23,10 @@ type GameAnalysisPageProps = {
   whiteAccuracy: number | null;
   blackAccuracy: number | null;
   onAnalyseAnother: () => void;
+  /** Runs a fresh analysis job for this same game — `undefined` while the
+   * game itself hasn't loaded yet, since there's nothing to re-analyse. */
+  onReanalyse?: () => void;
+  reanalysing?: boolean;
 };
 
 type Side = 'white' | 'black';
@@ -66,6 +71,8 @@ export function GameAnalysisPage({
   whiteAccuracy,
   blackAccuracy,
   onAnalyseAnother,
+  onReanalyse,
+  reanalysing,
 }: GameAnalysisPageProps) {
   const {
     currentMoveIndex,
@@ -194,9 +201,25 @@ export function GameAnalysisPage({
             </span>
           )}
         </div>
-        <button className="button" type="button" onClick={onAnalyseAnother}>
-          Analyse another game
-        </button>
+        <div className="analysis__header-actions">
+          {onReanalyse && (
+            <button
+              className="button dashboard-card__reanalyse"
+              type="button"
+              onClick={onReanalyse}
+              disabled={reanalysing}
+              title="Re-analyse with the latest engine settings"
+              aria-label="Re-analyse this game"
+            >
+              <IconRefresh
+                className={reanalysing ? 'dashboard-card__reanalyse-icon--spinning' : undefined}
+              />
+            </button>
+          )}
+          <button className="button" type="button" onClick={onAnalyseAnother}>
+            Analyse another game
+          </button>
+        </div>
       </header>
 
       <div className="analysis__body analysis__body--with-recommendations">

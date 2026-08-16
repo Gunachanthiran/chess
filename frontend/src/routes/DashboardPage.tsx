@@ -9,6 +9,7 @@ import type { UseAccountStatusResult } from '../hooks/useAccountStatus';
 import { ImportProgress } from '../components/analysis/ImportProgress';
 import { DashboardGridSkeleton } from '../components/common/Skeleton';
 import { AccuracyBadge } from '../components/common/AccuracyBadge';
+import { IconRefresh } from '../components/common/Icons';
 import { DashboardStats } from '../components/layout/DashboardStats';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
 import { isGrandmasterElo } from '../lib/botConstants';
@@ -101,9 +102,21 @@ function GameCard({
           <AccuracyBadge game={game} />
         </span>
         {isReviewed ? (
-          <button className="button" type="button" onClick={onReview}>
-            Reviewed
-          </button>
+          <div className="dashboard-card__reviewed-actions">
+            <button
+              className="button dashboard-card__reanalyse"
+              type="button"
+              onClick={onAnalyse}
+              disabled={analysing}
+              title="Re-analyse with the latest engine settings"
+              aria-label="Re-analyse this game"
+            >
+              <IconRefresh className={analysing ? 'dashboard-card__reanalyse-icon--spinning' : undefined} />
+            </button>
+            <button className="button" type="button" onClick={onReview}>
+              Reviewed
+            </button>
+          </div>
         ) : (
           <button className="button button--primary" type="button" onClick={onAnalyse} disabled={analysing}>
             {analysing ? 'Starting…' : 'Analyze'}

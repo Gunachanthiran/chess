@@ -85,6 +85,17 @@ export function IconTarget(props: IconProps) {
   );
 }
 
+export function IconRefresh(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4.5 12a7.5 7.5 0 0 1 12.6-5.5L19.5 8.5" />
+      <path d="M19.5 4.5v4.5H15" />
+      <path d="M19.5 12a7.5 7.5 0 0 1-12.6 5.5L4.5 15.5" />
+      <path d="M4.5 19.5V15H9" />
+    </svg>
+  );
+}
+
 export function IconGames(props: IconProps) {
   return (
     <svg {...base} {...props}>

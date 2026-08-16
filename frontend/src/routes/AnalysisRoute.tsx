@@ -4,8 +4,9 @@ import { AnalysisProgress } from '../components/analysis/AnalysisProgress';
 import { GameAnalysisPage } from '../components/layout/GameAnalysisPage';
 import { PanelSkeleton } from '../components/common/Skeleton';
 import { useMoveAnalysis } from '../hooks/useMoveAnalysis';
-import { getAnalysisJob } from '../api/analysis';
+import { createAnalysisJob, getAnalysisJob } from '../api/analysis';
 import { getGame } from '../api/games';
+import { errorMessage } from '../api/client';
 import type { AnalysisJob, Game } from '../types';
 
 /**
@@ -23,6 +24,8 @@ export function AnalysisRoute() {
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [reanalysing, setReanalysing] = useState(false);
+  const [reanalyseError, setReanalyseError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!jobId) return;
@@ -52,6 +55,23 @@ export function AnalysisRoute() {
   }, [jobId]);
 
   const handleReset = useCallback(() => navigate('/analyze'), [navigate]);
+
+  // Re-runs analysis on the *same* game from a stale/older result — a fresh
+  // job (routers/games.py never dedupes these), so tightened classification
+  // rules or engine settings that shipped after this game was last analysed
+  // actually take effect. `game` is the one already loaded for this route.
+  const handleReanalyse = useCallback(async () => {
+    if (!game) return;
+    setReanalysing(true);
+    setReanalyseError(null);
+    try {
+      const newJob = await createAnalysisJob(game.id);
+      navigate(`/analysis/${newJob.id}`);
+    } catch (err) {
+      setReanalyseError(errorMessage(err));
+      setReanalysing(false);
+    }
+  }, [game, navigate]);
 
   // The progress socket already knows the moment the job completes; this just
   // updates local state to switch this route over to the finished view.
@@ -101,6 +121,7 @@ export function AnalysisRoute() {
           </button>
         </div>
       )}
+      {reanalyseError && <div className="alert alert--error">{reanalyseError}</div>}
       {!analysis.loading && !analysis.error && (
         <GameAnalysisPage
           game={game}
@@ -108,6 +129,8 @@ export function AnalysisRoute() {
           whiteAccuracy={analysis.whiteAccuracy}
           blackAccuracy={analysis.blackAccuracy}
           onAnalyseAnother={handleReset}
+          onReanalyse={game ? () => void handleReanalyse() : undefined}
+          reanalysing={reanalysing}
         />
       )}
     </>
