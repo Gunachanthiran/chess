@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { ReactElement } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { DashboardPage } from './routes/DashboardPage';
 import { LoginPage } from './routes/LoginPage';
@@ -10,6 +11,7 @@ import { PlayBotRoute } from './routes/PlayBotRoute';
 import { GameLibraryPage } from './components/layout/GameLibraryPage';
 import { ColorSchemeToggle } from './components/layout/ColorSchemeToggle';
 import { PanelSkeleton } from './components/common/Skeleton';
+import { IconAnalyze, IconDashboard, IconLibrary, IconPlay, IconPlayers } from './components/common/Icons';
 import { useBotGame } from './hooks/useBotGame';
 import { useAccountStatus } from './hooks/useAccountStatus';
 import { unlockAudio } from './lib/sound';
@@ -118,82 +120,92 @@ export default function App() {
     // itself changed.
   }, [activeSection, connected]);
 
-  const navItems: { section: NavSection; label: string; path: string }[] = [
-    { section: 'dashboard', label: 'Dashboard', path: '/' },
-    { section: 'analyze', label: 'Analyze', path: '/analyze' },
-    { section: 'library', label: 'Library', path: '/library' },
-    { section: 'play', label: 'Play Bot', path: '/play' },
-    { section: 'players', label: 'Players', path: '/players' },
+  const navItems: {
+    section: NavSection;
+    label: string;
+    path: string;
+    Icon: (props: { className?: string }) => ReactElement;
+  }[] = [
+    { section: 'dashboard', label: 'Dashboard', path: '/', Icon: IconDashboard },
+    { section: 'analyze', label: 'Analyze', path: '/analyze', Icon: IconAnalyze },
+    { section: 'library', label: 'Library', path: '/library', Icon: IconLibrary },
+    { section: 'play', label: 'Play Bot', path: '/play', Icon: IconPlay },
+    { section: 'players', label: 'Players', path: '/players', Icon: IconPlayers },
   ];
 
   const connectedName = status?.lichess?.username ?? status?.chess_com?.username ?? null;
 
   return (
     <div className="app">
-      <header className="app__header">
-        <div className="app__header-inner">
-          <h1 className="app__title">
-            Chess<span className="app__title-accent">Scope</span>
-          </h1>
+      {/* Persistent left sidebar on desktop; the same markup collapses into a
+          horizontal top bar under `.app__sidebar`'s own mobile media query
+          (App.css) rather than rendering two separate nav structures. */}
+      <aside className="app__sidebar">
+        <h1 className="app__brand">
+          Chess<span className="app__title-accent">Scope</span>
+        </h1>
 
-          {/* No point navigating around a gated app before there's anything
-              behind the gate — the nav only appears once connected. */}
-          {connected && (
-            <nav className="app__nav" aria-label="Main" ref={navRef}>
-              {navItems.map((item) => {
-                const isActive = item.section === activeSection;
-                return (
-                  <button
-                    key={item.section}
-                    type="button"
-                    className={`app__nav-link${isActive ? ' app__nav-link--active' : ''}`}
-                    onClick={() => navigate(item.path)}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
-          )}
-
-          {/* The mute toggle stays with the board — `useSoundEffects` is owned by
-              each playing/analysing page, so a copy up here would have its own
-              disconnected state. This keeps the bar balanced instead. */}
-          <div className="app__header-actions">
-            {connectedName ? (
-              <button
-                type="button"
-                className="app__connected"
-                onClick={() => navigate('/login')}
-                title="Manage connected accounts"
-              >
-                Connected as {connectedName}
-              </button>
-            ) : (
-              <p className="app__tagline">Self-hosted game analysis</p>
-            )}
-            <ColorSchemeToggle />
-          </div>
-        </div>
-      </header>
-
-      <main className="app__main">
-        {accountLoading || gateBlocksRender ? (
-          <PanelSkeleton />
-        ) : (
-          <Routes>
-            <Route path="/login" element={<LoginPage account={account} />} />
-            <Route path="/" element={<DashboardPage account={account} />} />
-            <Route path="/analyze" element={<AnalyzeLandingPage />} />
-            <Route path="/library" element={<GameLibraryPage />} />
-            <Route path="/analysis/:jobId" element={<AnalysisRoute />} />
-            <Route path="/play" element={<PlayBotSetupRoute bot={bot} />} />
-            <Route path="/play/:gameId" element={<PlayBotRoute bot={bot} />} />
-            <Route path="/players" element={<PlayerSearchPage />} />
-          </Routes>
+        {/* No point navigating around a gated app before there's anything
+            behind the gate — the nav only appears once connected. */}
+        {connected && (
+          <nav className="app__nav" aria-label="Main" ref={navRef}>
+            {navItems.map((item) => {
+              const isActive = item.section === activeSection;
+              return (
+                <button
+                  key={item.section}
+                  type="button"
+                  className={`app__nav-link${isActive ? ' app__nav-link--active' : ''}`}
+                  onClick={() => navigate(item.path)}
+                  aria-current={isActive ? 'page' : undefined}
+                  title={item.label}
+                >
+                  <item.Icon className="app__nav-icon" />
+                  <span className="app__nav-label">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         )}
-      </main>
+
+        {/* The mute toggle stays with the board — `useSoundEffects` is owned by
+            each playing/analysing page, so a copy up here would have its own
+            disconnected state. This keeps the sidebar foot balanced instead. */}
+        <div className="app__sidebar-foot">
+          {connectedName ? (
+            <button
+              type="button"
+              className="app__connected"
+              onClick={() => navigate('/login')}
+              title="Manage connected accounts"
+            >
+              <span className="app__connected-label">Connected as {connectedName}</span>
+            </button>
+          ) : (
+            <p className="app__tagline">Self-hosted game analysis</p>
+          )}
+          <ColorSchemeToggle />
+        </div>
+      </aside>
+
+      <div className="app__body">
+        <main className="app__main">
+          {accountLoading || gateBlocksRender ? (
+            <PanelSkeleton />
+          ) : (
+            <Routes>
+              <Route path="/login" element={<LoginPage account={account} />} />
+              <Route path="/" element={<DashboardPage account={account} />} />
+              <Route path="/analyze" element={<AnalyzeLandingPage />} />
+              <Route path="/library" element={<GameLibraryPage />} />
+              <Route path="/analysis/:jobId" element={<AnalysisRoute />} />
+              <Route path="/play" element={<PlayBotSetupRoute bot={bot} />} />
+              <Route path="/play/:gameId" element={<PlayBotRoute bot={bot} />} />
+              <Route path="/players" element={<PlayerSearchPage />} />
+            </Routes>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

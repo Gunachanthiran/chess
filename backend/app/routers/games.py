@@ -16,6 +16,7 @@ from app.schemas.game import (
     GameListResponse,
     GameOut,
     GameResponse,
+    GameStatsOut,
     GameSummaryOut,
     PGNUploadRequest,
 )
@@ -23,6 +24,7 @@ from app.schemas.game import (
 # `create_game_from_pgn` moved to app.services.game_service (the bulk import task
 # needs it too); re-exported here so existing callers keep working unchanged.
 from app.services.game_service import create_game_from_pgn
+from app.services.game_stats import GameStatsRow, compute_stats
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -59,18 +61,41 @@ def _latest_completed_job_id_subquery():
     )
 
 
-def _game_out(game: Game, latest_completed_job_id) -> GameOut:
-    return GameOut.model_validate(game).model_copy(
-        update={"latest_completed_job_id": latest_completed_job_id}
+def _latest_completed_job_accuracy_subquery(side: str):
+    """Correlated scalar subquery: `white_accuracy`/`black_accuracy` off the
+    same latest-completed job `_latest_completed_job_id_subquery` finds —
+    joining back to it by id rather than duplicating the ordering logic."""
+    column = AnalysisJob.white_accuracy if side == "white" else AnalysisJob.black_accuracy
+    return (
+        select(column)
+        .where(AnalysisJob.id == _latest_completed_job_id_subquery())
+        .correlate(Game)
+        .scalar_subquery()
     )
 
 
-def _game_summary_out(game: Game, latest_completed_job_id) -> GameSummaryOut:
+def _game_out(game: Game, latest_completed_job_id, white_accuracy=None, black_accuracy=None) -> GameOut:
+    return GameOut.model_validate(game).model_copy(
+        update={
+            "latest_completed_job_id": latest_completed_job_id,
+            "white_accuracy": white_accuracy,
+            "black_accuracy": black_accuracy,
+        }
+    )
+
+
+def _game_summary_out(
+    game: Game, latest_completed_job_id, white_accuracy=None, black_accuracy=None
+) -> GameSummaryOut:
     """Like `_game_out`, but for `GameSummaryOut` — critically, this never
     touches `game.pgn`, so it never triggers the deferred column's lazy
     load (see the `defer(Game.pgn)` in `list_games` below)."""
     return GameSummaryOut.model_validate(game).model_copy(
-        update={"latest_completed_job_id": latest_completed_job_id}
+        update={
+            "latest_completed_job_id": latest_completed_job_id,
+            "white_accuracy": white_accuracy,
+            "black_accuracy": black_accuracy,
+        }
     )
 
 
@@ -96,7 +121,9 @@ def list_games(
     total = db.scalar(count_query) or 0
     rows = db.execute(
         base_query.add_columns(
-            _latest_completed_job_id_subquery().label("latest_completed_job_id")
+            _latest_completed_job_id_subquery().label("latest_completed_job_id"),
+            _latest_completed_job_accuracy_subquery("white").label("white_accuracy"),
+            _latest_completed_job_accuracy_subquery("black").label("black_accuracy"),
         )
         # Most-recently-*played* first, not most-recently-*imported*: a bulk
         # import fetches newest-game-first but inserts them in that same
@@ -112,23 +139,65 @@ def list_games(
 
     return GameListResponse(
         games=[
-            _game_summary_out(game, latest_completed_job_id)
-            for game, latest_completed_job_id in rows
+            _game_summary_out(game, latest_completed_job_id, white_accuracy, black_accuracy)
+            for game, latest_completed_job_id, white_accuracy, black_accuracy in rows
         ],
         total=total,
     )
 
 
+@router.get("/stats", response_model=GameStatsOut)
+def game_stats(db: Session = Depends(get_db)) -> GameStatsOut:
+    """Dashboard stats widget: total/analysed counts, recent-form accuracy,
+    current day streak. Registered *before* `/{game_id}` below - otherwise
+    FastAPI would match "stats" as a `game_id` and fail UUID parsing.
+
+    One query, `defer(Game.pgn)`'d for the same reason `list_games` does -
+    every game gets pulled (the maths genuinely needs the whole history, see
+    `game_stats.compute_stats`), so skipping the one large/unused column
+    matters here more than anywhere else in this router.
+    """
+    rows = db.execute(
+        select(Game)
+        .options(defer(Game.pgn))
+        .add_columns(
+            _latest_completed_job_accuracy_subquery("white").label("white_accuracy"),
+            _latest_completed_job_accuracy_subquery("black").label("black_accuracy"),
+        )
+    ).all()
+
+    return compute_stats(
+        [
+            GameStatsRow(
+                played_at=game.played_at,
+                created_at=game.created_at,
+                white_name=game.white_name,
+                black_name=game.black_name,
+                imported_username=game.imported_username,
+                white_accuracy=white_accuracy,
+                black_accuracy=black_accuracy,
+            )
+            for game, white_accuracy, black_accuracy in rows
+        ]
+    )
+
+
 @router.get("/{game_id}", response_model=GameResponse)
 def get_game(game_id: str, db: Session = Depends(get_db)) -> GameResponse:
-    game = db.get(Game, parse_uuid(game_id, "game_id"))
-    if game is None:
+    game_pk = parse_uuid(game_id, "game_id")
+    row = db.execute(
+        select(Game)
+        .where(Game.id == game_pk)
+        .add_columns(
+            _latest_completed_job_id_subquery().label("latest_completed_job_id"),
+            _latest_completed_job_accuracy_subquery("white").label("white_accuracy"),
+            _latest_completed_job_accuracy_subquery("black").label("black_accuracy"),
+        )
+    ).first()
+    if row is None:
         raise NotFoundError("Game not found.", {"game_id": game_id})
 
-    latest_completed_job_id = db.scalar(
-        select(AnalysisJob.id)
-        .where(AnalysisJob.game_id == game.id, AnalysisJob.status == JobStatus.completed)
-        .order_by(AnalysisJob.completed_at.desc(), AnalysisJob.created_at.desc())
-        .limit(1)
+    game, latest_completed_job_id, white_accuracy, black_accuracy = row
+    return GameResponse(
+        game=_game_out(game, latest_completed_job_id, white_accuracy, black_accuracy)
     )
-    return GameResponse(game=_game_out(game, latest_completed_job_id))

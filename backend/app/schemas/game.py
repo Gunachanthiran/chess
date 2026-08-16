@@ -50,6 +50,14 @@ class _GameFields(BaseModel):
     # round-trip per card.
     latest_completed_job_id: uuid.UUID | None = None
 
+    # Also computed per-request, from the same latest-completed job — both
+    # sides are shipped (not just "mine") because only the frontend knows
+    # which side `imported_username` refers to for *this* game (see
+    # `lib/gameDisplay.ts::describeMatchup`, the existing win/loss logic this
+    # mirrors). `None` until a job has completed.
+    white_accuracy: float | None = None
+    black_accuracy: float | None = None
+
 
 class GameOut(_GameFields):
     pgn: str
@@ -76,3 +84,19 @@ class GameResponse(BaseModel):
 class GameListResponse(BaseModel):
     games: list[GameSummaryOut]
     total: int
+
+
+class GameStatsOut(BaseModel):
+    """Aggregate, all-games stats for the dashboard's stats widget — deliberately
+    *not* derivable from a paginated `GameListResponse` page, since "how many
+    games have I analysed" and "what's my current streak" need to see every
+    game, not just the page currently on screen."""
+
+    total_games: int
+    analyzed_games: int
+    # Mean accuracy (my side, via the same `imported_username` matching as
+    # `describeMatchup`) over the most recent `RECENT_ACCURACY_WINDOW`
+    # analysed games — recent form, not an all-time blend that a game played
+    # a year ago would still be dragging on today.
+    recent_accuracy: float | None
+    current_streak_days: int

@@ -6,6 +6,7 @@ import { errorMessage } from '../../api/client';
 import { BulkImportForm } from '../upload/BulkImportForm';
 import { ImportProgress } from '../analysis/ImportProgress';
 import { LibraryRowsSkeleton } from '../common/Skeleton';
+import { AccuracyBadge } from '../common/AccuracyBadge';
 import { describeMatchup, formatPlayedAt } from '../../lib/gameDisplay';
 import type { Game } from '../../types';
 
@@ -155,6 +156,7 @@ export function GameLibraryPage() {
               <tr>
                 <th scope="col">Game</th>
                 <th scope="col">Result</th>
+                <th scope="col">Accuracy</th>
                 <th scope="col">Date</th>
                 <th scope="col">Opening</th>
                 <th scope="col" className="library__col-action">
@@ -181,6 +183,7 @@ export function GameLibraryPage() {
               <tr>
                 <th scope="col">Game</th>
                 <th scope="col">Result</th>
+                <th scope="col">Accuracy</th>
                 <th scope="col">Date</th>
                 <th scope="col">Opening</th>
                 <th scope="col" className="library__col-action">
@@ -205,6 +208,9 @@ export function GameLibraryPage() {
                       ) : (
                         <span className="library__score">{game.result}</span>
                       )}
+                    </td>
+                    <td className="library__accuracy">
+                      <AccuracyBadge game={game} />
                     </td>
                     <td className="library__date">{formatPlayedAt(game.played_at)}</td>
                     <td className="library__opening">

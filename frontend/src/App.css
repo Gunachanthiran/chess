@@ -1,10 +1,19 @@
 /* ---------- App shell ---------- */
 
+/* Sidebar's fixed desktop width — also what the chessboard-sizing formulas
+   near the bottom of this file subtract from `100vw`, since the sidebar now
+   eats a slice of the viewport `.app__main` never sees. Kept as one number
+   referenced by both rather than tuned independently, the same lesson as
+   `.app__main`'s own max-width vs. the board formulas below it. */
+:root {
+  --sidebar-width: 244px;
+}
+
 .app {
   position: relative;
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   isolation: isolate; /* new stacking context, so the glow below stays behind every page's own content instead of smearing over it */
 }
 
@@ -47,29 +56,34 @@
   animation: page-fade-in 0.4s ease both;
 }
 
-/* Full-bleed bar; the content inside is what lines up with the page grid. */
-.app__header {
+/* Persistent left sidebar (desktop) — collapses to a horizontal top bar
+   under the mobile media query near the end of this block. One set of DOM
+   nodes (App.tsx) for both shapes, so the "scroll active tab into view"
+   effect and every accessibility attribute keep working unchanged instead
+   of needing a second, parallel nav structure. */
+.app__sidebar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  align-self: flex-start;
+  flex: none;
+  width: var(--sidebar-width);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 22px 14px 18px;
   background: color-mix(in srgb, var(--bg-panel) 82%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   box-shadow: var(--shadow-nav);
+  z-index: 20;
+  overflow-y: auto;
 }
 
-.app__header-inner {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 0 20px;
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-  gap: 28px;
-}
-
-.app__title {
+.app__brand {
+  margin: 0;
+  padding: 0 10px;
   font-size: 1.25rem;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -81,59 +95,66 @@
 
 .app__nav {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .app__nav-link {
   position: relative;
-  padding: 18px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
   border: none;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-dim);
   font-size: 0.92rem;
   font-weight: 500;
+  text-align: left;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.12s ease;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.app__nav-icon {
+  flex: none;
+  width: 19px;
+  height: 19px;
 }
 
 .app__nav-link:hover {
   color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .app__nav-link--active {
-  color: var(--text);
+  color: var(--accent-contrast);
   font-weight: 600;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
-/* Underline sits on the header's bottom border, so it reads as a tab. */
-.app__nav-link--active::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
+.app__nav-link--active:hover {
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
 }
 
-/* Groups the tagline/connection-indicator with the theme toggle so the pair
-   moves as one unit — was just `.app__tagline`'s own margin-left: auto
-   before there was a second thing that needed to sit next to it. */
-.app__header-actions {
+/* Pins the connected-account chip + theme toggle to the sidebar's bottom
+   edge regardless of how few/many nav items sit above them. */
+.app__sidebar-foot {
+  margin-top: auto;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-left: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
 }
 
 .app__tagline {
   margin: 0;
+  padding: 0 10px;
   color: var(--text-dim);
   font-size: 0.82rem;
-  white-space: nowrap;
 }
 
 .app__theme-toggle {
@@ -157,44 +178,116 @@
   background: var(--button-hover-bg);
 }
 
-@media (max-width: 720px) {
-  .app__header-inner {
-    gap: 12px;
-    /* The nav's own links (below) never shrank below their natural width —
-       `.app__title` + `.app__nav` + `.app__header-actions` add up to well
-       over 600px at their natural sizes, wider than any phone, which forced
-       the *entire page* to scroll horizontally to reach the right edge of
-       the header. Wrapping the nav onto its own row is a real second row of
-       chrome, not a squeeze, so it stays legible instead of shrinking nav
-       labels down to illegibility trying to force one row to fit. */
-    flex-wrap: wrap;
-    row-gap: 4px;
+@media (max-width: 900px) {
+  .app__sidebar {
+    position: sticky;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+  }
+
+  /* Every other element in this row is fixed-size (brand text, the
+     account/theme controls) or a hard floor (icon buttons can't shrink much
+     further and still be tappable) — on a narrow phone that leaves the nav
+     itself as the only place a shrink can come from, so it takes it here
+     explicitly (smaller font, tighter tracking) rather than by accident via
+     flex-shrink squeezing something never designed to be squeezed. */
+  .app__brand {
+    padding: 0;
+    font-size: 1.05rem;
+    letter-spacing: -0.03em;
+  }
+
+  .app__nav {
+    /* `min-width: 0` is what actually lets `overflow-x` engage below — a
+       flex item's default content-based minimum width otherwise wins (same
+       fix as `.library__table-wrap`). Even with every other element on this
+       row trimmed down, five icon buttons plus their gaps can still be a
+       few pixels wider than what's left on the narrowest phones, so this
+       stays a real (if rarely-engaged) scroll rather than a fixed layout
+       that would go negative-width there. */
+    flex: 1;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    overflow-x: auto;
+  }
+
+  /* Icon-only here — stacked icon+label (desktop's shape) needed more width
+     per item than five items could ever share on a phone in one row, which
+     left four of five nav items scrolled off with no visible hint that they
+     existed. `title` (App.tsx) keeps the label available on long-press/hover;
+     `.app__nav-label` itself is still in the DOM for screen readers. */
+  .app__nav-link {
+    padding: 7px;
+    border-radius: 9px;
+  }
+
+  .app__nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .app__nav-icon {
+    width: 19px;
+    height: 19px;
+  }
+
+  .app__sidebar-foot {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+    margin-left: auto;
   }
 
   .app__tagline {
     display: none;
   }
 
-  .app__nav {
-    /* Full-width second row, after the title/actions row above it. */
-    order: 3;
-    flex-basis: 100%;
-    /* `min-width: 0` is what actually lets `overflow-x` engage below — a flex
-       item's default content-based minimum width otherwise wins (same fix as
-       `.library__table-wrap`), and five nav items' *natural* width is wider
-       than a typical phone even on this row by itself. `flex-start`, not
-       `center`: on an overflowing centered row the first item scrolls off
-       both edges symmetrically, which is a much worse starting scroll
-       position than starting at the actual first item. */
-    min-width: 0;
-    justify-content: flex-start;
-    overflow-x: auto;
+  /* Text-and-pill (desktop's shape, sized for a sidebar's full width) becomes
+     a bare circular dot indicator here — `.app__connected-label` carries the
+     "Connected as X" text for screen readers and the button's own `title`
+     still exposes it on long-press/hover; there just isn't row width left
+     for it to also render visibly next to five nav icons and the theme
+     toggle on a phone. */
+  .app__connected {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
   }
 
-  .app__nav-link {
-    padding: 14px 8px;
-    font-size: 0.88rem;
+  .app__connected::before {
+    box-shadow: none;
   }
+
+  .app__connected-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.app__body {
+  flex: 1;
+  min-width: 0;
 }
 
 .app__main {
@@ -848,6 +941,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.library__accuracy {
+  white-space: nowrap;
+}
+
 .library__date {
   color: var(--text-dim);
   white-space: nowrap;
@@ -933,6 +1030,59 @@
   font-size: 1.85rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+/* ---------- Stats widget (DashboardStats) ---------- */
+
+.dashboard__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.stats-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.stats-card__icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: var(--accent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    color-mix(in srgb, var(--accent) 8%, transparent)
+  );
+}
+
+.stats-card__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.stats-card__body {
+  min-width: 0;
+}
+
+.stats-card__value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.stats-card__label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .dashboard__banner {
@@ -1202,6 +1352,40 @@
   white-space: nowrap;
 }
 
+.dashboard-card__foot-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ---------- Accuracy badge (AccuracyBadge) ---------- */
+
+.accuracy-badge {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.accuracy-badge--great {
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+}
+
+.accuracy-badge--ok {
+  color: var(--warn-contrast);
+  background: linear-gradient(135deg, var(--warn), var(--warn-soft));
+}
+
+.accuracy-badge--low {
+  color: #fff;
+  background: linear-gradient(135deg, var(--danger), #e2716d);
+}
+
 /* The shared `.button`/`.button--primary` classes (App.css, top) already give
    every button the gradient/lift treatment now — this only tightens the
    corner radius for a card-footer button specifically. */
@@ -1281,17 +1465,39 @@
   text-align: left;
 }
 
-/* Header indicator, replacing the plain tagline once connected. */
+/* Sidebar-foot indicator, replacing the plain tagline once connected. */
 .app__connected {
-  border: none;
-  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
   color: var(--text-dim);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.app__connected::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .app__connected:hover {
   color: var(--text);
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  border-color: var(--border);
 }
 
 /* Visually hidden, still announced by screen readers. */
@@ -1586,7 +1792,15 @@
  */
 .chessboard-wrapper {
   flex: none;
-  width: min(100vw - 480px, 1520px, 100vh - 340px);
+  /* 724 = 480 + `--sidebar-width` (244): the persistent sidebar now eats a
+     slice of `100vw` that `.app__main` never sees, so the raw-viewport term
+     has to account for it too or the board overflows past the side columns
+     by exactly the sidebar's width — the same overflow bug class this whole
+     comment thread already documents once, just with a new column added to
+     the budget. The absolute-pixel ceiling (1520px) is untouched: it's
+     derived from `.app__main`'s own max-width, which the sidebar sits
+     outside of and never changes. */
+  width: min(100vw - 724px, 1520px, 100vh - 340px);
   aspect-ratio: 1;
   min-width: 0;
   /* Containing block for the classification-badge overlay below. */
@@ -1610,7 +1824,8 @@
  */
 @media (min-width: 901px) {
   .analysis__body--with-recommendations .chessboard-wrapper {
-    width: min(100vw - 764px, 1236px, 100vh - 340px);
+    /* 1008 = 764 + `--sidebar-width` (244) — see the base rule above. */
+    width: min(100vw - 1008px, 1236px, 100vh - 340px);
   }
 }
 

@@ -30,6 +30,27 @@ export function formatTimeAgo(value: string | null): string {
 }
 
 /**
+ * Which side `imported_username` played, or `null` when it can't be told
+ * apart — the name matches neither side, matches both (a player facing
+ * themselves), or there's no `imported_username` at all (an upload).
+ *
+ * Case/whitespace-insensitive, and shared by every "what happened to me in
+ * this game" reading below rather than each re-deriving the same match —
+ * mirrored server-side by `app/services/game_stats.py::my_accuracy` for the
+ * stats widget, which needs the identical rule over the *whole* game history
+ * rather than just the page on screen.
+ */
+export function mySide(game: Game): 'white' | 'black' | null {
+  const who = game.imported_username?.trim().toLowerCase();
+  if (!who) return null;
+
+  const isWhite = game.white_name.trim().toLowerCase() === who;
+  const isBlack = game.black_name.trim().toLowerCase() === who;
+  if (isWhite === isBlack) return null;
+  return isWhite ? 'white' : 'black';
+}
+
+/**
  * How the game reads from the importing user's point of view.
  *
  * Only claims a side when `imported_username` actually matches one of the two
@@ -38,14 +59,10 @@ export function formatTimeAgo(value: string | null): string {
  */
 export function describeMatchup(game: Game): { line: string; outcome: string | null } {
   const neutral = `${game.white_name} vs ${game.black_name}`;
-  const who = game.imported_username?.trim().toLowerCase();
-  if (!who) return { line: neutral, outcome: null };
+  const side = mySide(game);
+  if (!side) return { line: neutral, outcome: null };
 
-  const isWhite = game.white_name.trim().toLowerCase() === who;
-  const isBlack = game.black_name.trim().toLowerCase() === who;
-  // A player facing themselves gives no usable perspective either.
-  if (isWhite === isBlack) return { line: neutral, outcome: null };
-
+  const isWhite = side === 'white';
   const opponent = isWhite ? game.black_name : game.white_name;
   const youWon = isWhite ? game.result === '1-0' : game.result === '0-1';
   const youLost = isWhite ? game.result === '0-1' : game.result === '1-0';
@@ -57,4 +74,12 @@ export function describeMatchup(game: Game): { line: string; outcome: string | n
   else outcome = null;
 
   return { line: `vs ${opponent}`, outcome };
+}
+
+/** My-side accuracy for one game, or `null` when it can't be determined (see
+ * `mySide`) or nothing has been analysed yet. */
+export function myAccuracy(game: Game): number | null {
+  const side = mySide(game);
+  if (!side) return null;
+  return side === 'white' ? game.white_accuracy : game.black_accuracy;
 }

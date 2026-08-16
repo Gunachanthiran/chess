@@ -30,6 +30,23 @@ export type Game = {
    * analysed — lets a dashboard card link straight to `/analysis/{this}`
    * ("Reviewed") instead of starting a new job. */
   latest_completed_job_id: string | null;
+  /** Accuracy off that same latest-completed job, both sides — `null` until
+   * one exists. Whose side is "mine" is a client-side question (see
+   * `lib/gameDisplay.ts`'s `describeMatchup`/`mySide`), so both are shipped
+   * rather than the backend guessing. */
+  white_accuracy: number | null;
+  black_accuracy: number | null;
+};
+
+/** Response shape of GET /api/games/stats — the dashboard stats widget.
+ * Computed across *every* game, not a paginated page of them. */
+export type GameStats = {
+  total_games: number;
+  analyzed_games: number;
+  /** Mean accuracy (my side) over the most recent ~20 analysed games, or
+   * `null` when nothing qualifies yet. */
+  recent_accuracy: number | null;
+  current_streak_days: number;
 };
 
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';

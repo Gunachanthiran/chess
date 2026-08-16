@@ -8,6 +8,8 @@ import { errorMessage } from '../api/client';
 import type { UseAccountStatusResult } from '../hooks/useAccountStatus';
 import { ImportProgress } from '../components/analysis/ImportProgress';
 import { DashboardGridSkeleton } from '../components/common/Skeleton';
+import { AccuracyBadge } from '../components/common/AccuracyBadge';
+import { DashboardStats } from '../components/layout/DashboardStats';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
 import { isGrandmasterElo } from '../lib/botConstants';
 import type { BotGameSummary, Game, GameSource, ImportSource } from '../types';
@@ -94,7 +96,10 @@ function GameCard({
       )}
 
       <div className="dashboard-card__foot">
-        <span className="dashboard-card__meta">{formatTimeAgo(game.played_at ?? game.created_at)}</span>
+        <span className="dashboard-card__foot-meta">
+          <span className="dashboard-card__meta">{formatTimeAgo(game.played_at ?? game.created_at)}</span>
+          <AccuracyBadge game={game} />
+        </span>
         {isReviewed ? (
           <button className="button" type="button" onClick={onReview}>
             Reviewed
@@ -357,6 +362,8 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
           <h2 className="dashboard__name">{displayName}</h2>
         </div>
       </div>
+
+      <DashboardStats />
 
       {importJobId && (
         <ImportProgress

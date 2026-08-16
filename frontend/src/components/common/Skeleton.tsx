@@ -57,6 +57,9 @@ export function LibraryRowsSkeleton({ count = 8 }: { count?: number }) {
           <td className="library__result">
             <SkeletonLine width="60%" />
           </td>
+          <td className="library__accuracy">
+            <SkeletonLine width="42px" height="1.4em" />
+          </td>
           <td className="library__date">
             <SkeletonLine width="70%" />
           </td>

@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Game, GameListResponse, GameSource } from '../types';
+import type { Game, GameListResponse, GameSource, GameStats } from '../types';
 
 type GameEnvelope = { game: Game };
 
@@ -32,6 +32,11 @@ export function listGames(
   if (params.source !== undefined) query.set('source', params.source);
   const suffix = query.toString();
   return apiFetch<GameListResponse>(`/api/games${suffix ? `?${suffix}` : ''}`, { signal });
+}
+
+/** GET /api/games/stats — dashboard stats widget's data source. */
+export function getGameStats(signal?: AbortSignal): Promise<GameStats> {
+  return apiFetch<GameStats>('/api/games/stats', { signal });
 }
 
 /** POST /api/lichess/import — by explicit game id. */
