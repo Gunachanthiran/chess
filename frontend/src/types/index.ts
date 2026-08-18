@@ -119,6 +119,16 @@ export type MoveAnalysisResponse = {
   black_accuracy: number;
 };
 
+/** Response shape of POST /api/analysis/explore — an on-demand read of one
+ * arbitrary position the user reached by dragging pieces, not necessarily
+ * anywhere in the game's own recorded moves. White-POV, like every other
+ * evaluation field in this app. */
+export type ExplorePositionResult = {
+  cp: number | null;
+  mate: number | null;
+  top_moves: TopMove[];
+};
+
 /** Response shape of GET /api/games */
 export type GameListResponse = {
   games: Game[];

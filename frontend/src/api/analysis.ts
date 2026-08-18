@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { AnalysisJob, MoveAnalysisResponse } from '../types';
+import type { AnalysisJob, ExplorePositionResult, MoveAnalysisResponse } from '../types';
 
 type JobEnvelope = { job: AnalysisJob };
 
@@ -45,4 +45,17 @@ export function getAnalysisMoves(
     `/api/analysis/jobs/${encodeURIComponent(jobId)}/moves`,
     { signal },
   );
+}
+
+/** POST /api/analysis/explore — a quick, on-demand evaluation of one FEN,
+ * for "what happens if I play this" moves tried directly on the board. */
+export function explorePosition(
+  fen: string,
+  signal?: AbortSignal,
+): Promise<ExplorePositionResult> {
+  return apiFetch<ExplorePositionResult>('/api/analysis/explore', {
+    method: 'POST',
+    body: { fen },
+    signal,
+  });
 }

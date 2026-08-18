@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
+import type { Square } from 'chess.js';
+import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
 import { EvalBar } from '../board/EvalBar';
@@ -14,9 +16,11 @@ import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useCoachVoice } from '../../lib/coachVoice';
 import { commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
+import { formatEval } from '../../lib/evaluation';
+import { explorePosition } from '../../api/analysis';
 import { accuracyColor, classificationColor, classificationLabel } from '../../styles/classification-colors';
 import { IconRefresh } from '../common/Icons';
-import type { Game, MoveAnalysis } from '../../types';
+import type { ExplorePositionResult, Game, LegalMoveTarget, MoveAnalysis } from '../../types';
 
 type GameAnalysisPageProps = {
   game: Game | null;
@@ -128,6 +132,106 @@ export function GameAnalysisPage({
     }
     return { fen: chess.fen(), lastMoveUci };
   }, [preview, previewStep]);
+
+  /** Whatever position is actually on the board right now — the real game's,
+   * or a hypothetical one being explored. Every "try a move here" and
+   * "what does the engine think of this" concern below reads from this, not
+   * from `displayFen` directly, so exploring stays correct however many
+   * moves deep the user has dragged. */
+  const boardFen = previewPosition ? previewPosition.fen : displayFen;
+
+  // Dragging a piece on the board — trying *any* move, not just one of the
+  // "Stockfish recommends" lines. Starts a preview from the real position if
+  // none is active yet; extends the current one otherwise, truncating any
+  // steps the user had stepped back past (a new move here replaces whatever
+  // hypothetical future existed) exactly like undoing and replaying a
+  // variation in a real analysis board would.
+  const legalMovesFor = useCallback(
+    (square: string): LegalMoveTarget[] => {
+      let candidateMoves;
+      try {
+        candidateMoves = new Chess(boardFen).moves({ square: square as Square, verbose: true });
+      } catch {
+        return [];
+      }
+      const targets = new Map<string, LegalMoveTarget>();
+      candidateMoves.forEach((candidate) => {
+        const existing = targets.get(candidate.to);
+        const capture = candidate.captured !== undefined;
+        if (existing) {
+          existing.capture = existing.capture || capture;
+        } else {
+          targets.set(candidate.to, { to: candidate.to, capture });
+        }
+      });
+      return [...targets.values()];
+    },
+    [boardFen],
+  );
+
+  const handleBoardDrop = useCallback(
+    ({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean => {
+      if (targetSquare === null) return false;
+      const chess = new Chess(boardFen);
+      let candidates;
+      try {
+        candidates = chess
+          .moves({ square: sourceSquare as Square, verbose: true })
+          .filter((candidate) => candidate.to === targetSquare);
+      } catch {
+        return false;
+      }
+      if (candidates.length === 0) return false;
+
+      // Auto-queens on a promoting drop, same as Play Bot — no separate
+      // picker dialog in either place.
+      const promotions = candidates.filter((candidate) => candidate.promotion !== undefined);
+      const chosen =
+        promotions.length > 0
+          ? (promotions.find((candidate) => candidate.promotion === 'q') ?? promotions[0])
+          : candidates[0];
+
+      const baseFen = preview?.baseFen ?? displayFen;
+      const priorSans = preview ? preview.sans.slice(0, previewStep) : [];
+      const nextSans = [...priorSans, chosen.san];
+
+      setPreview({ baseFen, sans: nextSans });
+      setPreviewStep(nextSans.length);
+      return true;
+    },
+    [boardFen, displayFen, preview, previewStep],
+  );
+
+  // "What happens if I play this" — an on-demand engine read of whatever
+  // position preview/dragging landed on, since arbitrary moves aren't in the
+  // game's own stored analysis. Only runs while actually previewing; the
+  // real game's positions already have real stored evaluations and need no
+  // live call. Keyed on the FEN string rather than `previewPosition` itself,
+  // since the latter is a fresh object every render.
+  const [exploreEval, setExploreEval] = useState<ExplorePositionResult | null>(null);
+  const [exploreLoading, setExploreLoading] = useState(false);
+  useEffect(() => {
+    if (!previewPosition) {
+      setExploreEval(null);
+      setExploreLoading(false);
+      return;
+    }
+    let active = true;
+    setExploreLoading(true);
+    explorePosition(previewPosition.fen)
+      .then((result) => {
+        if (active) setExploreEval(result);
+      })
+      .catch(() => {
+        if (active) setExploreEval(null);
+      })
+      .finally(() => {
+        if (active) setExploreLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [previewPosition?.fen]);
 
   const { muted, toggleMuted, playForMove } = useSoundEffects();
   const { muted: coachMuted, toggleMuted: toggleCoachMuted, speak } = useCoachVoice();
@@ -276,9 +380,23 @@ export function GameAnalysisPage({
 
           {preview && previewPosition && (
             <div className="preview-banner">
-              <span className="preview-banner__label">
-                🔎 Previewing Stockfish's line — not part of the real game
-              </span>
+              <div className="preview-banner__top">
+                <span className="preview-banner__label">
+                  🔎 Exploring — drag any move to try it, not part of the real game
+                </span>
+                <span className="preview-banner__eval">
+                  {exploreLoading
+                    ? 'Thinking…'
+                    : exploreEval
+                      ? `Eval: ${formatEval({ cp: exploreEval.cp, mate: exploreEval.mate })}`
+                      : null}
+                </span>
+              </div>
+              {!exploreLoading && exploreEval && exploreEval.top_moves.length > 0 && (
+                <span className="preview-banner__best">
+                  Stockfish would play {exploreEval.top_moves[0].sans[0]} here
+                </span>
+              )}
               <div className="preview-banner__controls">
                 <button
                   className="button"
@@ -317,10 +435,13 @@ export function GameAnalysisPage({
           <div className="board-with-bar">
             <EvalBar moves={moves} currentMoveIndex={currentMoveIndex} orientation={orientation} />
             <ChessBoard
-              displayFen={previewPosition ? previewPosition.fen : displayFen}
+              displayFen={boardFen}
               lastMoveUci={previewPosition ? previewPosition.lastMoveUci : lastMoveUci}
               boardOrientation={orientation}
               moveBadge={previewPosition ? null : moveBadge}
+              allowDragging
+              onPieceDrop={handleBoardDrop}
+              legalMovesFor={legalMovesFor}
             />
           </div>
 

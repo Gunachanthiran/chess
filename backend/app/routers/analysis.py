@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import chess
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.errors import ConflictError, NotFoundError
+from app.errors import ConflictError, NotFoundError, ValidationError
 from app.models.analysis_job import AnalysisJob, JobStatus
 from app.models.game import Game
 from app.models.move_analysis import MoveAnalysis
@@ -17,7 +18,14 @@ from app.schemas.analysis_job import (
     AnalysisJobResponse,
     CreateJobRequest,
 )
-from app.schemas.move_analysis import MoveAnalysisOut, MovesResponse
+from app.schemas.move_analysis import (
+    ExplorePositionRequest,
+    ExplorePositionResponse,
+    MoveAnalysisOut,
+    MovesResponse,
+    TopMoveOut,
+)
+from app.services.engine_pool import StockfishEngine
 from app.tasks.analyze_game import analyze_game
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
@@ -84,4 +92,42 @@ def get_job_moves(job_id: str, db: Session = Depends(get_db)) -> MovesResponse:
         moves=[MoveAnalysisOut.model_validate(move) for move in moves],
         white_accuracy=job.white_accuracy,
         black_accuracy=job.black_accuracy,
+    )
+
+
+@router.post("/explore", response_model=ExplorePositionResponse)
+def explore_position(payload: ExplorePositionRequest) -> ExplorePositionResponse:
+    """On-demand read of one position the user reached by dragging pieces on
+    the analysis board — "what happens if I play this" for a move that isn't
+    necessarily anywhere in the game's own stored analysis.
+
+    Deliberately not routed through the batch pipeline's `StockfishEngine.analyse()`
+    (`ANALYSIS_TIME_LIMIT_S`, up to 30s on production) - that budget is sized
+    for a background job, and this blocks a live click. `analyse_candidates()`
+    is the same bounded-time search the "Stockfish recommends" panel and the
+    bot's own move choice already use (`CANDIDATE_TIME_LIMIT_S` = 1.5s), just
+    at full strength (no elo cap) since the point here is a genuine read of
+    the position, not a deliberately weakened opponent.
+    """
+    try:
+        board = chess.Board(payload.fen)
+    except ValueError as exc:
+        raise ValidationError(
+            "Not a valid position.", {"fen": payload.fen}
+        ) from exc
+
+    with StockfishEngine(elo=None) as engine:
+        candidates = engine.analyse_candidates(board, multipv=3)
+
+    if not candidates:
+        # Checkmate, stalemate, or any other position with no legal moves.
+        return ExplorePositionResponse(cp=None, mate=None, top_moves=[])
+
+    return ExplorePositionResponse(
+        cp=candidates[0].cp,
+        mate=candidates[0].mate,
+        top_moves=[
+            TopMoveOut(sans=[board.san(candidate.move)], cp=candidate.cp, mate=candidate.mate)
+            for candidate in candidates
+        ],
     )

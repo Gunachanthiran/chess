@@ -2235,14 +2235,12 @@
   transform: scale(1.08);
 }
 
-/* ---------- "Play this line" board preview banner ---------- */
+/* ---------- Board explore/preview banner ---------- */
 
 .preview-banner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 14px;
   border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -2250,9 +2248,30 @@
   animation: page-fade-in 0.2s ease both;
 }
 
+.preview-banner__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .preview-banner__label {
   font-size: 0.86rem;
   font-weight: 600;
+}
+
+.preview-banner__eval {
+  flex: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.preview-banner__best {
+  font-size: 0.82rem;
+  color: var(--text-dim);
 }
 
 .preview-banner__controls {

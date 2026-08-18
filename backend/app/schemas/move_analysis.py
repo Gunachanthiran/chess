@@ -48,3 +48,22 @@ class MovesResponse(BaseModel):
     moves: list[MoveAnalysisOut]
     white_accuracy: float | None
     black_accuracy: float | None
+
+
+class ExplorePositionRequest(BaseModel):
+    """A position the user reached by dragging pieces on the analysis board —
+    not necessarily anywhere in the actual game, so there is no stored
+    evaluation for it and one has to be computed on the spot."""
+
+    fen: str
+
+
+class ExplorePositionResponse(BaseModel):
+    """A quick, on-demand read of one arbitrary position — same shape as a
+    `top_moves` entry, deliberately shallower/faster than the batch analysis
+    pipeline (see `engine_pool.EXPLORE_*`) since this blocks a live UI
+    interaction rather than running in the background."""
+
+    cp: int | None
+    mate: int | None
+    top_moves: list[TopMoveOut]
