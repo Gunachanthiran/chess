@@ -13,6 +13,11 @@ import type { Classification, MoveAnalysis } from '../types';
  * engine workload to every move of a live game was never going to be
  * affordable there.
  *
+ * Voice: hyped, slangy chess-YouTuber energy — "chat", "brilliant", "book
+ * move", overreacting to blunders — a personal, self-hosted homage to that
+ * style of commentary rather than any specific person's actual words, and
+ * not affiliated with or endorsed by anyone it evokes.
+ *
  * Each tier has a few interchangeable lines rather than one fixed sentence,
  * picked deterministically from `ply` so revisiting the same move in the
  * analysis page always says the same thing (stable, not randomly different
@@ -80,68 +85,84 @@ function uciToSan(fen: string, uci: string): string | null {
 }
 
 const BRILLIANT_LINES = [
-  "!!! {san} — I did NOT see that coming. Somebody get this player a trophy.",
-  "Ho ho ho. {san}?! That's not just good, that's borderline unfair.",
-  "{san}. I need a minute. Genuinely gorgeous — chills.",
-  "STOP EVERYTHING. {san} just happened and it's completely sound. Bravo.",
+  "{san}?! Chat, that is ABSOLUTE FILTH. We do not deserve this move.",
+  "Okay {san} is disgusting — in the best way. This is why I love this game.",
+  "STOP. {san}. That's not just brilliant, that's a certified banger. Screenshot this one.",
+  "{san}!! Everybody watching needs to understand how good that is. We are so back.",
 ];
 
 const GREAT_LINES = [
-  '{san} — the one move that saves this, and you found it. I have chills.',
-  'Everyone else misses {san} here. You did not. Take a bow.',
-  "Sharp position, sharper mind. {san} was the only door out, and you walked right through it.",
-  "{san}?! In THIS position?! Okay, I see you.",
+  "{san} — that's rook-lift energy right there. Beautiful, beautiful stuff.",
+  "Chat, {san} is exactly the kind of move that separates good players from great ones.",
+  "{san}?! Okay, I see you. Objectively one of the better moves on this board.",
+  "That's clean. {san}. Textbook — but the good kind of textbook.",
 ];
 
 const BEST_LINES = [
-  '{san} is the top engine choice.',
-  'Right on the best line with {san}.',
-  "{san}. Can't ask for more than that.",
+  '{san} — the engine is happy, I am happy. Book move energy.',
+  'Straight-up the best move on the board. {san}. Keep it going.',
+  "{san}. Can't ask for more than that, chat.",
 ];
 
 const EXCELLENT_LINES = [
-  '{san} is excellent — just a hair off the very best.',
-  'Strong move — {san} barely gives anything away.',
-  '{san}, nearly perfect.',
+  '{san} is excellent — a hair off perfect, but nobody is counting.',
+  'Strong stuff. {san} barely gives the engine anything to smile about.',
+  '{san}. Top-tier human move right there.',
 ];
 
 const GOOD_LINES = [
-  '{san} is a solid, reasonable move.',
-  'Steady choice with {san}.',
-  '{san} keeps things on track.',
+  '{san} — solid. Not flashy, just solid. Respect it.',
+  'Steady as she goes with {san}.',
+  '{san} keeps the position under control. Nothing crazy, nothing bad.',
 ];
 
 const BOOK_LINES = [
-  'Still in book here — {san} follows known theory.',
-  '{san} is well-trodden opening theory.',
-  'Textbook so far: {san}.',
+  'Still book here. {san} — theory as old as time.',
+  '{san}. Straight out of the database, nothing to see yet.',
+  "Yep, {san} is well-known theory. Chat's seen this a thousand times.",
 ];
 
 const INACCURACY_LINES = [
-  '{san} is a slight inaccuracy.',
-  'Not quite the sharpest — {san} loosens your grip a little.',
-  'That gives back a touch of the advantage.',
+  '{san} — eh. A little loose. Not the end of the world though.',
+  "That's an inaccuracy. {san} gives back a touch of the advantage.",
+  'Not the sharpest tool in the shed, but {san} is survivable.',
 ];
 
 const MISTAKE_LINES = [
-  "{san}?? Buddy. Bud. We talked about this.",
-  "I'm going to pretend I did not just watch {san} happen.",
-  '{san} — bold choice. Wrong, but bold.',
-  'And there it goes — some of that advantage, waving goodbye after {san}.',
+  "{san}?? Chat... we do not do that. We simply do not.",
+  "Oh, {san}. I've seen this movie before and it never ends well.",
+  "That's a real mistake. {san} — objectively not the move.",
+  'And there goes some of that advantage. {san}. Painful to watch.',
 ];
 
 const BLUNDER_LINES = [
-  "{san}?!?! Okay. Okay. I need to sit down for a second.",
-  'Oh no. Oh NO. {san} just happened and I am not okay.',
-  "{san} — somewhere, a chess engine is laughing at us right now.",
-  'And... that was the game. {san} just handed it over on a silver platter.',
+  '{san}?!?! NO NO NO NO NO. What was that.',
+  "Chat, {san} just happened and I need a minute. It's so over.",
+  '{san} — somewhere, a grandmaster just felt a disturbance.',
+  'And... it\'s over. {san} basically hands the game away. We love to see it. (We do not.)',
 ];
 
 const FORCED_LINES = [
-  '{san} was forced — no real alternative existed.',
-  'Only one legal try here: {san}.',
-  '{san}, out of necessity.',
+  '{san} was forced, chat — no real choice here.',
+  'Only one move that does not lose on the spot: {san}.',
+  '{san}, out of pure necessity. Nothing else works.',
 ];
+
+/** {@link commentaryForAnalysisMove}'s flourish for a rook move landing in the
+ * brilliant/great tier — a nod to how often "the rook lift" gets talked up as
+ * the fancy, underrated maneuver in hyped chess commentary. */
+const ROOK_LINES = [
+  '{san} — chat, THE ROOK LIFT. My favorite move in chess, no contest.',
+  'Rook takes the stage. {san}. This is the move I bring up in every single video.',
+  'Say it with me: the rook lift. {san}. Criminally underrated.',
+  'There it is — {san}, a rook doing rook things. Chef\'s kiss.',
+];
+
+/** First letter of a SAN move's piece (`P` for pawn moves, `K` for castling). */
+function pieceOf(san: string): string {
+  if (san.startsWith('O-O')) return 'K';
+  return /^[KQRBN]/.exec(san)?.[0] ?? 'P';
+}
 
 /**
  * A standalone trailing sentence naming the engine's actual recommendation —
@@ -196,7 +217,7 @@ const COACH_EXPRESSIONS: Record<Classification, string> = {
 };
 
 /** Shown before any move has been played yet — no verdict to react to. */
-export const COACH_IDLE_EXPRESSION = '🐴';
+export const COACH_IDLE_EXPRESSION = '♜';
 
 export function coachExpression(classification: Classification): string {
   return COACH_EXPRESSIONS[classification] ?? COACH_IDLE_EXPRESSION;
@@ -206,10 +227,10 @@ export function coachExpression(classification: Classification): string {
  * picked deterministically from `ply` (see the module docstring above), so
  * the routine stretches of a game don't all show the exact same sentence. */
 const QUIET_LINES = [
-  "Nothing to flag here — keeping quiet through the routine moves.",
+  "Nothing to flag here, chat — keeping quiet through the routine moves.",
   "Nice and steady. Saving my reactions for when they actually mean something.",
   "All good — I'll pipe up the moment something's worth stopping for.",
-  "Business as usual. Carry on.",
+  'Business as usual. Onward.',
 ];
 
 export function quietCoachLine(ply: number): string {
@@ -240,8 +261,13 @@ export function isNotableMove(classification: Classification): boolean {
  * point — "great move! ...but actually X was better" reads as contradicting
  * itself over a gap too small to matter.
  */
+const ROOK_FLOURISH_TIERS = new Set<Classification>(['brilliant', 'great']);
+
 export function commentaryForAnalysisMove(move: MoveAnalysis): string {
-  const template = pick(TEMPLATES[move.classification] ?? BEST_LINES, move.ply);
+  const isRookFlourish = ROOK_FLOURISH_TIERS.has(move.classification) && pieceOf(move.san) === 'R';
+  const template = isRookFlourish
+    ? pick(ROOK_LINES, move.ply)
+    : pick(TEMPLATES[move.classification] ?? BEST_LINES, move.ply);
   const suffix = SUBOPTIMAL_TIERS.has(move.classification) ? bestMoveSentence(move) : '';
   return template.replace('{san}', naturalizeSan(move.san)) + suffix;
 }

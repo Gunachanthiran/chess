@@ -44,7 +44,7 @@ function moodAnimationClass(move: MoveAnalysis | null): string {
  */
 export function CoachPanel({ move, muted, onToggleMute }: CoachPanelProps) {
   const text = !move
-    ? "Step through the game and I'll walk you through it."
+    ? "Step through the game, chat, and I'll walk you through it."
     : isNotableMove(move.classification)
       ? commentaryForAnalysisMove(move)
       : quietCoachLine(move.ply);
@@ -65,7 +65,7 @@ export function CoachPanel({ move, muted, onToggleMute }: CoachPanelProps) {
         >
           {expression}
         </span>
-        <span className="coach__name">Coach</span>
+        <span className="coach__name">GothamChess</span>
         <button
           type="button"
           className="button coach__mute"
