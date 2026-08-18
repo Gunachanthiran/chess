@@ -7,6 +7,10 @@ type RecommendationsPanelProps = {
    * `null` at the final position (nothing left to recommend a line for) or
    * before any moves exist. */
   upcomingMove: MoveAnalysis | null;
+  /** Plays a candidate's SAN line out on the board as a hypothetical, without
+   * touching the real game's own move index. Omitted (no button rendered)
+   * when the caller has no board to preview onto. */
+  onPreview?: (sans: string[]) => void;
 };
 
 const WHITE_FIGURINES: Record<string, string> = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘' };
@@ -60,9 +64,11 @@ const PREVIEW_PLIES = 6;
 function CandidateLine({
   candidate,
   upcomingMove,
+  onPreview,
 }: {
   candidate: TopMove;
   upcomingMove: MoveAnalysis;
+  onPreview?: (sans: string[]) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const canExpand = candidate.sans.length > PREVIEW_PLIES;
@@ -78,6 +84,17 @@ function CandidateLine({
         {text}
         {canExpand && !expanded && '…'}
       </span>
+      {onPreview && (
+        <button
+          type="button"
+          className="recommendations__play"
+          onClick={() => onPreview(candidate.sans)}
+          title="Play this line on the board"
+          aria-label="Play this line on the board"
+        >
+          ▶
+        </button>
+      )}
       {canExpand && (
         <button
           type="button"
@@ -103,7 +120,7 @@ function CandidateLine({
  * entirely rather than shown empty for games analysed before this existed
  * (`top_moves: null`) or once play has reached the final recorded position.
  */
-export function RecommendationsPanel({ upcomingMove }: RecommendationsPanelProps) {
+export function RecommendationsPanel({ upcomingMove, onPreview }: RecommendationsPanelProps) {
   if (!upcomingMove?.top_moves || upcomingMove.top_moves.length === 0) return null;
 
   return (
@@ -115,7 +132,12 @@ export function RecommendationsPanel({ upcomingMove }: RecommendationsPanelProps
           // prefix (a shared best move with divergent follow-ups), so there
           // is no piece of the data itself that is a stable, unique identity
           // — the array's own position is the only one available.
-          <CandidateLine key={index} candidate={candidate} upcomingMove={upcomingMove} />
+          <CandidateLine
+            key={index}
+            candidate={candidate}
+            upcomingMove={upcomingMove}
+            onPreview={onPreview}
+          />
         ))}
       </ol>
     </div>

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Chess } from 'chess.js';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
 import { EvalBar } from '../board/EvalBar';
@@ -86,6 +87,48 @@ export function GameAnalysisPage({
   } = useGameNavigation(moves);
 
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
+
+  // "Play this line" from the Stockfish recommendations panel — a purely
+  // hypothetical continuation shown on the board, independent of
+  // `currentMoveIndex`, so exploring a suggestion never touches the real
+  // game's own navigation state. `baseFen` is captured at the moment the
+  // preview starts (the position it branches off from), never recomputed,
+  // so stepping through the hypothetical line can't drift if the real game
+  // position it launched from changes underneath it for any reason.
+  const [preview, setPreview] = useState<{ baseFen: string; sans: string[] } | null>(null);
+  const [previewStep, setPreviewStep] = useState(0);
+
+  // Real navigation always wins: moving to a different actual position exits
+  // whatever hypothetical line was on screen, rather than leaving the board
+  // showing a line branched off a position the user has since left.
+  useEffect(() => {
+    setPreview(null);
+  }, [currentMoveIndex]);
+
+  const handlePreview = (sans: string[]) => {
+    setPreview({ baseFen: displayFen, sans });
+    setPreviewStep(sans.length);
+  };
+
+  const previewPosition = useMemo(() => {
+    if (!preview) return null;
+    const chess = new Chess(preview.baseFen);
+    let lastMoveUci: string | null = null;
+    for (let i = 0; i < previewStep; i += 1) {
+      let move;
+      try {
+        move = chess.move(preview.sans[i]);
+      } catch {
+        // A malformed SAN this far into a 10-ply engine line would be a real
+        // bug, not a user error — stop replaying rather than throw, and keep
+        // whatever position was reached up to that point.
+        break;
+      }
+      lastMoveUci = move.lan;
+    }
+    return { fen: chess.fen(), lastMoveUci };
+  }, [preview, previewStep]);
+
   const { muted, toggleMuted, playForMove } = useSoundEffects();
   const { muted: coachMuted, toggleMuted: toggleCoachMuted, speak } = useCoachVoice();
 
@@ -231,13 +274,53 @@ export function GameAnalysisPage({
             accuracy={topPlayer.accuracy}
           />
 
+          {preview && previewPosition && (
+            <div className="preview-banner">
+              <span className="preview-banner__label">
+                🔎 Previewing Stockfish's line — not part of the real game
+              </span>
+              <div className="preview-banner__controls">
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => setPreviewStep((step) => Math.max(0, step - 1))}
+                  disabled={previewStep === 0}
+                  title="Step back within this line"
+                >
+                  ◀
+                </button>
+                <span className="controls__counter">
+                  {previewStep} / {preview.sans.length}
+                </span>
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() =>
+                    setPreviewStep((step) => Math.min(preview.sans.length, step + 1))
+                  }
+                  disabled={previewStep === preview.sans.length}
+                  title="Step forward within this line"
+                >
+                  ▶
+                </button>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  onClick={() => setPreview(null)}
+                >
+                  Back to game
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="board-with-bar">
             <EvalBar moves={moves} currentMoveIndex={currentMoveIndex} orientation={orientation} />
             <ChessBoard
-              displayFen={displayFen}
-              lastMoveUci={lastMoveUci}
+              displayFen={previewPosition ? previewPosition.fen : displayFen}
+              lastMoveUci={previewPosition ? previewPosition.lastMoveUci : lastMoveUci}
               boardOrientation={orientation}
-              moveBadge={moveBadge}
+              moveBadge={previewPosition ? null : moveBadge}
             />
           </div>
 
@@ -318,7 +401,7 @@ export function GameAnalysisPage({
           in App.css, independent of this source order.
         */}
         <aside className="analysis__recommendations-column">
-          <RecommendationsPanel upcomingMove={upcomingMove} />
+          <RecommendationsPanel upcomingMove={upcomingMove} onPreview={handlePreview} />
           <CoachPanel move={currentMove} muted={coachMuted} onToggleMute={toggleCoachMuted} />
         </aside>
 

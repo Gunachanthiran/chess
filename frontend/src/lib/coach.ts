@@ -80,15 +80,17 @@ function uciToSan(fen: string, uci: string): string | null {
 }
 
 const BRILLIANT_LINES = [
-  "Brilliant! {san} gives up material, but it's completely sound.",
-  '{san} — a real sacrifice, and it works. Beautiful find.',
-  "That's a brilliant shot: {san}.",
+  "!!! {san} — I did NOT see that coming. Somebody get this player a trophy.",
+  "Ho ho ho. {san}?! That's not just good, that's borderline unfair.",
+  "{san}. I need a minute. Genuinely gorgeous — chills.",
+  "STOP EVERYTHING. {san} just happened and it's completely sound. Bravo.",
 ];
 
 const GREAT_LINES = [
-  'Great move — {san} was the one move that held this together.',
-  'Sharp position, and {san} finds the only real path through it.',
-  "{san} — exactly what this position demanded. Hard to find, well played.",
+  '{san} — the one move that saves this, and you found it. I have chills.',
+  'Everyone else misses {san} here. You did not. Take a bow.',
+  "Sharp position, sharper mind. {san} was the only door out, and you walked right through it.",
+  "{san}?! In THIS position?! Okay, I see you.",
 ];
 
 const BEST_LINES = [
@@ -122,15 +124,17 @@ const INACCURACY_LINES = [
 ];
 
 const MISTAKE_LINES = [
-  "{san} is a mistake — that's a real problem.",
-  'That gives something real back. {san} was not the move here.',
-  "That's a slip.",
+  "{san}?? Buddy. Bud. We talked about this.",
+  "I'm going to pretend I did not just watch {san} happen.",
+  '{san} — bold choice. Wrong, but bold.',
+  'And there it goes — some of that advantage, waving goodbye after {san}.',
 ];
 
 const BLUNDER_LINES = [
-  "{san} is a blunder — that's a serious problem.",
-  'Ouch — that throws away a big chunk of the position.',
-  "That's a serious error.",
+  "{san}?!?! Okay. Okay. I need to sit down for a second.",
+  'Oh no. Oh NO. {san} just happened and I am not okay.',
+  "{san} — somewhere, a chess engine is laughing at us right now.",
+  'And... that was the game. {san} just handed it over on a silver platter.',
 ];
 
 const FORCED_LINES = [
@@ -170,6 +174,47 @@ const TEMPLATES: Record<Classification, string[]> = {
   blunder: BLUNDER_LINES,
   forced: FORCED_LINES,
 };
+
+/**
+ * The coach's face for one move, dramatic swings for the tiers worth
+ * reacting to (see `isNotableMove` below), calmer for the rest — plain
+ * Unicode emoji only, no ZWJ sequences, for the same reason the figurine
+ * glyphs elsewhere in this panel got an explicit font fallback: coverage for
+ * anything fancier isn't guaranteed everywhere this renders.
+ */
+const COACH_EXPRESSIONS: Record<Classification, string> = {
+  brilliant: '🤯',
+  great: '🔥',
+  best: '😌',
+  excellent: '🙂',
+  good: '🙂',
+  book: '📖',
+  inaccuracy: '😬',
+  mistake: '😅',
+  blunder: '😱',
+  forced: '🙃',
+};
+
+/** Shown before any move has been played yet — no verdict to react to. */
+export const COACH_IDLE_EXPRESSION = '🐴';
+
+export function coachExpression(classification: Classification): string {
+  return COACH_EXPRESSIONS[classification] ?? COACH_IDLE_EXPRESSION;
+}
+
+/** A few interchangeable ways to say "nothing worth interrupting for here" —
+ * picked deterministically from `ply` (see the module docstring above), so
+ * the routine stretches of a game don't all show the exact same sentence. */
+const QUIET_LINES = [
+  "Nothing to flag here — keeping quiet through the routine moves.",
+  "Nice and steady. Saving my reactions for when they actually mean something.",
+  "All good — I'll pipe up the moment something's worth stopping for.",
+  "Business as usual. Carry on.",
+];
+
+export function quietCoachLine(ply: number): string {
+  return pick(QUIET_LINES, ply);
+}
 
 /** Tiers where the move actually gave something up — worth naming the alternative. */
 const SUBOPTIMAL_TIERS = new Set<Classification>(['inaccuracy', 'mistake', 'blunder']);

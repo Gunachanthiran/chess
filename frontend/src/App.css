@@ -2216,6 +2216,51 @@
   color: var(--text);
 }
 
+.recommendations__play {
+  flex: 0 0 auto;
+  border: none;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.65rem;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.recommendations__play:hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  transform: scale(1.08);
+}
+
+/* ---------- "Play this line" board preview banner ---------- */
+
+.preview-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: page-fade-in 0.2s ease both;
+}
+
+.preview-banner__label {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.preview-banner__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ---------- Accuracy ---------- */
 
 .accuracy__grid {
@@ -2637,16 +2682,61 @@
 }
 
 .coach__avatar {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   color: var(--accent-contrast);
   background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+}
+
+/* A real reaction, not just a swapped glyph — a brilliancy earns a triumphant
+   pop, a blunder earns a wince. Re-keyed per move (CoachPanel.tsx) so
+   stepping back to a move already reacted to plays it again. */
+@keyframes coach-hype {
+  0% {
+    transform: scale(0.6) rotate(-8deg);
+  }
+  55% {
+    transform: scale(1.35) rotate(6deg);
+  }
+  75% {
+    transform: scale(0.95) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes coach-yikes {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  20% {
+    transform: translateX(-5px) rotate(-8deg);
+  }
+  40% {
+    transform: translateX(4px) rotate(7deg);
+  }
+  60% {
+    transform: translateX(-3px) rotate(-5deg);
+  }
+  80% {
+    transform: translateX(2px) rotate(3deg);
+  }
+}
+
+.coach__avatar--hype {
+  animation: coach-hype 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.coach__avatar--yikes {
+  animation: coach-yikes 0.5s ease both;
 }
 
 .coach__name {
