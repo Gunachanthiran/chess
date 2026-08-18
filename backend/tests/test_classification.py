@@ -207,3 +207,29 @@ class TestMaterialHelpers:
     def test_an_illegal_move_is_never_a_sacrifice(self):
         board = chess.Board()
         assert is_material_sacrifice(board, chess.Move.from_uci("e2e5"), None) is False
+
+    def test_a_reply_that_hangs_right_back_is_not_a_sacrifice(self):
+        # Real false-positive found in production: Black plays the quiet
+        # developing move Nf6; White's engine-best reply is Bxd6, grabbing
+        # Black's bishop - but Black's own pawn on c7 recaptures it right
+        # back (cxd6), an ordinary even trade. The one-ply-only version of
+        # this function saw White's reply capture a bishop and reported a
+        # 3-point "sacrifice" that was never real, because it never looked
+        # far enough ahead to see Black's own recapture.
+        board = chess.Board(
+            "rn1qk1nr/1pp2ppp/p2bp3/3p1b2/3P4/2N1PPB1/PPP3PP/R2QKBNR b KQkq - 2 6"
+        )
+        move = board.parse_san("Nf6")
+        reply = chess.Move.from_uci("g3d6")  # Bxd6
+        assert is_material_sacrifice(board, move, reply) is False
+
+    def test_a_reply_capture_with_no_recapture_is_still_a_sacrifice(self):
+        # Same shape as the queen-sac test above, phrased the other way: the
+        # recapture step must never *manufacture* a recapture that isn't
+        # there. White walks the queen next to the king with nothing
+        # defending it; Black's king takes it and White has nothing left
+        # that can retake on that square.
+        board = chess.Board("6k1/8/8/7Q/8/8/8/6K1 w - - 0 1")
+        move = chess.Move.from_uci("h5h8")  # Qh8+, walks into ...Kxh8
+        reply = chess.Move.from_uci("g8h8")
+        assert is_material_sacrifice(board, move, reply) is True

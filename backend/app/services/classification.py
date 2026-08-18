@@ -147,10 +147,16 @@ def is_material_sacrifice(
 ) -> bool:
     """Did the mover give up material that the opponent's best reply keeps?
 
-    Simplification: we look one ply past the move (the engine's best reply from
-    the resulting position) rather than resolving the whole capture sequence.
-    That is enough to separate a real sacrifice from an ordinary trade or a
-    capture that gets recaptured immediately.
+    Looks up to two plies past the move: the engine's best reply from the
+    resulting position, and - when that reply is itself a capture - the
+    mover's own cheapest recapture on that same square. Without the second
+    step this mistook an ordinary trade for a sacrifice: if the opponent's
+    "best reply" to a quiet developing move is a capture that hangs right
+    back (a bishop trade, say), stopping the lookahead one ply too early
+    catches the material in mid-air - present in the recapturing side's
+    count, absent from the mover's - and reports a "sacrifice" for a trade
+    that was actually even. Real sacrifices (the mover has no recapture, or
+    only an inferior one) still show a genuine deficit after this.
     """
     mover = board_before.turn
     balance_before = material_balance(board_before, mover)
@@ -161,7 +167,37 @@ def is_material_sacrifice(
     board.push(move)
 
     if reply is not None and reply in board.legal_moves:
+        recapture_square = reply.to_square if board.is_capture(reply) else None
         board.push(reply)
+        if recapture_square is not None:
+            recapture = _cheapest_capture_on(board, recapture_square)
+            if recapture is not None:
+                board.push(recapture)
 
     balance_after = material_balance(board, mover)
     return balance_before - balance_after >= SACRIFICE_MIN_PAWNS
+
+
+def _cheapest_capture_on(board: chess.Board, square: chess.Square) -> chess.Move | None:
+    """The least valuable piece that can recapture on `square`, or `None`.
+
+    Mirrors `tal_bot._cheapest_capture_on` (that module's own recapture step,
+    used in its own material-offer heuristic) - not shared code, since the two
+    live in otherwise-unrelated modules, but deliberately the same rule: a
+    real player recaptures with their cheapest attacker, not their first one.
+    """
+    recaptures = [
+        move
+        for move in board.legal_moves
+        if move.to_square == square and board.is_capture(move)
+    ]
+    if not recaptures:
+        return None
+    return min(
+        recaptures,
+        key=lambda move: PIECE_VALUES.get(
+            board.piece_at(move.from_square).piece_type, 0
+        )
+        if board.piece_at(move.from_square)
+        else 0,
+    )
