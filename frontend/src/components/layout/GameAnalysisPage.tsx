@@ -260,7 +260,7 @@ export function GameAnalysisPage({
     if (!move) return;
     playForMove(move.san);
     if (isNotableMove(move.classification)) {
-      speak(commentaryForAnalysisMove(move));
+      speak(commentaryForAnalysisMove(move), move.classification);
     }
   }, [currentMoveIndex, moves, playForMove, speak]);
 
