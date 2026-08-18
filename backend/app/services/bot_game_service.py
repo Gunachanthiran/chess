@@ -190,6 +190,39 @@ def undo_last_move(db: Session, bot_game: BotGame) -> BotGame:
     return _refreshed(db, bot_game)
 
 
+def claim_draw(db: Session, bot_game: BotGame) -> BotGame:
+    """Ends the game as a draw, but only when the position actually allows it.
+
+    Threefold repetition and the fifty-move rule are deliberately *not*
+    automatic (see `_finish_if_over` below) — real chess makes both
+    claimable by a player who chooses to invoke them, not a forced result the
+    instant they arise. This is that claim, checked against the real
+    replayed board rather than trusted from the client, same as every other
+    write in this module.
+    """
+    if bot_game.status is not BotGameStatus.in_progress:
+        raise ConflictError(
+            "This game is already over.",
+            {"bot_game_id": str(bot_game.id), "status": bot_game.status.value},
+            code="GAME_OVER",
+        )
+
+    moves = load_moves(db, bot_game)
+    board = reconstruct_board(bot_game, moves)
+    if not board.can_claim_draw():
+        raise ConflictError(
+            "A draw cannot be claimed in this position yet — it needs a threefold "
+            "repetition or fifty moves without a capture or pawn move.",
+            {"bot_game_id": str(bot_game.id), "fen": board.fen()},
+            code="DRAW_NOT_CLAIMABLE",
+        )
+
+    bot_game.status = BotGameStatus.draw
+    bot_game.result = DRAW_RESULT
+    db.commit()
+    return _refreshed(db, bot_game)
+
+
 def submit_player_move(db: Session, bot_game: BotGame, uci: str) -> BotGame:
     """Apply the human's move, then the bot's reply, updating the game status."""
     if bot_game.status is not BotGameStatus.in_progress:

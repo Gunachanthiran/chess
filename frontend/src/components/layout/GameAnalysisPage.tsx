@@ -5,6 +5,7 @@ import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
 import { EvalBar } from '../board/EvalBar';
+import { CapturedPieces } from '../common/CapturedPieces';
 import { MoveList } from '../moves/MoveList';
 import { EvalGraph } from '../moves/EvalGraph';
 import { AccuracyPanel } from '../analysis/AccuracyPanel';
@@ -47,11 +48,13 @@ function PlayerBar({
   name,
   elo,
   accuracy,
+  fen,
 }: {
   side: Side;
   name: string;
   elo: number | null;
   accuracy: number | null;
+  fen: string;
 }) {
   const rating = accuracy === null ? null : estimatePerformanceRating(accuracy);
   const ratingColor = accuracy === null ? undefined : accuracyColor(accuracy);
@@ -66,6 +69,7 @@ function PlayerBar({
           Est. {rating}
         </span>
       )}
+      <CapturedPieces fen={fen} side={side} />
     </div>
   );
 }
@@ -376,6 +380,7 @@ export function GameAnalysisPage({
             name={topPlayer.name}
             elo={topPlayer.elo}
             accuracy={topPlayer.accuracy}
+            fen={boardFen}
           />
 
           {preview && previewPosition && (
@@ -450,6 +455,7 @@ export function GameAnalysisPage({
             name={bottomPlayer.name}
             elo={bottomPlayer.elo}
             accuracy={bottomPlayer.accuracy}
+            fen={boardFen}
           />
 
           <div className="controls">

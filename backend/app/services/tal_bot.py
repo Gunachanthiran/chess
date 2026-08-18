@@ -161,7 +161,8 @@ GRANDMASTER_MULTIPV = 6
 # keeps an accepted move a *concession*, not a blunder.
 AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 25, 3: 50, 4: 85, 5: 120}
 
-# The same gate, for the Grandmaster tier only - much tighter, on purpose.
+# The same gate, for the Grandmaster tier only - tighter than the practice
+# table, on purpose.
 #
 # The table above is a *strength concession*: it buys a sharper style by letting
 # the bot play a move it knows is up to ~1.2 pawns worse. That is exactly right
@@ -169,14 +170,16 @@ AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 25, 3: 50, 4: 85, 5: 120}
 # the tier whose entire job is to not lose, where handing a strong opponent a
 # pawn for aesthetics is how a won game becomes a lost one.
 #
-# At these bands an "aggressive" Grandmaster pick is still objectively equal:
-# 35cp at aggression 5 is inside the noise of the engine's own evaluation, so
-# the sacrifices that survive the gate are the *sound* ones - a real offer with
-# compensation the engine itself still rates as level - rather than speculative
-# ones it has already refuted. The personality gain (unchanged) still decides
-# between the near-equal options, so the tier keeps its Tal flavour; it just
-# stops paying material for it.
-GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 8, 3: 15, 4: 25, 5: 35}
+# Roughly doubled from the original {0, 8, 15, 25, 35}: those bands were tuned
+# conservatively enough that real, sound sacrifices routinely fell just outside
+# them (measured directly against the gambit feature - a well-known theoretical
+# pawn sacrifice cost more than 35cp in more than one tested position), so at
+# aggression 5 the "maximally Tal-like" setting rarely differed from
+# aggression 1 in practice. Still well short of the practice table's 120cp: a
+# 70cp concession at the top band is under a full pawn's worth of the engine's
+# own evaluation, deliberately staying "a real but sound offer" rather than
+# opening the door to speculative material for aesthetics.
+GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50, 5: 70}
 
 # How hard the personality terms push, per aggression level.
 #

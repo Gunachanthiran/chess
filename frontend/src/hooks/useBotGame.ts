@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import type { Move, Square } from 'chess.js';
-import { createBotGame, getBotGame, submitBotMove, undoBotMove } from '../api/botGame';
+import { claimBotDraw, createBotGame, getBotGame, submitBotMove, undoBotMove } from '../api/botGame';
 import { ApiError, errorMessage } from '../api/client';
 import type { BotColor, BotGame, BotGameMove, LegalMoveTarget } from '../types';
 
@@ -18,8 +18,12 @@ export type BotGameHook = {
   creating: boolean;
   /** True while POST /undo is in flight. */
   undoing: boolean;
+  /** True while POST /claim-draw is in flight. */
+  claimingDraw: boolean;
   /** Whether there is a player move on the board for `undoMove` to roll back. */
   canUndo: boolean;
+  /** Best-effort hint for enabling the "Claim Draw" button — see `claimDraw`. */
+  canClaimDraw: boolean;
   /** Last error message, already narrowed to a string via `errorMessage`. */
   error: string | null;
   /** Resolves the new game's id on success, `null` on failure (see `error`). */
@@ -72,6 +76,12 @@ export type BotGameHook = {
    * there was nothing to undo or the request failed (see `error`).
    */
   undoMove: () => Promise<boolean>;
+  /**
+   * Claims a draw by threefold repetition or the fifty-move rule. Resolves
+   * `true` on success, `false` if the server refused it (see `error`) — the
+   * position's own eligibility is decided server-side, not guessed here.
+   */
+  claimDraw: () => Promise<boolean>;
   /** Drops the current game so the setup form can start a fresh one. */
   reset: () => void;
 };
@@ -164,6 +174,7 @@ export function useBotGame(): BotGameHook {
   const [botThinking, setBotThinking] = useState(false);
   const [creating, setCreating] = useState(false);
   const [undoing, setUndoing] = useState(false);
+  const [claimingDraw, setClaimingDraw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<{ fen: string; uci: string } | null>(null);
 
@@ -185,6 +196,13 @@ export function useBotGame(): BotGameHook {
     return {
       fen: chess.fen(),
       lastUci: moves.length > 0 ? moves[moves.length - 1].uci : null,
+      // A best-effort client-side hint for the "Claim Draw" button's enabled
+      // state only — the server (bot_game_service.claim_draw) is still the
+      // real arbiter on click. Threefold repetition and the fifty-move rule
+      // are the only ways `isDraw()` can be true while the game is still
+      // `in_progress`: stalemate/insufficient material/75-move already end
+      // the game server-side before that status would ever be seen here.
+      canClaimDraw: chess.isDraw(),
     };
   }, [botGame]);
 
@@ -378,6 +396,29 @@ export function useBotGame(): BotGameHook {
     }
   }, []);
 
+  const claimDraw = useCallback(async (): Promise<boolean> => {
+    const game = botGameRef.current;
+    if (!game) return false;
+    // Same single-flight guard as `attemptMove`/`undoMove`.
+    if (inFlightRef.current) return false;
+
+    inFlightRef.current = true;
+    setClaimingDraw(true);
+    setError(null);
+    try {
+      const data = await claimBotDraw(game.id);
+      botGameRef.current = data.bot_game;
+      setBotGame(data.bot_game);
+      return true;
+    } catch (err) {
+      setError(errorMessage(err));
+      return false;
+    } finally {
+      inFlightRef.current = false;
+      setClaimingDraw(false);
+    }
+  }, []);
+
   // At least one move the player actually chose is on the board — the bot's
   // opening move (as White, before the player has moved at all) does not
   // count, matching `undo_last_move`'s own "nothing to undo yet" guard.
@@ -389,6 +430,7 @@ export function useBotGame(): BotGameHook {
     setBotGame(null);
     setBotThinking(false);
     setUndoing(false);
+    setClaimingDraw(false);
     setError(null);
     setOptimistic(null);
   }, []);
@@ -400,7 +442,9 @@ export function useBotGame(): BotGameHook {
     botThinking,
     creating,
     undoing,
+    claimingDraw,
     canUndo,
+    canClaimDraw: serverBoard.canClaimDraw,
     error,
     createGame,
     loadGame,
@@ -409,6 +453,7 @@ export function useBotGame(): BotGameHook {
     sanForMove,
     legalMovesFrom,
     undoMove,
+    claimDraw,
     reset,
   };
 }

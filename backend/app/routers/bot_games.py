@@ -121,3 +121,10 @@ def undo_bot_game_move(bot_game_id: str, db: Session = Depends(get_db)) -> BotGa
     bot_game = _get_bot_game(db, bot_game_id)
     bot_game = bot_game_service.undo_last_move(db, bot_game)
     return _response(bot_game)
+
+
+@router.post("/{bot_game_id}/claim-draw", response_model=BotGameResponse)
+def claim_bot_game_draw(bot_game_id: str, db: Session = Depends(get_db)) -> BotGameResponse:
+    bot_game = _get_bot_game(db, bot_game_id)
+    bot_game = bot_game_service.claim_draw(db, bot_game)
+    return _response(bot_game)

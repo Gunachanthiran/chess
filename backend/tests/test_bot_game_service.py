@@ -188,6 +188,26 @@ class TestGameOverDetection:
         assert bot_game.result is None
 
 
+class TestClaimDrawEligibility:
+    """`claim_draw` gates on `board.can_claim_draw()` directly - these lock in
+    that the exact positions `TestGameOverDetection` already proved are
+    claimable-not-automatic are also what this predicate says yes to, and
+    that an ordinary ongoing position says no."""
+
+    def test_threefold_repetition_is_claimable(self):
+        rows = move_rows("g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8")
+        board = bot_game_service.reconstruct_board(game(), rows)
+        assert board.can_claim_draw()
+
+    def test_fifty_move_rule_is_claimable(self):
+        board = chess.Board("8/8/4k3/8/8/4K3/8/R7 w - - 100 80")
+        assert board.can_claim_draw()
+
+    def test_ordinary_opening_position_is_not_claimable(self):
+        board = bot_game_service.reconstruct_board(game(), move_rows("e2e4", "e7e5"))
+        assert not board.can_claim_draw()
+
+
 class TestCurrentOpening:
     """The live opening indicator, computed from the stored SAN list.
 

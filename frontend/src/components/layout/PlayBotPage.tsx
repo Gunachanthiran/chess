@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
+import { CapturedPieces } from '../common/CapturedPieces';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { PanelSkeleton } from '../common/Skeleton';
 import type { BotGameHook } from '../../hooks/useBotGame';
@@ -147,11 +148,14 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
     creating,
     undoing,
     canUndo,
+    claimingDraw,
+    canClaimDraw,
     error,
     attemptMove,
     sanForMove,
     legalMovesFrom,
     undoMove,
+    claimDraw,
   } = bot;
   const { muted, toggleMuted, playForMove, playIllegal } = useSoundEffects();
 
@@ -322,6 +326,7 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
               ({isGrandmasterElo(botGame.bot_elo) ? 'Grandmaster' : botGame.bot_elo}, aggression{' '}
               {botGame.bot_aggression})
             </span>
+            <CapturedPieces fen={displayFen} side={opponentColor} />
           </div>
 
           <ChessBoard
@@ -339,6 +344,7 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
               aria-hidden="true"
             />
             <span className="player-bar__name">You</span>
+            <CapturedPieces fen={displayFen} side={playerColor} />
           </div>
 
           <div className="controls">
@@ -363,6 +369,21 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
             >
               {undoing ? 'Undoing…' : '↩ Undo'}
             </button>
+            {isLive && (
+              <button
+                className="button"
+                type="button"
+                onClick={() => void claimDraw()}
+                disabled={!canClaimDraw || botThinking || claimingDraw}
+                title={
+                  canClaimDraw
+                    ? 'Claim a draw — threefold repetition or the fifty-move rule'
+                    : 'Only claimable on a threefold repetition or after fifty moves without a capture or pawn move'
+                }
+              >
+                {claimingDraw ? 'Claiming…' : '½ Claim Draw'}
+              </button>
+            )}
             <button
               className="button"
               type="button"

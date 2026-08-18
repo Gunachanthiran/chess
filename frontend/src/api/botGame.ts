@@ -55,3 +55,16 @@ export function undoBotMove(id: string, signal?: AbortSignal): Promise<BotGameRe
     signal,
   });
 }
+
+/**
+ * POST /api/bot-games/{id}/claim-draw — claims a draw by threefold
+ * repetition or the fifty-move rule. Rejected with a 409 (DRAW_NOT_CLAIMABLE)
+ * if the position doesn't actually allow it — the server is the sole judge,
+ * same as every other write against this game (see `bot_game_service`).
+ */
+export function claimBotDraw(id: string, signal?: AbortSignal): Promise<BotGameResponse> {
+  return apiFetch<BotGameResponse>(`/api/bot-games/${encodeURIComponent(id)}/claim-draw`, {
+    method: 'POST',
+    signal,
+  });
+}

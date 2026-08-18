@@ -1858,6 +1858,32 @@
   background: #14161a;
 }
 
+/* Captured-piece trophies + material lead, next to a player-bar. Has its own
+   margin-left: auto so it right-aligns even in bars with nothing else
+   pushing it (the bot page's bars have no rating span); placed after
+   .player-bar__rating where one does exist, so the two sit as one
+   right-aligned cluster rather than fighting over the same auto margin. */
+.captured-pieces {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: auto;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.captured-pieces__glyph {
+  color: var(--text-dim);
+}
+
+.captured-pieces__advantage {
+  margin-left: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
 /* ---------- Board + eval bar ---------- */
 
 /*

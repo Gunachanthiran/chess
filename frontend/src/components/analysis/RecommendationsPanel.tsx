@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatEval } from '../../lib/evaluation';
+import { PIECE_GLYPHS } from '../../lib/pieceGlyphs';
 import type { MoveAnalysis, Side, TopMove } from '../../types';
 
 type RecommendationsPanelProps = {
@@ -13,14 +14,11 @@ type RecommendationsPanelProps = {
   onPreview?: (sans: string[]) => void;
 };
 
-const WHITE_FIGURINES: Record<string, string> = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘' };
-const BLACK_FIGURINES: Record<string, string> = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞' };
-
 /** `Nd3` -> `♘d3` (white to move) / `♞d3` (black) — pawn moves and castling
  * (`O-O`) have no leading piece letter and pass through unchanged. */
 function toFigurine(san: string, side: Side): string {
   const letter = san[0];
-  const glyph = (side === 'white' ? WHITE_FIGURINES : BLACK_FIGURINES)[letter];
+  const glyph = (PIECE_GLYPHS[side] as Record<string, string>)[letter];
   return glyph ? glyph + san.slice(1) : san;
 }
 
