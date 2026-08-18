@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { listGambits } from '../../api/gambits';
 import { errorMessage } from '../../api/client';
@@ -82,42 +82,52 @@ export function PlayBotSetupForm({
 
   const elo = practice ? practiceElo : GRANDMASTER_ELO;
 
-  // A gambit only makes sense for whichever colour the *bot* will play — the
-  // opposite of the player's own choice.
-  const botColor: BotColor = playerColor === 'white' ? 'black' : 'white';
-  const availableGambits = useMemo(
-    () => gambits.filter((gambit) => gambit.side === botColor),
-    [gambits, botColor],
-  );
-
-  // Reset the selection whenever the bot's colour changes, since a gambit
-  // picked for the other colour no longer applies.
-  useEffect(() => {
-    setSelectedGambitValue(NO_GAMBIT_VALUE);
-  }, [botColor]);
+  // The full library, always — every gambit belongs to one colour or the
+  // other, and picking one below auto-sets "Your colour" to whichever side
+  // makes the *bot* the one playing it (see `handleGambitChange`), so there
+  // is no reason to hide half the list depending on the colour tabs above.
+  const whiteGambits = gambits.filter((gambit) => gambit.side === 'white');
+  const blackGambits = gambits.filter((gambit) => gambit.side === 'black');
 
   const selectedGambit =
     selectedGambitValue === NO_GAMBIT_VALUE || selectedGambitValue === RANDOM_GAMBIT_VALUE
       ? null
-      : (availableGambits.find((gambit) => gambit.id === selectedGambitValue) ?? null);
+      : (gambits.find((gambit) => gambit.id === selectedGambitValue) ?? null);
+
+  const handleGambitChange = (value: string) => {
+    setSelectedGambitValue(value);
+    // Picking a specific gambit only means something if the bot is the one
+    // playing it — flip "Your colour" to the opposite of the gambit's side
+    // automatically, rather than silently hiding gambits that don't match
+    // whatever colour happens to be selected already.
+    const gambit = gambits.find((item) => item.id === value);
+    if (gambit) {
+      setPlayerColor(gambit.side === 'white' ? 'black' : 'white');
+    }
+  };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
 
     let gambitId: string | null;
+    let effectivePlayerColor = playerColor;
+
     if (selectedGambitValue === NO_GAMBIT_VALUE) {
       gambitId = null;
     } else if (selectedGambitValue === RANDOM_GAMBIT_VALUE) {
-      gambitId =
-        availableGambits.length > 0
-          ? availableGambits[Math.floor(Math.random() * availableGambits.length)].id
-          : null;
+      if (gambits.length > 0) {
+        const pick = gambits[Math.floor(Math.random() * gambits.length)];
+        gambitId = pick.id;
+        effectivePlayerColor = pick.side === 'white' ? 'black' : 'white';
+      } else {
+        gambitId = null;
+      }
     } else {
       gambitId = selectedGambitValue;
     }
 
-    onStart(playerColor, elo, aggression, gambitId, adaptToOpponent);
+    onStart(effectivePlayerColor, elo, aggression, gambitId, adaptToOpponent);
   };
 
   return (
@@ -158,18 +168,27 @@ export function PlayBotSetupForm({
         className="form__select"
         aria-label="Opening strategy"
         value={selectedGambitValue}
-        onChange={(event) => setSelectedGambitValue(event.target.value)}
+        onChange={(event) => handleGambitChange(event.target.value)}
         disabled={busy}
       >
         <option value={NO_GAMBIT_VALUE}>No Gambit / Free Play</option>
-        <option value={RANDOM_GAMBIT_VALUE} disabled={availableGambits.length === 0}>
+        <option value={RANDOM_GAMBIT_VALUE} disabled={gambits.length === 0}>
           Random Gambit
         </option>
-        {availableGambits.map((gambit) => (
-          <option key={gambit.id} value={gambit.id}>
-            {gambit.name} ({gambit.eco})
-          </option>
-        ))}
+        <optgroup label="Bot plays White">
+          {whiteGambits.map((gambit) => (
+            <option key={gambit.id} value={gambit.id}>
+              {gambit.name} ({gambit.eco})
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Bot plays Black">
+          {blackGambits.map((gambit) => (
+            <option key={gambit.id} value={gambit.id}>
+              {gambit.name} ({gambit.eco})
+            </option>
+          ))}
+        </optgroup>
       </select>
       {gambitsError && <span className="form__hint">Could not load gambits: {gambitsError}</span>}
       {selectedGambit ? (
@@ -179,11 +198,14 @@ export function PlayBotSetupForm({
             <span>Style: {selectedGambit.style.join(' / ')}</span>
             <span>Aggression: {selectedGambit.aggression_level} / 5</span>
           </div>
+          <span className="form__hint">
+            Picking this set "Your colour" to {selectedGambit.side === 'white' ? 'Black' : 'White'}, so the bot is the one playing it.
+          </span>
         </div>
       ) : (
         <span className="form__hint">
           {selectedGambitValue === RANDOM_GAMBIT_VALUE
-            ? 'A gambit matching the bot’s colour is picked when the game starts.'
+            ? 'A gambit is picked at random when the game starts, and "Your colour" is set to match.'
             : 'The bot plays on its own merits, with no opening preference.'}
         </span>
       )}
