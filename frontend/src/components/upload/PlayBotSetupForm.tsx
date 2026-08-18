@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { BotColor } from '../../types';
+import { listGambits } from '../../api/gambits';
+import { errorMessage } from '../../api/client';
+import type { BotColor, Gambit } from '../../types';
 import {
   BOT_ELO_FLOOR,
   BOT_ELO_MIN,
@@ -11,13 +13,25 @@ import {
 } from '../../lib/botConstants';
 
 type PlayBotSetupFormProps = {
-  onStart: (playerColor: BotColor, elo: number, aggression: number) => void;
+  onStart: (
+    playerColor: BotColor,
+    elo: number,
+    aggression: number,
+    gambitId: string | null,
+    adaptToOpponent: boolean,
+  ) => void;
   /** True while the create request is in flight. */
   busy?: boolean;
   /** Failure from a previous start attempt, surfaced next to the button. */
   error?: string | null;
   onCancel?: () => void;
 };
+
+/** Sentinel `<select>` value for "pick one of the matching gambits at random
+ * when the game starts" — resolved to a real id client-side in `handleSubmit`,
+ * never sent to the server as-is. */
+const RANDOM_GAMBIT_VALUE = '__random__';
+const NO_GAMBIT_VALUE = '';
 
 const AGGRESSION_MIN = 1;
 const AGGRESSION_MAX = 5;
@@ -47,12 +61,63 @@ export function PlayBotSetupForm({
   const [practiceElo, setPracticeElo] = useState(DEFAULT_PRACTICE_ELO);
   const [aggression, setAggression] = useState(3);
 
+  const [gambits, setGambits] = useState<Gambit[]>([]);
+  const [gambitsError, setGambitsError] = useState<string | null>(null);
+  const [selectedGambitValue, setSelectedGambitValue] = useState<string>(NO_GAMBIT_VALUE);
+  const [adaptToOpponent, setAdaptToOpponent] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    listGambits(controller.signal)
+      .then((data) => {
+        setGambits(data.gambits);
+        setGambitsError(null);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setGambitsError(errorMessage(err));
+      });
+    return () => controller.abort();
+  }, []);
+
   const elo = practice ? practiceElo : GRANDMASTER_ELO;
+
+  // A gambit only makes sense for whichever colour the *bot* will play — the
+  // opposite of the player's own choice.
+  const botColor: BotColor = playerColor === 'white' ? 'black' : 'white';
+  const availableGambits = useMemo(
+    () => gambits.filter((gambit) => gambit.side === botColor),
+    [gambits, botColor],
+  );
+
+  // Reset the selection whenever the bot's colour changes, since a gambit
+  // picked for the other colour no longer applies.
+  useEffect(() => {
+    setSelectedGambitValue(NO_GAMBIT_VALUE);
+  }, [botColor]);
+
+  const selectedGambit =
+    selectedGambitValue === NO_GAMBIT_VALUE || selectedGambitValue === RANDOM_GAMBIT_VALUE
+      ? null
+      : (availableGambits.find((gambit) => gambit.id === selectedGambitValue) ?? null);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
-    onStart(playerColor, elo, aggression);
+
+    let gambitId: string | null;
+    if (selectedGambitValue === NO_GAMBIT_VALUE) {
+      gambitId = null;
+    } else if (selectedGambitValue === RANDOM_GAMBIT_VALUE) {
+      gambitId =
+        availableGambits.length > 0
+          ? availableGambits[Math.floor(Math.random() * availableGambits.length)].id
+          : null;
+    } else {
+      gambitId = selectedGambitValue;
+    }
+
+    onStart(playerColor, elo, aggression, gambitId, adaptToOpponent);
   };
 
   return (
@@ -86,6 +151,70 @@ export function PlayBotSetupForm({
         {playerColor === 'white'
           ? 'You move first.'
           : 'The bot opens; its first move is ready when the board loads.'}
+      </span>
+
+      <span className="form__label">Choose Your Gambit</span>
+      <select
+        className="form__select"
+        aria-label="Opening strategy"
+        value={selectedGambitValue}
+        onChange={(event) => setSelectedGambitValue(event.target.value)}
+        disabled={busy}
+      >
+        <option value={NO_GAMBIT_VALUE}>No Gambit / Free Play</option>
+        <option value={RANDOM_GAMBIT_VALUE} disabled={availableGambits.length === 0}>
+          Random Gambit
+        </option>
+        {availableGambits.map((gambit) => (
+          <option key={gambit.id} value={gambit.id}>
+            {gambit.name} ({gambit.eco})
+          </option>
+        ))}
+      </select>
+      {gambitsError && <span className="form__hint">Could not load gambits: {gambitsError}</span>}
+      {selectedGambit ? (
+        <div className="gambit-summary">
+          <p className="gambit-summary__description">{selectedGambit.description}</p>
+          <div className="gambit-summary__meta">
+            <span>Style: {selectedGambit.style.join(' / ')}</span>
+            <span>Aggression: {selectedGambit.aggression_level} / 5</span>
+          </div>
+        </div>
+      ) : (
+        <span className="form__hint">
+          {selectedGambitValue === RANDOM_GAMBIT_VALUE
+            ? 'A gambit matching the bot’s colour is picked when the game starts.'
+            : 'The bot plays on its own merits, with no opening preference.'}
+        </span>
+      )}
+
+      <span className="form__label">Adapt to Opponent</span>
+      <div className="tabs" role="radiogroup" aria-label="Adapt to opponent">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={adaptToOpponent}
+          className={`tabs__tab${adaptToOpponent ? ' tabs__tab--active' : ''}`}
+          onClick={() => setAdaptToOpponent(true)}
+          disabled={busy}
+        >
+          On
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!adaptToOpponent}
+          className={`tabs__tab${!adaptToOpponent ? ' tabs__tab--active' : ''}`}
+          onClick={() => setAdaptToOpponent(false)}
+          disabled={busy}
+        >
+          Off
+        </button>
+      </div>
+      <span className="form__hint">
+        {adaptToOpponent
+          ? 'The bot reads your playing style during the game and nudges its own accordingly.'
+          : 'The bot ignores your playing style and sticks to its own base personality.'}
       </span>
 
       <span className="form__label">Bot strength</span>

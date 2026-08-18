@@ -35,8 +35,10 @@ from dataclasses import dataclass
 import chess
 
 from app.errors import EngineError
+from app.services import gambit_strategy
 from app.services.classification import PIECE_VALUES, material_balance
 from app.services.engine_pool import CandidateMove, StockfishEngine
+from app.services.gambit_strategy import StrategyContext
 
 # --- Tunables --------------------------------------------------------------
 
@@ -255,7 +257,12 @@ class ScoredCandidate:
 # --- Public API ------------------------------------------------------------
 
 
-def choose_bot_move(board: chess.Board, elo: int, aggression: int) -> chess.Move:
+def choose_bot_move(
+    board: chess.Board,
+    elo: int,
+    aggression: int,
+    strategy_context: StrategyContext | None = None,
+) -> chess.Move:
     """Pick the bot's move: elo-capped engine first, aggression re-rank second.
 
     At `GRANDMASTER_ELO` and above the strength step is skipped entirely: the
@@ -264,6 +271,12 @@ def choose_bot_move(board: chess.Board, elo: int, aggression: int) -> chess.Move
     its Tal flavour, but against a much tighter tolerance gate
     (`GRANDMASTER_AGGRESSION_TOLERANCE_CP`), so style is never bought with
     material at the tier whose job is to not lose.
+
+    `strategy_context` (see `gambit_strategy.py`) is an optional third knob on
+    top of the two above: a selected gambit plus the opponent's observed style,
+    folded into the personality re-rank as one more preference. `None` (the
+    default) reproduces this function's exact prior behaviour - every existing
+    caller is unaffected.
     """
     if is_grandmaster(elo):
         engine = StockfishEngine(
@@ -289,7 +302,7 @@ def choose_bot_move(board: chess.Board, elo: int, aggression: int) -> chess.Move
             {"fen": board.fen(), "elo": elo, "aggression": aggression},
         )
 
-    return select_move(board, candidates, aggression, elo)
+    return select_move(board, candidates, aggression, elo, strategy_context)
 
 
 def select_move(
@@ -297,6 +310,7 @@ def select_move(
     candidates: list[CandidateMove],
     aggression: int,
     elo: int | None = None,
+    strategy_context: StrategyContext | None = None,
 ) -> chess.Move:
     """Choose among an already-fetched candidate pool. Pure, so it unit-tests.
 
@@ -306,12 +320,13 @@ def select_move(
     repetition, which degrades to the previous behaviour rather than misfiring.
 
     `elo` is passed through purely so the Grandmaster tier gets its own tighter
-    tolerance table; omitting it keeps the practice-tier behaviour.
+    tolerance table; omitting it keeps the practice-tier behaviour. `None` for
+    `strategy_context` reproduces the exact prior behaviour (see `choose_bot_move`).
     """
     if not candidates:
         raise EngineError("No candidate moves to choose from.", {"fen": board.fen()})
 
-    scored = score_candidates(board, candidates, aggression, elo)
+    scored = score_candidates(board, candidates, aggression, elo, strategy_context)
     pool = _prefer_non_repeating(scored)
 
     # Aggression 1 is plain elo-limited Stockfish: no personality at all, just
@@ -378,15 +393,21 @@ def score_candidates(
     candidates: list[CandidateMove],
     aggression: int,
     elo: int | None = None,
+    strategy_context: StrategyContext | None = None,
 ) -> list[ScoredCandidate]:
     """Score every candidate for Tal-ness and mark tolerance eligibility.
 
     `elo` only selects the tolerance table (see `tolerance_for`); every
-    personality term is tier-independent.
+    personality term is tier-independent. `strategy_context` (optional - see
+    `gambit_strategy.py`) folds in a selected gambit and the opponent's
+    observed style as two more score terms; it is applied strictly *after*
+    `eligible` is decided below, so it can never rescue a candidate the
+    tolerance gate has already rejected.
     """
     mover = board.turn
     tolerance = tolerance_for(aggression, elo)
     aggression_gain = personality_gain_for(aggression)
+    gambit_gain = gambit_strategy.personality_multiplier(strategy_context)
 
     cp_movers = [_mover_cp(candidate, mover) for candidate in candidates]
     # The gate references the pool's best score rather than candidates[0]: a
@@ -398,6 +419,7 @@ def score_candidates(
     scored: list[ScoredCandidate] = []
     for candidate, cp_mover in zip(candidates, cp_movers):
         cp_loss = best_cp - cp_mover
+        eligible = cp_loss <= tolerance
         sacrifice = _sacrifice_pawns(board, candidate.move)
         exposure_delta, pressure_delta = _king_attack_deltas(board, candidate.move)
 
@@ -406,14 +428,18 @@ def score_candidates(
             + KING_EXPOSURE_WEIGHT * exposure_delta
             + KING_PRESSURE_WEIGHT * pressure_delta
         )
-        score = personality * gain * aggression_gain - CP_LOSS_WEIGHT * cp_loss
+        score = personality * gain * aggression_gain * gambit_gain - CP_LOSS_WEIGHT * cp_loss
+        # Priority 6 (selected gambit preference) - the very last term, and
+        # only ever added on top of a score whose eligibility was already
+        # decided above from cp_loss alone.
+        score += gambit_strategy.candidate_bonus(board, candidate, strategy_context)
 
         scored.append(
             ScoredCandidate(
                 candidate=candidate,
                 cp_mover=cp_mover,
                 cp_loss=cp_loss,
-                eligible=cp_loss <= tolerance,
+                eligible=eligible,
                 sacrifice_pawns=sacrifice,
                 king_exposure_delta=exposure_delta,
                 king_pressure_delta=pressure_delta,

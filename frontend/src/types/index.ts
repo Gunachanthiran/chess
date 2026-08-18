@@ -180,6 +180,29 @@ export type ImportJobResponse = {
 /** Side the human picks when starting a bot game. */
 export type BotColor = 'white' | 'black';
 
+/** One entry from GET /api/gambits — the "Choose Your Gambit" data source.
+ * The setup form generates its whole picker from this list; nothing about a
+ * specific gambit is hard-coded on the frontend. */
+export type Gambit = {
+  id: string;
+  name: string;
+  /** Which colour this gambit belongs to — only relevant when the bot plays that colour. */
+  side: BotColor;
+  eco: string;
+  starting_moves: string[];
+  description: string;
+  style: string[];
+  aggression_level: number;
+  recommended_response: string;
+};
+
+export type GambitListResponse = {
+  gambits: Gambit[];
+};
+
+/** Where a game against the bot stands relative to its selected gambit. */
+export type GambitStatus = 'no_gambit' | 'active' | 'extended' | 'deviated';
+
 export type BotGameStatus = 'in_progress' | 'checkmate' | 'stalemate' | 'draw' | 'resigned';
 
 export type BotGameMove = {
@@ -197,6 +220,8 @@ export type BotGame = {
   player_color: BotColor;
   bot_elo: number;
   bot_aggression: number;
+  gambit_id: string | null;
+  adapt_to_opponent: boolean;
   status: BotGameStatus;
   result: string | null;
   moves: BotGameMove[];
@@ -206,6 +231,14 @@ export type BotGame = {
    */
   opening_eco: string | null;
   opening_name: string | null;
+  /**
+   * Live gambit/strategy readout, likewise recomputed on every response —
+   * see GameAnalysisPage-style opening fields above for the same pattern.
+   */
+  gambit_name: string | null;
+  gambit_status: GambitStatus;
+  opponent_style: string[];
+  bot_strategy_summary: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -215,6 +248,8 @@ export type CreateBotGameRequest = {
   player_color: BotColor;
   bot_elo: number;
   bot_aggression: number;
+  gambit_id: string | null;
+  adapt_to_opponent: boolean;
 };
 
 /** Body of POST /api/bot-games/{id}/moves — `e2e4`, or `e7e8q` when promoting. */
@@ -243,6 +278,7 @@ export type BotGameSummary = {
   move_count: number;
   opening_eco: string | null;
   opening_name: string | null;
+  gambit_name: string | null;
 };
 
 /** Response shape of GET /api/bot-games */

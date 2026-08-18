@@ -6,7 +6,7 @@ import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { PanelSkeleton } from '../common/Skeleton';
 import type { BotGameHook } from '../../hooks/useBotGame';
 import { isGrandmasterElo } from '../../lib/botConstants';
-import type { BotGame, BotGameMove } from '../../types';
+import type { BotGame, BotGameMove, GambitStatus } from '../../types';
 
 type PlayBotPageProps = {
   bot: BotGameHook;
@@ -25,6 +25,48 @@ const STATUS_TEXT: Record<Exclude<BotGame['status'], 'in_progress'>, string> = {
   draw: 'Draw',
   resigned: 'Resigned',
 };
+
+const GAMBIT_STATUS_TEXT: Record<GambitStatus, string> = {
+  no_gambit: 'Free play',
+  active: 'Gambit Active',
+  extended: 'Gambit Line Complete',
+  deviated: 'Opening Line Deviated',
+};
+
+/**
+ * "Opening / Status / Opponent Style / Bot Strategy" — makes it visible why
+ * the bot changed its behaviour, rather than the personality shift being a
+ * silent black box. Only rendered once a gambit was actually selected; plain
+ * free-play games look exactly as they did before this existed.
+ */
+function BotStrategyPanel({ botGame }: { botGame: BotGame }) {
+  if (!botGame.gambit_name) return null;
+
+  return (
+    <div className="panel bot-strategy">
+      <div className="panel__header">Strategy</div>
+      <div className="bot-strategy__row">
+        <span className="bot-strategy__label">Opening</span>
+        <span className="bot-strategy__value">{botGame.gambit_name}</span>
+      </div>
+      <div className="bot-strategy__row">
+        <span className="bot-strategy__label">Status</span>
+        <span className={`bot-strategy__value bot-strategy__value--${botGame.gambit_status}`}>
+          {GAMBIT_STATUS_TEXT[botGame.gambit_status]}
+        </span>
+      </div>
+      {botGame.opponent_style.length > 0 && (
+        <div className="bot-strategy__row">
+          <span className="bot-strategy__label">Opponent Style</span>
+          <span className="bot-strategy__value">{botGame.opponent_style.join(', ')}</span>
+        </div>
+      )}
+      {botGame.bot_strategy_summary && (
+        <p className="bot-strategy__summary">{botGame.bot_strategy_summary}</p>
+      )}
+    </div>
+  );
+}
 
 type BotMoveRow = {
   moveNumber: number;
@@ -353,6 +395,7 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
         </section>
 
         <aside className="analysis__side-column">
+          <BotStrategyPanel botGame={botGame} />
           <BotMoveList moves={botGame.moves} />
         </aside>
       </div>

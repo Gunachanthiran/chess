@@ -3,10 +3,11 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.bot_game import BotColor, BotGameStatus
 from app.models.move_analysis import Side
+from app.services import gambits as gambits_service
 from app.services.tal_bot import GRANDMASTER_ELO, MAX_AGGRESSION, MIN_AGGRESSION
 
 # Public-facing slider range (matches the frontend). Anything below Stockfish's
@@ -45,6 +46,25 @@ class CreateBotGameRequest(BaseModel):
         le=MAX_AGGRESSION,
         description="1 = plain elo-limited Stockfish, 5 = maximally Tal-like",
     )
+    gambit_id: str | None = Field(
+        default=None,
+        description=(
+            "Id from GET /api/gambits the bot should prefer as an opening "
+            "plan, or null for free play. A preference, not a script — see "
+            "app/services/gambit_strategy.py."
+        ),
+    )
+    adapt_to_opponent: bool = Field(
+        default=True,
+        description="Whether the bot nudges its personality toward the opponent's observed style.",
+    )
+
+    @field_validator("gambit_id")
+    @classmethod
+    def _gambit_must_exist(cls, value: str | None) -> str | None:
+        if value is not None and gambits_service.get_gambit(value) is None:
+            raise ValueError(f"Unknown gambit id: {value!r}")
+        return value
 
 
 class SubmitBotMoveRequest(BaseModel):
@@ -71,6 +91,8 @@ class BotGameOut(BaseModel):
     player_color: BotColor
     bot_elo: int
     bot_aggression: int
+    gambit_id: str | None
+    adapt_to_opponent: bool
     status: BotGameStatus
     result: str | None
     created_at: datetime
@@ -82,6 +104,13 @@ class BotGameOut(BaseModel):
     # ply, and both fields go back to null the moment the game leaves book.
     opening_eco: str | None = None
     opening_name: str | None = None
+
+    # Live gambit/strategy readout — likewise recomputed on every response,
+    # never stored. See bot_game_service.strategy_status.
+    gambit_name: str | None = None
+    gambit_status: str = "no_gambit"
+    opponent_style: list[str] = []
+    bot_strategy_summary: str | None = None
 
 
 class BotGameResponse(BaseModel):
@@ -106,6 +135,7 @@ class BotGameSummaryOut(BaseModel):
     move_count: int = 0
     opening_eco: str | None = None
     opening_name: str | None = None
+    gambit_name: str | None = None
 
 
 class BotGameSummaryListResponse(BaseModel):

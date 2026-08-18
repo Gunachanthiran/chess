@@ -671,6 +671,46 @@
   color: var(--text-dim);
 }
 
+/* This app's first native <select> (the gambit picker) — shares
+   .form__input's box treatment but keeps the UI font rather than that
+   class's monospace one, which reads fine for a username field but not for
+   proper nouns like "King's Gambit". */
+.form__select {
+  width: 100%;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  padding: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.gambit-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+
+.gambit-summary__description {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.gambit-summary__meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: capitalize;
+}
+
 /* ---------- Sliders ---------- */
 
 .slider {
@@ -2546,6 +2586,52 @@
 
 .bot-result .button {
   margin-left: auto;
+}
+
+/* ---------- Bot strategy panel (gambit + opponent-style readout) --------- */
+
+.bot-strategy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bot-strategy__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.bot-strategy__label {
+  color: var(--text-dim);
+}
+
+.bot-strategy__value {
+  font-weight: 600;
+  text-align: right;
+  text-transform: capitalize;
+}
+
+.bot-strategy__value--active {
+  color: var(--accent);
+}
+
+.bot-strategy__value--deviated {
+  color: var(--warn);
+}
+
+.bot-strategy__value--extended {
+  color: var(--text-dim);
+}
+
+.bot-strategy__summary {
+  margin: 2px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-dim);
 }
 
 /* ---------- Eval graph ---------- */

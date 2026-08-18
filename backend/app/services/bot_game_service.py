@@ -17,6 +17,8 @@ from app.errors import ConflictError, ValidationError
 from app.models.bot_game import BotColor, BotGame, BotGameStatus
 from app.models.bot_game_move import BotGameMove
 from app.models.move_analysis import Side
+from app.services import gambit_strategy
+from app.services import gambits as gambits_service
 from app.services import openings as openings_service
 from app.services import tal_bot
 
@@ -52,6 +54,63 @@ def current_opening(bot_game: BotGame) -> tuple[str | None, str | None]:
     return opening.eco, opening.name
 
 
+def _bot_color(bot_game: BotGame) -> chess.Color:
+    return chess.BLACK if bot_game.player_color is BotColor.white else chess.WHITE
+
+
+def _move_triples(moves: list[BotGameMove]) -> list[tuple[str, str, chess.Color]]:
+    """`(san, uci, side)` triples in ply order — the shape `gambit_strategy`
+    and `opponent_style` both take."""
+    return [
+        (move.san, move.uci, chess.WHITE if move.side is Side.white else chess.BLACK)
+        for move in sorted(moves, key=lambda row: row.ply)
+    ]
+
+
+def _strategy_context(
+    bot_game: BotGame, board: chess.Board, moves: list[BotGameMove]
+) -> gambit_strategy.StrategyContext:
+    gambit = gambits_service.get_gambit(bot_game.gambit_id) if bot_game.gambit_id else None
+    return gambit_strategy.build_context(
+        board,
+        gambit,
+        _move_triples(moves),
+        _bot_color(bot_game),
+        bot_game.adapt_to_opponent,
+    )
+
+
+def strategy_status(bot_game: BotGame) -> tuple[str | None, str, list[str], str | None]:
+    """(gambit_name, gambit_status, opponent_style_tags, bot_strategy_summary).
+
+    Computed fresh from the stored move list on every response, exactly like
+    `current_opening` above — nothing here is stored on the row.
+    """
+    moves = sorted(bot_game.moves, key=lambda row: row.ply)
+    board = reconstruct_board(bot_game, moves)
+    context = _strategy_context(bot_game, board, moves)
+    tags = list(context.opponent.tags)
+
+    if context.gambit is None:
+        return None, "no_gambit", tags, None
+
+    return context.gambit.name, context.status, tags, _strategy_summary(context)
+
+
+def _strategy_summary(context: gambit_strategy.StrategyContext) -> str:
+    gambit = context.gambit
+    assert gambit is not None
+    opponent_desc = ", ".join(context.opponent.tags)
+    if context.status == "active":
+        return f"Following {gambit.name} — opponent reads {opponent_desc}."
+    if context.status == "extended":
+        style_desc = ", ".join(gambit.style)
+        return f"{gambit.name} line complete — keeping its {style_desc} character against a {opponent_desc} opponent."
+    if context.status == "deviated":
+        return f"Off the {gambit.name} line — adapting to a {opponent_desc} opponent."
+    return "Free play."
+
+
 def load_moves(db: Session, bot_game: BotGame) -> list[BotGameMove]:
     return list(
         db.scalars(
@@ -70,12 +129,16 @@ def create_bot_game(
     player_color: BotColor,
     bot_elo: int,
     bot_aggression: int,
+    gambit_id: str | None = None,
+    adapt_to_opponent: bool = True,
 ) -> BotGame:
     """Create a game; if the bot has White, it plays the opening move at once."""
     bot_game = BotGame(
         player_color=player_color,
         bot_elo=bot_elo,
         bot_aggression=bot_aggression,
+        gambit_id=gambit_id,
+        adapt_to_opponent=adapt_to_opponent,
         status=BotGameStatus.in_progress,
     )
     db.add(bot_game)
@@ -84,7 +147,8 @@ def create_bot_game(
 
     if player_color is BotColor.black:
         board = chess.Board()
-        bot_move = tal_bot.choose_bot_move(board, bot_elo, bot_aggression)
+        context = _strategy_context(bot_game, board, [])
+        bot_move = tal_bot.choose_bot_move(board, bot_elo, bot_aggression, context)
         _record_move(db, bot_game, board, bot_move, ply=1, is_bot_move=True)
         db.commit()
 
@@ -151,12 +215,13 @@ def submit_player_move(db: Session, bot_game: BotGame, uci: str) -> BotGame:
         )
 
     move = _parse_legal_move(board, uci)
-    _record_move(db, bot_game, board, move, ply=next_ply, is_bot_move=False)
+    played_move = _record_move(db, bot_game, board, move, ply=next_ply, is_bot_move=False)
     next_ply += 1
 
     if not _finish_if_over(bot_game, board):
+        context = _strategy_context(bot_game, board, [*moves, played_move])
         bot_move = tal_bot.choose_bot_move(
-            board, bot_game.bot_elo, bot_game.bot_aggression
+            board, bot_game.bot_elo, bot_game.bot_aggression, context
         )
         _record_move(db, bot_game, board, bot_move, ply=next_ply, is_bot_move=True)
         _finish_if_over(bot_game, board)

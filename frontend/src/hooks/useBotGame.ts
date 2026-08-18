@@ -23,7 +23,13 @@ export type BotGameHook = {
   /** Last error message, already narrowed to a string via `errorMessage`. */
   error: string | null;
   /** Resolves the new game's id on success, `null` on failure (see `error`). */
-  createGame: (playerColor: BotColor, elo: number, aggression: number) => Promise<string | null>;
+  createGame: (
+    playerColor: BotColor,
+    elo: number,
+    aggression: number,
+    gambitId: string | null,
+    adaptToOpponent: boolean,
+  ) => Promise<string | null>;
   /**
    * Re-fetches an existing game by id and adopts it as current — used to
    * restore an in-progress game after a full page reload (e.g. the tab was
@@ -240,7 +246,13 @@ export function useBotGame(): BotGameHook {
   }, []);
 
   const createGame = useCallback(
-    async (playerColor: BotColor, elo: number, aggression: number): Promise<string | null> => {
+    async (
+      playerColor: BotColor,
+      elo: number,
+      aggression: number,
+      gambitId: string | null,
+      adaptToOpponent: boolean,
+    ): Promise<string | null> => {
       setCreating(true);
       setError(null);
       setOptimistic(null);
@@ -249,6 +261,8 @@ export function useBotGame(): BotGameHook {
           player_color: playerColor,
           bot_elo: elo,
           bot_aggression: aggression,
+          gambit_id: gambitId,
+          adapt_to_opponent: adaptToOpponent,
         });
         botGameRef.current = data.bot_game;
         setBotGame(data.bot_game);

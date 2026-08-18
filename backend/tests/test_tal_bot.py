@@ -334,6 +334,31 @@ class TestRepetitionAvoidance:
         assert flags == {"Ng8": True, "e5": False}
 
 
+class TestStrategyContextDefaultsToANoOp:
+    """`strategy_context` is new and optional — omitting it (every pre-gambit
+    caller) must reproduce the exact prior behaviour. See gambit_strategy.py
+    for the feature this guards the absence of."""
+
+    def test_select_move_output_is_identical_with_and_without_default_context(self):
+        board = chess.Board()
+        pool = candidates(board, ("e4", 40), ("d4", 35), ("Nf3", 10))
+
+        with_explicit_none = tal_bot.select_move(board, pool, aggression=4, strategy_context=None)
+        omitted_entirely = tal_bot.select_move(board, pool, aggression=4)
+        assert with_explicit_none == omitted_entirely
+
+    def test_score_candidates_scores_are_unchanged_by_an_absent_context(self):
+        board = chess.Board()
+        pool = candidates(board, ("e4", 40), ("d4", 35))
+
+        scores_without_param = [item.score for item in tal_bot.score_candidates(board, pool, aggression=4)]
+        scores_with_none = [
+            item.score
+            for item in tal_bot.score_candidates(board, pool, aggression=4, strategy_context=None)
+        ]
+        assert scores_without_param == scores_with_none
+
+
 class TestEmptyPool:
     def test_no_candidates_raises_engine_error(self):
         from app.errors import EngineError

@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,6 +48,13 @@ class BotGame(Base):
     )
     bot_elo: Mapped[int] = mapped_column(Integer, nullable=False)
     bot_aggression: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Id into the bundled gambits.json (app/services/gambits.py) — no FK, same
+    # non-relational treatment as the opening eco/name shown elsewhere, since
+    # gambits live in a bundled file rather than a table. Null = free play.
+    gambit_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    adapt_to_opponent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
 
     status: Mapped[BotGameStatus] = mapped_column(
         Enum(

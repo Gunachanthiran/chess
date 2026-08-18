@@ -32,6 +32,9 @@ def _response(bot_game: BotGame) -> BotGameResponse:
     """
     out = BotGameOut.model_validate(bot_game)
     out.opening_eco, out.opening_name = bot_game_service.current_opening(bot_game)
+    out.gambit_name, out.gambit_status, out.opponent_style, out.bot_strategy_summary = (
+        bot_game_service.strategy_status(bot_game)
+    )
     return BotGameResponse(bot_game=out)
 
 
@@ -51,6 +54,8 @@ def create_bot_game(
         player_color=payload.player_color,
         bot_elo=payload.bot_elo,
         bot_aggression=payload.bot_aggression,
+        gambit_id=payload.gambit_id,
+        adapt_to_opponent=payload.adapt_to_opponent,
     )
     return _response(bot_game)
 
@@ -81,12 +86,14 @@ def list_bot_games(
     summaries = []
     for bot_game in bot_games:
         eco, name = bot_game_service.current_opening(bot_game)
+        gambit_name, _status, _tags, _summary = bot_game_service.strategy_status(bot_game)
         summaries.append(
             BotGameSummaryOut.model_validate(bot_game).model_copy(
                 update={
                     "move_count": len(bot_game.moves),
                     "opening_eco": eco,
                     "opening_name": name,
+                    "gambit_name": gambit_name,
                 }
             )
         )

@@ -13,8 +13,14 @@ export function PlayBotSetupRoute({ bot }: PlayBotSetupRouteProps) {
   const navigate = useNavigate();
 
   const handleStart = useCallback(
-    (playerColor: BotColor, elo: number, aggression: number) => {
-      void bot.createGame(playerColor, elo, aggression).then((id) => {
+    (
+      playerColor: BotColor,
+      elo: number,
+      aggression: number,
+      gambitId: string | null,
+      adaptToOpponent: boolean,
+    ) => {
+      void bot.createGame(playerColor, elo, aggression, gambitId, adaptToOpponent).then((id) => {
         if (id) navigate(`/play/${id}`);
         // On failure `bot.error` is already set; PlayBotSetupForm renders it
         // in place — nothing more to do here.

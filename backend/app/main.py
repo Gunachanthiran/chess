@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.errors import ChessScopeError
-from app.routers import analysis, auth, bot_games, games, imports, lichess, players, ws
+from app.routers import analysis, auth, bot_games, gambits, games, imports, lichess, players, ws
 from app.services import engine_pool
 
 logging.basicConfig(level=logging.INFO)
@@ -81,6 +81,7 @@ app.include_router(games.router, prefix="/api")
 app.include_router(lichess.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
 app.include_router(bot_games.router, prefix="/api")
+app.include_router(gambits.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(players.router, prefix="/api")
