@@ -104,3 +104,44 @@ export function IconGames(props: IconProps) {
     </svg>
   );
 }
+
+/** Bullet chess — fastest format, a lightning bolt. */
+export function IconBullet(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M13 2 4.5 13h6L11 22l8.5-11h-6z" />
+    </svg>
+  );
+}
+
+/** Blitz — a plain clock face. */
+export function IconClock(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  );
+}
+
+/** Rapid — an hourglass, the slower-format counterpart to the clock. */
+export function IconHourglass(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M6.5 3h11M6.5 21h11" />
+      <path d="M7.5 3c0 4 3 5.5 4.5 6.5C13.5 8.5 16.5 7 16.5 3" />
+      <path d="M7.5 21c0-4 3-5.5 4.5-6.5C13.5 15.5 16.5 17 16.5 21" />
+    </svg>
+  );
+}
+
+/** Classical — a plain open book, the odd one out among the timed formats. */
+export function IconBook(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 5.5c-1.6-1-4-1.5-6.5-1.5v14c2.5 0 4.9.5 6.5 1.5" />
+      <path d="M12 5.5c1.6-1 4-1.5 6.5-1.5v14c-2.5 0-4.9.5-6.5 1.5" />
+      <path d="M12 5.5v14" />
+    </svg>
+  );
+}

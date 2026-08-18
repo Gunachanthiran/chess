@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactElement } from 'react';
 import { lookupPlayer } from '../api/players';
 import { errorMessage } from '../api/client';
+import { IconBook, IconBullet, IconClock, IconHourglass } from '../components/common/Icons';
 import type { ImportSource, PlayerLookup } from '../types';
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -11,10 +12,21 @@ const FORMAT_LABELS: Record<string, string> = {
   classical: 'Classical',
 };
 
+const FORMAT_ICONS: Record<string, (props: { className?: string }) => ReactElement> = {
+  bullet: IconBullet,
+  blitz: IconClock,
+  rapid: IconHourglass,
+  classical: IconBook,
+};
+
 function ResultCard({ player }: { player: PlayerLookup }) {
   const initial = (player.display_name ?? player.username).slice(0, 1).toUpperCase();
-  const totalGames =
-    (player.wins ?? 0) + (player.losses ?? 0) + (player.draws ?? 0);
+  const wins = player.wins ?? 0;
+  const losses = player.losses ?? 0;
+  const draws = player.draws ?? 0;
+  const totalGames = wins + losses + draws;
+  const winPct = totalGames > 0 ? (wins / totalGames) * 100 : 0;
+  const drawPct = totalGames > 0 ? (draws / totalGames) * 100 : 0;
 
   return (
     <div className="panel player-result">
@@ -26,7 +38,7 @@ function ResultCard({ player }: { player: PlayerLookup }) {
             {initial}
           </div>
         )}
-        <div>
+        <div className="player-result__identity">
           <div className="player-result__name">
             {player.display_name ?? player.username}
             {player.title && <span className="player-result__title">{player.title}</span>}
@@ -50,28 +62,44 @@ function ResultCard({ player }: { player: PlayerLookup }) {
 
       {totalGames > 0 && (
         <div className="player-result__record">
-          <span className="player-result__record-item player-result__record-item--win">
-            {player.wins} W
-          </span>
-          <span className="player-result__record-item player-result__record-item--loss">
-            {player.losses} L
-          </span>
-          <span className="player-result__record-item player-result__record-item--draw">
-            {player.draws} D
-          </span>
+          <div className="player-result__record-bar" aria-hidden="true">
+            <span className="player-result__record-bar-win" style={{ width: `${winPct}%` }} />
+            <span className="player-result__record-bar-draw" style={{ width: `${drawPct}%` }} />
+          </div>
+          <div className="player-result__record-labels">
+            <span className="player-result__record-item player-result__record-item--win">
+              {wins} W
+            </span>
+            <span className="player-result__record-item player-result__record-item--loss">
+              {losses} L
+            </span>
+            <span className="player-result__record-item player-result__record-item--draw">
+              {draws} D
+            </span>
+          </div>
         </div>
       )}
 
       {player.ratings.length > 0 && (
         <div className="player-result__ratings">
-          {player.ratings.map((rating) => (
-            <div key={rating.format} className="player-result__rating">
-              <span className="player-result__rating-label">
-                {FORMAT_LABELS[rating.format] ?? rating.format}
-              </span>
-              <span className="player-result__rating-value">{rating.rating ?? '—'}</span>
-            </div>
-          ))}
+          {player.ratings.map((rating) => {
+            const Icon = FORMAT_ICONS[rating.format];
+            return (
+              <div key={rating.format} className="player-result__rating">
+                {Icon && (
+                  <span className="player-result__rating-icon" aria-hidden="true">
+                    <Icon />
+                  </span>
+                )}
+                <div>
+                  <div className="player-result__rating-value">{rating.rating ?? '—'}</div>
+                  <div className="player-result__rating-label">
+                    {FORMAT_LABELS[rating.format] ?? rating.format}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -122,53 +150,59 @@ export function PlayerSearchPage() {
         </p>
       </div>
 
-      <form className="panel form" onSubmit={handleSubmit}>
-        <span className="form__label">Source</span>
-        <div className="tabs" role="radiogroup" aria-label="Player search source">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={source === 'chess_com'}
-            className={`tabs__tab${source === 'chess_com' ? ' tabs__tab--active' : ''}`}
-            onClick={() => setSource('chess_com')}
-            disabled={loading}
-          >
-            Chess.com
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={source === 'lichess'}
-            className={`tabs__tab${source === 'lichess' ? ' tabs__tab--active' : ''}`}
-            onClick={() => setSource('lichess')}
-            disabled={loading}
-          >
-            Lichess
-          </button>
-        </div>
+      <div className="player-search__body">
+        <form className="panel form" onSubmit={handleSubmit}>
+          <span className="form__label">Source</span>
+          <div className="tabs" role="radiogroup" aria-label="Player search source">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={source === 'chess_com'}
+              className={`tabs__tab${source === 'chess_com' ? ' tabs__tab--active' : ''}`}
+              onClick={() => setSource('chess_com')}
+              disabled={loading}
+            >
+              Chess.com
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={source === 'lichess'}
+              className={`tabs__tab${source === 'lichess' ? ' tabs__tab--active' : ''}`}
+              onClick={() => setSource('lichess')}
+              disabled={loading}
+            >
+              Lichess
+            </button>
+          </div>
 
-        <label className="form__label" htmlFor="player-search-username">
-          Username
-        </label>
-        <div className="form__row">
-          <input
-            id="player-search-username"
-            className="form__input"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            placeholder={source === 'chess_com' ? 'MagnusCarlsen' : 'DrNykterstein'}
-            autoComplete="off"
-            disabled={loading}
-          />
-          <button className="button button--primary" type="submit" disabled={loading}>
-            {loading ? 'Searching…' : 'Search'}
-          </button>
-        </div>
-      </form>
+          <label className="form__label" htmlFor="player-search-username">
+            Username
+          </label>
+          <div className="form__row">
+            <input
+              id="player-search-username"
+              className="form__input"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder={source === 'chess_com' ? 'MagnusCarlsen' : 'DrNykterstein'}
+              autoComplete="off"
+              disabled={loading}
+            />
+            <button
+              className={`button button--primary${loading ? ' button--loading' : ''}`}
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? 'Searching…' : 'Search'}
+            </button>
+          </div>
+        </form>
 
-      {error && <div className="alert alert--error">{error}</div>}
+        {error && <div className="alert alert--error">{error}</div>}
 
-      {player && <ResultCard player={player} />}
+        {player && <ResultCard player={player} />}
+      </div>
     </section>
   );
 }

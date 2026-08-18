@@ -1110,6 +1110,7 @@
 }
 
 .stats-card__value {
+  font-family: var(--font-display);
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -2304,7 +2305,7 @@
 .accuracy__value {
   font-size: 17px;
   font-weight: 700;
-  font-family: inherit;
+  font-family: var(--font-display);
 }
 
 .accuracy__label {
@@ -2570,34 +2571,50 @@
 
 /* ---------- Player search ---------- */
 
-.player-result {
-  margin-top: 20px;
+/* Search form + result share one reading column instead of stretching the
+   full page width — a two-field form and a result card both look sparse and
+   unbalanced spanning a wide desktop viewport edge to edge, the same reason
+   `.upload-grid--single` caps the PGN-upload form on the Analyze page. Left
+   under the page's own left-aligned title, unlike that centred pattern, so
+   the two keep one shared reading edge instead of the form appearing to
+   float independently of the heading above it. */
+.player-search__body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 640px;
+}
+
+.player-result {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: page-fade-in 0.3s ease both;
 }
 
 .player-result__head {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 /* Same "coloured-initial circle, or a real photo" pattern as
-   `.dashboard__avatar` / `.dashboard__avatar--photo`, at a smaller size for a
-   result card rather than a page greeting. */
+   `.dashboard__avatar` / `.dashboard__avatar--photo`, sized up with a glow
+   ring for a result page's own hero moment rather than a small list item. */
 .player-result__avatar {
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--accent-contrast);
   background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent), 0 8px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .player-result__avatar--photo {
@@ -2605,8 +2622,13 @@
   background: var(--bg-sunken);
 }
 
+.player-result__identity {
+  min-width: 0;
+}
+
 .player-result__name {
-  font-size: 1.1rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -2624,7 +2646,7 @@
 
 .player-result__meta {
   color: var(--text-dim);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
 }
 
 .player-result__link {
@@ -2633,6 +2655,31 @@
 }
 
 .player-result__record {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* A quick visual read of the record — proportion first, exact numbers as
+   the labels underneath — rather than three same-weight pills that need
+   reading individually to tell win-heavy from loss-heavy at a glance. */
+.player-result__record-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.player-result__record-bar-win {
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+}
+
+.player-result__record-bar-draw {
+  background: color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.player-result__record-labels {
   display: flex;
   gap: 10px;
 }
@@ -2659,18 +2706,42 @@
 
 .player-result__ratings {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
 }
 
+/* Same "icon in a soft gradient tile, value, label" shape as the dashboard's
+   `.stats-card` — one visual language for "here is a number that matters"
+   used consistently instead of this page inventing its own. */
 .player-result__rating {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
   border-radius: var(--radius-control);
   background: var(--bg-sunken);
   border: 1px solid var(--border);
+}
+
+.player-result__rating-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--accent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    color-mix(in srgb, var(--accent) 8%, transparent)
+  );
+}
+
+.player-result__rating-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .player-result__rating-label {
@@ -2681,7 +2752,8 @@
 }
 
 .player-result__rating-value {
-  font-size: 1.15rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
