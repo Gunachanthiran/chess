@@ -2902,16 +2902,28 @@
 }
 
 .coach__avatar {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 1.8rem;
   color: var(--accent-contrast);
   background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+}
+
+.coach__head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.coach__move-badge {
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 /* A real reaction, not just a swapped glyph — a brilliancy earns a triumphant
@@ -2971,15 +2983,48 @@
 
 /* Speech-bubble read: a sunken surface with a rounded corner pulled in
    toward the avatar, echoing a chat bubble without needing an actual
-   pseudo-element tail. */
-.coach__text {
-  margin: 0;
+   pseudo-element tail. `.coach__detail` (the "Explain" toggle's content)
+   shares the bubble but reads as a nested, quieter sub-note. */
+.coach__bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 14px;
   border-radius: var(--radius-control);
   border-top-left-radius: 2px;
   background: var(--bg-sunken);
   border: 1px solid var(--border);
+}
+
+.coach__text {
+  margin: 0;
   color: var(--text);
   font-size: 0.9rem;
   line-height: 1.45;
+}
+
+.coach__detail {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.coach__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coach__explain {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}
+
+.coach__nav {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
 }

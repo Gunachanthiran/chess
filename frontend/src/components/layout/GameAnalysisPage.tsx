@@ -306,6 +306,34 @@ export function GameAnalysisPage({
   }, [goToPrev, goToNext, goToStart, goToEnd]);
 
   const currentMove = currentMoveIndex > 0 ? moves[currentMoveIndex - 1] : null;
+
+  // The `currentMoveIndex` values a brilliant/great/mistake/blunder lands on
+  // — CoachPanel's "Next"/"Previous" review-style controls jump between these
+  // instead of one ply at a time, since those are the moments actually worth
+  // stopping for (see lib/coach.ts's own `isNotableMove`).
+  const notableMoveIndices = useMemo(
+    () =>
+      moves.reduce<number[]>((indices, move, index) => {
+        if (isNotableMove(move.classification)) indices.push(index + 1);
+        return indices;
+      }, []),
+    [moves],
+  );
+  const goToNextNotable = useCallback(() => {
+    const next = notableMoveIndices.find((index) => index > currentMoveIndex);
+    if (next !== undefined) setCurrentMoveIndex(next);
+  }, [notableMoveIndices, currentMoveIndex, setCurrentMoveIndex]);
+  const goToPreviousNotable = useCallback(() => {
+    let previous: number | undefined;
+    for (const index of notableMoveIndices) {
+      if (index >= currentMoveIndex) break;
+      previous = index;
+    }
+    if (previous !== undefined) setCurrentMoveIndex(previous);
+  }, [notableMoveIndices, currentMoveIndex, setCurrentMoveIndex]);
+  const hasNextNotable = notableMoveIndices.some((index) => index > currentMoveIndex);
+  const hasPreviousNotable = notableMoveIndices.some((index) => index < currentMoveIndex);
+
   // The move about to be played *from* the position currently on the board —
   // distinct from `currentMove` (the one just played to reach it). Feeds
   // `RecommendationsPanel`; `null` once navigation reaches the final recorded
@@ -531,7 +559,15 @@ export function GameAnalysisPage({
         */}
         <aside className="analysis__recommendations-column">
           <RecommendationsPanel upcomingMove={upcomingMove} onPreview={handlePreview} />
-          <CoachPanel move={currentMove} muted={coachMuted} onToggleMute={toggleCoachMuted} />
+          <CoachPanel
+            move={currentMove}
+            muted={coachMuted}
+            onToggleMute={toggleCoachMuted}
+            onNextNotable={goToNextNotable}
+            onPreviousNotable={goToPreviousNotable}
+            hasNextNotable={hasNextNotable}
+            hasPreviousNotable={hasPreviousNotable}
+          />
         </aside>
 
         <aside className="analysis__side-column">

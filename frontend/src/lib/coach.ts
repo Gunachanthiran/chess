@@ -271,3 +271,24 @@ export function commentaryForAnalysisMove(move: MoveAnalysis): string {
   const suffix = SUBOPTIMAL_TIERS.has(move.classification) ? bestMoveSentence(move) : '';
   return template.replace('{san}', naturalizeSan(move.san)) + suffix;
 }
+
+/**
+ * The "Explain" button's longer read on a move: the win% swing in plain
+ * terms, plus the engine's actual alternative when there was a better one
+ * (reusing `bestMoveSentence`, which already no-ops when the move played
+ * *was* the engine's own pick). Unlike `commentaryForAnalysisMove` this
+ * isn't gated to the suboptimal tiers — a brilliant or great move still gets
+ * a real "here's the swing" line, just without a "the best move was..."
+ * clause it doesn't need.
+ */
+export function detailForAnalysisMove(move: MoveAnalysis): string {
+  const swing = Math.round(move.win_pct_before - move.win_pct_after);
+  const swingLine =
+    swing > 0
+      ? `Gave up about ${swing} percentage point${swing === 1 ? '' : 's'} of winning chances.`
+      : swing < 0
+        ? `Actually gained winning chances — up about ${-swing} percentage point${swing === -1 ? '' : 's'}.`
+        : "No change in winning chances — right on the engine's own line.";
+  const best = bestMoveSentence(move);
+  return best ? `${swingLine}${best}` : swingLine;
+}
