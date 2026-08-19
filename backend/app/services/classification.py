@@ -25,10 +25,16 @@ INACCURACY_MAX_DROP = 10.0
 MISTAKE_MAX_DROP = 20.0
 
 # A brilliant move must be winning enough to be a real sacrifice rather than a
-# desperate swindle, and must give up at least this much material.
+# desperate swindle, and must give up at least this much material. Both bounds
+# are skipped entirely when the move forces mate (see `classify_move`'s
+# `forces_mate` parameter) — a sacrifice that finds forced checkmate is a real
+# find regardless of how the position looked a moment before, whether that's
+# "already crushing anyway" (the upper bound) or "still nominally losing" (the
+# lower bound, where finding mate *is* the swindle, not evidence against one).
 BRILLIANT_MIN_WIN_PCT = 20.0
 # Above this, the mover is already crushing — giving back material there is
-# mopping up, not a notable find, even if it's still technically sound.
+# mopping up, not a notable find, even if it's still technically sound. Unless
+# it forces mate; see above.
 BRILLIANT_MAX_WIN_PCT = 95.0
 # Was 1: flagged plain trades (win a pawn, hand it straight back for
 # compensation) as "brilliant" since the one-ply lookahead in
@@ -64,6 +70,7 @@ def classify_move(
     is_sacrifice: bool = False,
     win_pct_before: float = 50.0,
     ply: int = 1,
+    forces_mate: bool = False,
 ) -> MoveClassification:
     """Classify a single half-move. First matching rule wins.
 
@@ -74,11 +81,30 @@ def classify_move(
     `cp_loss` is accepted for completeness (and future tie-breaking) but the
     bands are driven by win% drop, which is far better behaved in won/lost
     positions than raw centipawns.
+
+    `forces_mate` is whether this move puts a forced mate on the board for the
+    mover (see the call site in `analyze_game.py` for the mate-sign handling).
+    It bypasses both of `BRILLIANT_MIN_WIN_PCT`/`_MAX_WIN_PCT` below — those
+    bounds exist to tell a real sacrifice apart from mopping-up-a-won-game on
+    one side and a desperate-swindle-that-happened-to-work on the other, and
+    neither concern applies to a sacrifice that provably forces checkmate. It
+    also exempts the move from the gap-based half of rule 1 below, for the
+    same underlying reason: a mating line's eval gap over every alternative
+    is close to infinite by construction (nothing outscores checkmate), so
+    without this exemption *every* mating sacrifice would be swallowed by
+    "forced" before rule 4 ever saw it — exactly backwards, since finding the
+    one line that mates three moves faster than the "merely winning"
+    alternatives is the opposite of "no real choice existed".
     """
-    # 1. Forced: no real choice existed.
+    # 1. Forced: no real choice existed. A single legal move is unconditional;
+    # the gap-based half is skipped for a mate-forcing sacrifice (see above).
     if legal_move_count <= 1:
         return MoveClassification.forced
-    if second_best_gap_cp is not None and second_best_gap_cp > FORCED_GAP_CP:
+    if (
+        second_best_gap_cp is not None
+        and second_best_gap_cp > FORCED_GAP_CP
+        and not (is_sacrifice and forces_mate)
+    ):
         return MoveClassification.forced
 
     # 2. Book: still following known opening theory.
@@ -92,7 +118,7 @@ def classify_move(
     if (
         band is MoveClassification.best
         and is_sacrifice
-        and BRILLIANT_MIN_WIN_PCT <= win_pct_before <= BRILLIANT_MAX_WIN_PCT
+        and (forces_mate or BRILLIANT_MIN_WIN_PCT <= win_pct_before <= BRILLIANT_MAX_WIN_PCT)
     ):
         return MoveClassification.brilliant
 

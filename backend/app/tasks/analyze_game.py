@@ -332,6 +332,13 @@ def analyze_game(job_id: str) -> dict:
 
             win_before_mover = win_before if side is Side.white else 100.0 - win_before
 
+            # White-POV mate sign: positive means White mates, negative means
+            # Black does. "Forces mate" means the *mover* is the one mating.
+            mate_after = after["mate"]
+            forces_mate = mate_after is not None and (
+                (mate_after > 0) if side is Side.white else (mate_after < 0)
+            )
+
             classification = classification_service.classify_move(
                 win_pct_drop=drop,
                 cp_loss=cp_loss,
@@ -341,6 +348,7 @@ def analyze_game(job_id: str) -> dict:
                 is_sacrifice=is_sacrifice,
                 win_pct_before=win_before_mover,
                 ply=ply,
+                forces_mate=forces_mate,
             )
 
             best_move = before["best_move"]

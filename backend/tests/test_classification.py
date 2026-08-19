@@ -50,6 +50,31 @@ class TestForced:
     def test_missing_gap_information_is_not_forced(self):
         assert classify(second_best_gap_cp=None) is MoveClassification.best
 
+    def test_a_mating_sacrifice_is_not_swallowed_by_the_gap_check(self):
+        # A forced-mate line's eval gap over every alternative is enormous by
+        # construction (nothing outscores mate) - without the exemption this
+        # would always read as "forced" and rule 4 (brilliant) would never
+        # get a chance to fire. Morphy's Qb8+!! Nxb8 Rd8# is exactly this
+        # shape: a huge gap, a real queen sacrifice, and a forced mate.
+        assert (
+            classify(
+                win_pct_drop=0.0,
+                second_best_gap_cp=900,
+                is_sacrifice=True,
+                win_pct_before=99.0,
+                forces_mate=True,
+            )
+            is MoveClassification.brilliant
+        )
+
+    def test_a_huge_gap_without_a_mating_sacrifice_is_still_forced(self):
+        # The exemption is narrow - an ordinary huge-gap move (no sacrifice,
+        # no forced mate) still reads as forced, same as before this change.
+        assert (
+            classify(second_best_gap_cp=900, is_sacrifice=False, forces_mate=False)
+            is MoveClassification.forced
+        )
+
 
 class TestBook:
     def test_book_move_in_the_opening(self):
@@ -126,6 +151,38 @@ class TestBrilliant:
         assert (
             classify(is_book=True, ply=4, is_sacrifice=True, win_pct_before=70.0)
             is MoveClassification.book
+        )
+
+    def test_a_mating_sacrifice_is_brilliant_even_from_an_already_crushing_position(self):
+        # Above BRILLIANT_MAX_WIN_PCT (95) - normally "mopping up", but a
+        # sacrifice that forces mate is a real find regardless.
+        assert (
+            classify(win_pct_drop=0.0, is_sacrifice=True, win_pct_before=98.0, forces_mate=True)
+            is MoveClassification.brilliant
+        )
+
+    def test_a_non_mating_sacrifice_from_a_crushing_position_is_still_just_best(self):
+        # Same position, but this particular sacrifice doesn't force mate -
+        # the ordinary "mopping up" exclusion still applies.
+        assert (
+            classify(win_pct_drop=0.0, is_sacrifice=True, win_pct_before=98.0, forces_mate=False)
+            is MoveClassification.best
+        )
+
+    def test_a_mating_sacrifice_is_brilliant_even_from_a_losing_position(self):
+        # Below BRILLIANT_MIN_WIN_PCT (20) - normally a "desperate swindle",
+        # but if it actually forces mate it isn't a swindle, it's the win.
+        assert (
+            classify(win_pct_drop=0.0, is_sacrifice=True, win_pct_before=5.0, forces_mate=True)
+            is MoveClassification.brilliant
+        )
+
+    def test_forces_mate_alone_does_not_imply_brilliant(self):
+        # Still requires a genuine sacrifice - forcing mate with no material
+        # given up is just the best move, not "brilliant".
+        assert (
+            classify(win_pct_drop=0.0, is_sacrifice=False, win_pct_before=98.0, forces_mate=True)
+            is MoveClassification.best
         )
 
 
