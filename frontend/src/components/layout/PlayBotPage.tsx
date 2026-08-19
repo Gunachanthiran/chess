@@ -103,10 +103,18 @@ function buildRows(moves: BotGameMove[]): BotMoveRow[] {
 
 /** Plain move list — no classifications or evals, since nothing is analysed here. */
 function BotMoveList({ moves }: { moves: BotGameMove[] }) {
-  const endRef = useRef<HTMLDivElement | null>(null);
+  // A ref on the scroll box itself, not a sentinel child element: setting
+  // this container's own `scrollTop` directly always scrolls exactly this
+  // one box, regardless of how many other scrollable ancestors it happens
+  // to sit inside (the page, `.analysis__side-column`, ...). A `scrollIntoView`
+  // call on a child instead asks the browser to pick "the" scrollable
+  // ancestor to move, which is exactly the ambiguity that caused this list
+  // to scroll the whole mobile page to the top instead of itself.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'nearest' });
+    const container = scrollRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
   }, [moves.length]);
 
   if (moves.length === 0) {
@@ -116,7 +124,7 @@ function BotMoveList({ moves }: { moves: BotGameMove[] }) {
   return (
     <div className="panel move-list">
       <div className="panel__header">Moves</div>
-      <div className="move-list__scroll">
+      <div className="move-list__scroll" ref={scrollRef}>
         {buildRows(moves).map((row) => (
           <div key={row.moveNumber} className="move-list__row">
             <span className="move-list__number">{row.moveNumber}.</span>
@@ -128,7 +136,6 @@ function BotMoveList({ moves }: { moves: BotGameMove[] }) {
             </span>
           </div>
         ))}
-        <div ref={endRef} />
       </div>
     </div>
   );

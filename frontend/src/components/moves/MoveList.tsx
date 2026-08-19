@@ -95,10 +95,28 @@ function MoveButton({
  */
 export function MoveList({ moves, currentMoveIndex, onSelect }: MoveListProps) {
   const rows = buildRows(moves);
+  // Refs on both the scroll box and the active row: scrolling `scrollRef`'s
+  // own `scrollTop` by exactly the amount needed to bring `activeRef` back
+  // inside its bounds always moves that one container, regardless of how
+  // many other scrollable ancestors it sits inside (the page,
+  // `.analysis__side-column`, ...) — unlike `activeRef.scrollIntoView()`,
+  // which asks the browser to pick "the" scrollable ancestor to move and can
+  // resolve against the wrong one when several are nested.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' });
+    const container = scrollRef.current;
+    const active = activeRef.current;
+    if (!container || !active) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    if (activeRect.top < containerRect.top) {
+      container.scrollTop -= containerRect.top - activeRect.top;
+    } else if (activeRect.bottom > containerRect.bottom) {
+      container.scrollTop += activeRect.bottom - containerRect.bottom;
+    }
   }, [currentMoveIndex]);
 
   if (moves.length === 0) {
@@ -108,7 +126,7 @@ export function MoveList({ moves, currentMoveIndex, onSelect }: MoveListProps) {
   return (
     <div className="panel-section move-list">
       <div className="panel__header">Moves</div>
-      <div className="move-list__scroll">
+      <div className="move-list__scroll" ref={scrollRef}>
         {rows.map((row) => {
           const isActiveRow =
             row.white?.index === currentMoveIndex || row.black?.index === currentMoveIndex;

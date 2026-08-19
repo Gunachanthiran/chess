@@ -1817,8 +1817,14 @@
  * was the whole page jumping to the top instead of scrolling down to
  * reveal the bot's move. Letting this column flow as normal, unbounded
  * page content on mobile removes the ambiguity: there is exactly one
- * scroll container again, so "scroll the newest move into view" can only
- * mean the page itself.
+ * page-level scroll container again.
+ *
+ * `.move-list__scroll` below *does* keep its own bounded, scrollable box on
+ * mobile (see that rule) — that's fine now, not a reintroduction of this
+ * bug, because `BotMoveList`/`MoveList` no longer use `scrollIntoView` at
+ * all; they manage that one container's own `scrollTop` directly, which
+ * can't leak into this column's or the page's scroll position no matter how
+ * many scrollable boxes are nested around it.
  */
 @media (max-width: 900px) {
   .analysis__side-column {
@@ -2531,13 +2537,22 @@
   overflow-y: auto;
 }
 
-/* Same reasoning as `.analysis__side-column`'s own mobile override above:
-   this clamp exists purely to protect a fixed-height board sitting beside
-   it, which stops being true once the page stacks into one column. */
+/* On mobile the desktop clamp's math doesn't apply (there is no sidebar of
+   other panels to measure against - PlayBotPage's version of this list has
+   none of them at all), but leaving the list *unbounded* was its own bug:
+   over a long game it grows the page taller with every move, which is what
+   was actually reported as "the board keeps moving" - not the container
+   ambiguity the previous version of this comment blamed. A fixed, modest
+   height keeps this one widget self-contained and independently scrollable,
+   same as the desktop treatment in spirit if not in exact numbers.
+   `BotMoveList`/`MoveList` no longer use `scrollIntoView` to follow it (see
+   both components) - they set this container's own `scrollTop` directly, so
+   a bounded list here is safe regardless of how many scrollable ancestors
+   it happens to sit inside. */
 @media (max-width: 900px) {
   .move-list__scroll {
-    max-height: none;
-    overflow-y: visible;
+    max-height: 280px;
+    overflow-y: auto;
   }
 }
 
