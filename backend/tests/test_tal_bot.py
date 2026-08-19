@@ -226,6 +226,47 @@ class TestAggressionBias:
         assert scored["Bxh7+"].score > scored["O-O"].score
 
 
+# Two queens adjacent on an open file, nothing else on the board - simple
+# enough that a hand-picked candidate pool stays legal and unambiguous.
+QUEEN_FACEOFF_FEN = "4k3/8/8/3q4/3Q4/8/8/4K3 w - - 0 1"
+
+
+class TestQueenTradePenalty:
+    def test_a_close_trade_is_avoided_at_high_aggression(self):
+        """Qxd5 is slightly ahead on raw eval, but trading the queens off is
+        exactly the "heading toward a draw" behaviour the penalty targets -
+        at high aggression the bot should keep the queens on instead."""
+        board = chess.Board(QUEEN_FACEOFF_FEN)
+        pool = candidates(board, ("Qxd5", 20), ("Ke2", 15))
+
+        assert board.san(tal_bot.select_move(board, pool, aggression=5)) == "Ke2"
+
+    def test_aggression_one_still_takes_the_best_raw_move(self):
+        """No personality at all at level 1 - the penalty must not apply."""
+        board = chess.Board(QUEEN_FACEOFF_FEN)
+        pool = candidates(board, ("Qxd5", 20), ("Ke2", 15))
+
+        assert board.san(tal_bot.select_move(board, pool, aggression=1)) == "Qxd5"
+
+    def test_capturing_a_lesser_piece_is_not_penalised(self):
+        """Only queen-for-queen counts - a queen capturing anything else is
+        just winning material, not simplification."""
+        board = chess.Board("4k3/8/8/3q4/8/2N5/8/4K3 w - - 0 1")
+        # Nxd5 wins the black queen outright with a knight - never a "trade".
+        move = board.parse_san("Nxd5")
+        assert tal_bot._initiates_queen_trade(board, move) is False
+
+    def test_scoring_flags_the_queen_trade(self):
+        board = chess.Board(QUEEN_FACEOFF_FEN)
+        pool = candidates(board, ("Qxd5", 20), ("Ke2", 15))
+
+        scored = {
+            board.san(item.candidate.move): item
+            for item in tal_bot.score_candidates(board, pool, aggression=5)
+        }
+        assert scored["Qxd5"].score < scored["Ke2"].score
+
+
 class TestToleranceGate:
     def test_candidate_losing_too_much_is_not_eligible(self):
         board = chess.Board(GREEK_GIFT_FEN)
@@ -242,8 +283,8 @@ class TestToleranceGate:
 
     def test_gate_tightens_as_aggression_drops(self):
         board = chess.Board(GREEK_GIFT_FEN)
-        # 30cp of loss: inside level 4/5, outside level 2.
-        pool = candidates(board, ("O-O", 40), ("Bxh7+", 10))
+        # 40cp of loss: inside level 4/5 (105/150), outside level 2 (32).
+        pool = candidates(board, ("O-O", 50), ("Bxh7+", 10))
 
         assert board.san(tal_bot.select_move(board, pool, aggression=2)) == "O-O"
         assert board.san(tal_bot.select_move(board, pool, aggression=4)) == "Bxh7+"

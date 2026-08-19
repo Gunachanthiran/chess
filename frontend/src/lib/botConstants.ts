@@ -15,8 +15,11 @@
 /** Weakest selectable practice strength. */
 export const BOT_ELO_MIN = 800;
 
-/** Strongest *tunable* practice strength. */
-export const BOT_ELO_TUNABLE_MAX = 2500;
+/** Strongest *tunable* practice strength — Stockfish's own UCI_Elo ceiling
+ * (`engine_pool.MAX_UCI_ELO`). Raised from 2500: that left real headroom
+ * under the engine's own limit unused, so "strongest practice bot" was
+ * weaker than it needed to be. */
+export const BOT_ELO_TUNABLE_MAX = 3190;
 
 /** Slider granularity for the tunable range. */
 export const BOT_ELO_STEP = 10;

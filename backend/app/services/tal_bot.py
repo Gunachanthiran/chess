@@ -153,13 +153,14 @@ GRANDMASTER_MULTIPV = 6
 # Centipawn loss (vs. the engine's own best move) a candidate may cost and still
 # be eligible, indexed by aggression level 1-5.
 #
-# Raised from the original {0, 20, 40, 65, 90}: those bands were tuned when the
-# ELO cap was expected to supply most of the handicap, and measured out far too
-# tight - only ~2 of 10 test positions chose a different move at aggression 5
-# than at aggression 1. The top band is now ~1.2 pawns, which is real gambit
-# territory rather than noise, and still narrow enough that the tolerance gate
-# keeps an accepted move a *concession*, not a blunder.
-AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 25, 3: 50, 4: 85, 5: 120}
+# Raised again from {0, 25, 50, 85, 120} (itself raised from {0, 20, 40, 65, 90}):
+# even the top practice tier (near Stockfish's own UCI_Elo ceiling) was still
+# routinely converging on quiet, drawish continuations at aggression 5 - real
+# attacking tries and sharp complications cost more than a pawn and a half in a
+# meaningful share of tested middlegame positions, so this table was still the
+# binding constraint more often than the personality weights below it. ~1.7
+# pawns at the top band is a real, felt concession rather than noise.
+AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 32, 3: 65, 4: 105, 5: 150}
 
 # The same gate, for the Grandmaster tier only - tighter than the practice
 # table, on purpose.
@@ -188,15 +189,18 @@ GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50
 # every centipawn given up inside it. With a flat personality weight a 1-pawn
 # sacrifice (45 points) simply loses to the 0.5/cp tax past ~90cp, so raising
 # the ceiling changed nothing on its own. This gain is the second half: at level
-# 5 the personality terms are worth 2.4x, which is what actually buys the sharp
-# move the room the wider gate opened up. Level 1 is 0.0 - no personality at all,
-# matching the "plain engine move" contract of that level.
+# 5 the personality terms are worth 3.0x (up from 2.4x - the wider tolerance
+# table above needed a matching bump here, for the same reason it needed one the
+# first time: a wider gate with an unchanged gain just adds more losing-tiebreak
+# candidates to the pool without actually picking them more often), which is
+# what buys the sharp move the wider gate opened room for. Level 1 is 0.0 - no
+# personality at all, matching the "plain engine move" contract of that level.
 AGGRESSION_PERSONALITY_GAIN: dict[int, float] = {
     1: 0.0,
-    2: 0.7,
-    3: 1.0,
-    4: 1.6,
-    5: 2.4,
+    2: 0.85,
+    3: 1.25,
+    4: 2.0,
+    5: 3.0,
 }
 
 MIN_AGGRESSION = 1
@@ -224,6 +228,22 @@ SACRIFICE_WEIGHT = 45.0  # per pawn-unit of material handed over
 KING_EXPOSURE_WEIGHT = 30.0  # per pawn-shield/open-file point around their king
 KING_PRESSURE_WEIGHT = 12.0  # per extra attacker aimed at their king zone
 CP_LOSS_WEIGHT = 0.5  # penalty per centipawn given up vs. the engine's best
+
+# A voluntary queen-for-queen trade is the single most common way a game
+# heads toward a draw - it strips the board of the piece that creates the
+# most winning chances, in both attack and technique. Penalising it (like
+# every other personality term, only among candidates that already passed
+# the tolerance gate - this never turns a genuinely best queen trade into a
+# worse move, it only breaks a near-tie against not trading) pushes the bot
+# to keep pieces on the board and keep playing for a win rather than
+# simplifying, which is exactly the complaint this was tuned against: a
+# strong practice-tier bot trading down into drawn positions instead of
+# pressing an advantage.
+QUEEN_TRADE_PENALTY = 25.0
+# Only applied when the mover isn't clearly worse off - trading down while
+# genuinely losing is normal defensive technique, not draw-seeking, and
+# should not be discouraged.
+QUEEN_TRADE_PENALTY_FLOOR_CP = -50
 
 # Volatility: the eval spread across the candidate pool. It is identical for
 # every candidate in a position, so it acts as a *gain* on the personality
@@ -425,11 +445,16 @@ def score_candidates(
         eligible = cp_loss <= tolerance
         sacrifice = _sacrifice_pawns(board, candidate.move)
         exposure_delta, pressure_delta = _king_attack_deltas(board, candidate.move)
+        queen_trade = (
+            cp_mover >= QUEEN_TRADE_PENALTY_FLOOR_CP
+            and _initiates_queen_trade(board, candidate.move)
+        )
 
         personality = (
             SACRIFICE_WEIGHT * sacrifice
             + KING_EXPOSURE_WEIGHT * exposure_delta
             + KING_PRESSURE_WEIGHT * pressure_delta
+            - (QUEEN_TRADE_PENALTY if queen_trade else 0.0)
         )
         score = personality * gain * aggression_gain * gambit_gain - CP_LOSS_WEIGHT * cp_loss
         # Priority 6 (selected gambit preference) - the very last term, and
@@ -522,6 +547,29 @@ def _sacrifice_pawns(board: chess.Board, move: chess.Move) -> int:
             after_board.push(recapture)
 
     return max(0, before - material_balance(after_board, mover))
+
+
+def _initiates_queen_trade(board: chess.Board, move: chess.Move) -> bool:
+    """True when the mover captures the opponent's queen with their own queen -
+    not a queen capturing a lesser piece, which is just winning material and
+    unrelated to simplification.
+
+    Does not itself distinguish a genuinely even trade from recapturing a
+    queen that just took one of ours, or from grabbing an undefended queen for
+    free - but it doesn't need to: those are exactly the positions where the
+    raw centipawn swing already dwarfs `QUEEN_TRADE_PENALTY`, so the tolerance
+    gate (or the `-CP_LOSS_WEIGHT * cp_loss` term) decides those cases long
+    before this penalty is large enough to matter. It only actually changes
+    the outcome when trading and not trading were close to begin with - a
+    genuinely optional simplification, which is what this is tuned for.
+    """
+    moving_piece = board.piece_at(move.from_square)
+    if moving_piece is None or moving_piece.piece_type != chess.QUEEN:
+        return False
+    if board.is_en_passant(move):
+        return False
+    victim = board.piece_at(move.to_square)
+    return victim is not None and victim.piece_type == chess.QUEEN
 
 
 def _victim_value(board: chess.Board, move: chess.Move) -> int:
