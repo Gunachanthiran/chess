@@ -1802,6 +1802,31 @@
   overflow-y: auto;
 }
 
+/*
+ * The rationale above is entirely about protecting a *fixed-height board
+ * sitting beside this column* — once the layout stacks into one column
+ * (the same 900px breakpoint every other analysis__* rule switches on),
+ * the board isn't beside this column any more, it's above it, so there is
+ * nothing left for this constraint to protect. Left in place, it does
+ * active harm on mobile: the page itself scrolls *and* this becomes a
+ * second, independently-scrolling region nested inside it (with
+ * `.move-list__scroll` nested a third layer deeper again below), and that
+ * multi-container setup is exactly what made `BotMoveList`'s own
+ * `scrollIntoView` call on every new move (see PlayBotPage.tsx) resolve
+ * against the wrong scroll context on mobile browsers — the reported bug
+ * was the whole page jumping to the top instead of scrolling down to
+ * reveal the bot's move. Letting this column flow as normal, unbounded
+ * page content on mobile removes the ambiguity: there is exactly one
+ * scroll container again, so "scroll the newest move into view" can only
+ * mean the page itself.
+ */
+@media (max-width: 900px) {
+  .analysis__side-column {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
 /* ---------- Player name strips (play-bot board) ---------- */
 
 /*
@@ -2504,6 +2529,16 @@
 .move-list__scroll {
   max-height: clamp(90px, calc(100vh - 1086px), 560px);
   overflow-y: auto;
+}
+
+/* Same reasoning as `.analysis__side-column`'s own mobile override above:
+   this clamp exists purely to protect a fixed-height board sitting beside
+   it, which stops being true once the page stacks into one column. */
+@media (max-width: 900px) {
+  .move-list__scroll {
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 
 .move-list__row {
