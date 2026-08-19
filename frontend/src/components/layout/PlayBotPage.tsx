@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
+import { PieceSetPicker } from '../board/PieceSetPicker';
 import { CapturedPieces } from '../common/CapturedPieces';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { PanelSkeleton } from '../common/Skeleton';
@@ -395,6 +396,7 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
               {muted ? '🔇' : '🔊'}
             </button>
             <BoardThemePicker />
+            <PieceSetPicker />
             <button className="button" type="button" onClick={onExit}>
               Analyse a game
             </button>

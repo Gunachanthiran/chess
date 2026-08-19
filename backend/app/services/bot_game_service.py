@@ -38,6 +38,15 @@ def reconstruct_board(bot_game: BotGame, moves: list[BotGameMove]) -> chess.Boar
     return board
 
 
+# Below this many plies, a "named opening" is barely informative — the
+# bundled book (openings.json) names plenty of one- and two-move lines
+# (e.g. 1.e4 alone is "King's Pawn Opening"), and surfacing those the instant
+# the first move lands read as noise rather than something worth telling the
+# player about. Two full moves each (4 plies) is roughly where a name starts
+# meaning something more specific than "how the game opened".
+MIN_PLIES_FOR_OPENING_NAME = 4
+
+
 def current_opening(bot_game: BotGame) -> tuple[str | None, str | None]:
     """(eco, name) for the opening this game is currently in, or (None, None).
 
@@ -46,8 +55,13 @@ def current_opening(bot_game: BotGame) -> tuple[str | None, str | None]:
     rewriting each ply and could silently go stale, while the lookup itself is a
     dict hit against an in-memory table. Once the game leaves known theory this
     goes back to (None, None) - see `openings.current_opening`.
+
+    Withheld entirely below `MIN_PLIES_FOR_OPENING_NAME`, regardless of what
+    the bundled book already recognises.
     """
     moves_san = [move.san for move in sorted(bot_game.moves, key=lambda row: row.ply)]
+    if len(moves_san) < MIN_PLIES_FOR_OPENING_NAME:
+        return None, None
     opening = openings_service.current_opening(moves_san)
     if opening is None:
         return None, None

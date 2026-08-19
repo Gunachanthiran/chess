@@ -227,6 +227,23 @@ class TestCurrentOpening:
         assert eco == "C60"
         assert name == "Ruy Lopez"
 
+    def test_a_name_is_withheld_below_the_ply_threshold(self):
+        """1.e4 alone is technically "book" (King's Pawn Opening), but naming
+        the opening after a single move is not informative enough to show."""
+        bot_game = game()
+        bot_game.moves = move_rows("e2e4")
+        assert bot_game_service.current_opening(bot_game) == (None, None)
+
+        bot_game.moves = move_rows("e2e4", "e7e5")
+        assert bot_game_service.current_opening(bot_game) == (None, None)
+
+    def test_a_name_appears_once_the_threshold_is_reached(self):
+        bot_game = game()
+        bot_game.moves = move_rows("e2e4", "e7e5", "g1f3", "b8c6")
+        assert len(bot_game.moves) == bot_game_service.MIN_PLIES_FOR_OPENING_NAME
+        eco, name = bot_game_service.current_opening(bot_game)
+        assert (eco, name) != (None, None)
+
     def test_the_opening_updates_as_the_game_progresses(self):
         bot_game = game()
         bot_game.moves = move_rows("e2e4", "e7e5", "g1f3", "b8c6", "f1c4")

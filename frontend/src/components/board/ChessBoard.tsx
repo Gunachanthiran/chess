@@ -8,6 +8,7 @@ import {
 } from '../../styles/classification-colors';
 import { unlockAudio } from '../../lib/sound';
 import { useBoardTheme } from '../../lib/boardTheme';
+import { usePieceSet } from '../../lib/pieceSet';
 import type { Classification, LegalMoveTarget } from '../../types';
 
 /** A classification marker to float over one square of the board. */
@@ -173,6 +174,7 @@ export function ChessBoard({
   const [renderedFen, setRenderedFen] = useState(displayFen);
 
   const { colors } = useBoardTheme();
+  const { pieces } = usePieceSet();
 
   // Square a piece is currently being dragged from, or null when nothing is in
   // hand. Purely ephemeral view state: it drives the legal-move markers and
@@ -343,6 +345,7 @@ export function ChessBoard({
           allowDrawingArrows: false,
           showNotation: true,
           animationDurationInMs: 150,
+          ...(pieces ? { pieces } : {}),
           squareStyles,
           lightSquareStyle: { backgroundColor: colors.light },
           darkSquareStyle: { backgroundColor: colors.dark },

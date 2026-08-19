@@ -4,6 +4,7 @@ import type { Square } from 'chess.js';
 import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
+import { PieceSetPicker } from '../board/PieceSetPicker';
 import { EvalBar } from '../board/EvalBar';
 import { CapturedPieces } from '../common/CapturedPieces';
 import { MoveList } from '../moves/MoveList';
@@ -492,6 +493,7 @@ export function GameAnalysisPage({
               {muted ? '🔇' : '🔊'}
             </button>
             <BoardThemePicker />
+            <PieceSetPicker />
           </div>
 
           <div className="current-move">
