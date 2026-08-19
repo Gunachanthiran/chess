@@ -1,7 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import type { Move, Square } from 'chess.js';
-import { claimBotDraw, createBotGame, getBotGame, submitBotMove, undoBotMove } from '../api/botGame';
+import {
+  claimBotDraw,
+  createBotGame,
+  getBotGame,
+  resignBotGame,
+  submitBotMove,
+  undoBotMove,
+} from '../api/botGame';
 import { ApiError, errorMessage } from '../api/client';
 import type { BotColor, BotGame, BotGameMove, LegalMoveTarget } from '../types';
 
@@ -20,6 +27,8 @@ export type BotGameHook = {
   undoing: boolean;
   /** True while POST /claim-draw is in flight. */
   claimingDraw: boolean;
+  /** True while POST /resign is in flight. */
+  resigning: boolean;
   /** Whether there is a player move on the board for `undoMove` to roll back. */
   canUndo: boolean;
   /** Best-effort hint for enabling the "Claim Draw" button — see `claimDraw`. */
@@ -82,6 +91,8 @@ export type BotGameHook = {
    * position's own eligibility is decided server-side, not guessed here.
    */
   claimDraw: () => Promise<boolean>;
+  /** Resigns the game. Resolves `true` on success, `false` on failure (see `error`). */
+  resign: () => Promise<boolean>;
   /** Drops the current game so the setup form can start a fresh one. */
   reset: () => void;
 };
@@ -175,6 +186,7 @@ export function useBotGame(): BotGameHook {
   const [creating, setCreating] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [claimingDraw, setClaimingDraw] = useState(false);
+  const [resigning, setResigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<{ fen: string; uci: string } | null>(null);
 
@@ -419,6 +431,28 @@ export function useBotGame(): BotGameHook {
     }
   }, []);
 
+  const resign = useCallback(async (): Promise<boolean> => {
+    const game = botGameRef.current;
+    if (!game) return false;
+    if (inFlightRef.current) return false;
+
+    inFlightRef.current = true;
+    setResigning(true);
+    setError(null);
+    try {
+      const data = await resignBotGame(game.id);
+      botGameRef.current = data.bot_game;
+      setBotGame(data.bot_game);
+      return true;
+    } catch (err) {
+      setError(errorMessage(err));
+      return false;
+    } finally {
+      inFlightRef.current = false;
+      setResigning(false);
+    }
+  }, []);
+
   // At least one move the player actually chose is on the board — the bot's
   // opening move (as White, before the player has moved at all) does not
   // count, matching `undo_last_move`'s own "nothing to undo yet" guard.
@@ -431,6 +465,7 @@ export function useBotGame(): BotGameHook {
     setBotThinking(false);
     setUndoing(false);
     setClaimingDraw(false);
+    setResigning(false);
     setError(null);
     setOptimistic(null);
   }, []);
@@ -443,6 +478,7 @@ export function useBotGame(): BotGameHook {
     creating,
     undoing,
     claimingDraw,
+    resigning,
     canUndo,
     canClaimDraw: serverBoard.canClaimDraw,
     error,
@@ -454,6 +490,7 @@ export function useBotGame(): BotGameHook {
     legalMovesFrom,
     undoMove,
     claimDraw,
+    resign,
     reset,
   };
 }

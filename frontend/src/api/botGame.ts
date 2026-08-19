@@ -68,3 +68,11 @@ export function claimBotDraw(id: string, signal?: AbortSignal): Promise<BotGameR
     signal,
   });
 }
+
+/** POST /api/bot-games/{id}/resign — the human gives up; no legality to check. */
+export function resignBotGame(id: string, signal?: AbortSignal): Promise<BotGameResponse> {
+  return apiFetch<BotGameResponse>(`/api/bot-games/${encodeURIComponent(id)}/resign`, {
+    method: 'POST',
+    signal,
+  });
+}

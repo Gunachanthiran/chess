@@ -267,6 +267,47 @@ class TestQueenTradePenalty:
         assert scored["Qxd5"].score < scored["Ke2"].score
 
 
+# White bishop d2 doesn't yet attack the undefended black knight on a3;
+# Bb4 opens a new diagonal onto it (a real threat), Bc1 is a quiet retreat.
+HANGING_KNIGHT_FEN = "4k3/8/8/8/8/n7/3B4/4K3 w - - 0 1"
+
+
+class TestThreatBias:
+    def test_creating_a_threat_is_preferred_at_high_aggression(self):
+        board = chess.Board(HANGING_KNIGHT_FEN)
+        # Bc1 is slightly ahead on raw eval (multipv order: best first), but
+        # Bb4 puts the a3 knight in the bot's sights next move.
+        pool = candidates(board, ("Be3", 15), ("Bb4", 10))
+
+        assert board.san(tal_bot.select_move(board, pool, aggression=5)) == "Bb4"
+
+    def test_aggression_one_still_takes_the_best_raw_move(self):
+        board = chess.Board(HANGING_KNIGHT_FEN)
+        pool = candidates(board, ("Be3", 15), ("Bb4", 10))
+
+        assert board.san(tal_bot.select_move(board, pool, aggression=1)) == "Be3"
+
+    def test_scoring_flags_the_new_threat(self):
+        board = chess.Board(HANGING_KNIGHT_FEN)
+        pool = candidates(board, ("Be3", 15), ("Bb4", 10))
+
+        scored = {
+            board.san(item.candidate.move): item
+            for item in tal_bot.score_candidates(board, pool, aggression=5)
+        }
+        assert scored["Bb4"].new_threats == 1
+        assert scored["Be3"].new_threats == 0
+        assert scored["Bb4"].score > scored["Be3"].score
+
+    def test_dropping_an_existing_threat_is_not_penalised(self):
+        """White's bishop already attacks the hanging a3 knight; moving it
+        off that diagonal *removes* a threat rather than creating one -
+        `_new_threats` must floor at 0, not go negative."""
+        board = chess.Board("4k3/8/8/8/8/n7/1B6/4K3 w - - 0 1")
+        move = board.parse_san("Bd4")
+        assert tal_bot._new_threats(board, move) == 0
+
+
 class TestToleranceGate:
     def test_candidate_losing_too_much_is_not_eligible(self):
         board = chess.Board(GREEK_GIFT_FEN)

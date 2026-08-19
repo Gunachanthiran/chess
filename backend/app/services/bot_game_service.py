@@ -237,6 +237,21 @@ def claim_draw(db: Session, bot_game: BotGame) -> BotGame:
     return _refreshed(db, bot_game)
 
 
+def resign(db: Session, bot_game: BotGame) -> BotGame:
+    """The human gives up — no legality to check, just a status change."""
+    if bot_game.status is not BotGameStatus.in_progress:
+        raise ConflictError(
+            "This game is already over.",
+            {"bot_game_id": str(bot_game.id), "status": bot_game.status.value},
+            code="GAME_OVER",
+        )
+
+    bot_game.status = BotGameStatus.resigned
+    bot_game.result = BLACK_WIN if bot_game.player_color is BotColor.white else WHITE_WIN
+    db.commit()
+    return _refreshed(db, bot_game)
+
+
 def submit_player_move(db: Session, bot_game: BotGame, uci: str) -> BotGame:
     """Apply the human's move, then the bot's reply, updating the game status."""
     if bot_game.status is not BotGameStatus.in_progress:

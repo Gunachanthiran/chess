@@ -229,6 +229,16 @@ KING_EXPOSURE_WEIGHT = 30.0  # per pawn-shield/open-file point around their king
 KING_PRESSURE_WEIGHT = 12.0  # per extra attacker aimed at their king zone
 CP_LOSS_WEIGHT = 0.5  # penalty per centipawn given up vs. the engine's best
 
+# Sacrifice/king-zone pressure both describe direct attacks on the enemy
+# king; this is the other half of "tactical" - does the move leave one or
+# more *other* enemy pieces hanging, the raw shape of a fork, a pin that
+# wins material, or a trap the opponent has to spot to avoid. Deliberately
+# coarse (see `_new_threats`: undefended-or-not, no piece-value weighting)
+# because it only has to break a tie among candidates the tolerance gate has
+# already accepted as sound - it does not need to be a real SEE calculation
+# to do that job.
+THREAT_WEIGHT = 18.0  # per newly-hanging enemy piece this move creates
+
 # A voluntary queen-for-queen trade is the single most common way a game
 # heads toward a draw - it strips the board of the piece that creates the
 # most winning chances, in both attack and technique. Penalising it (like
@@ -269,6 +279,7 @@ class ScoredCandidate:
     sacrifice_pawns: int
     king_exposure_delta: int
     king_pressure_delta: int
+    new_threats: int
     score: float
     # True when playing this move makes the resulting position occur for the
     # third time in the game. Handled by `_prefer_non_repeating`, not by the
@@ -445,6 +456,7 @@ def score_candidates(
         eligible = cp_loss <= tolerance
         sacrifice = _sacrifice_pawns(board, candidate.move)
         exposure_delta, pressure_delta = _king_attack_deltas(board, candidate.move)
+        threats = _new_threats(board, candidate.move)
         queen_trade = (
             cp_mover >= QUEEN_TRADE_PENALTY_FLOOR_CP
             and _initiates_queen_trade(board, candidate.move)
@@ -454,6 +466,7 @@ def score_candidates(
             SACRIFICE_WEIGHT * sacrifice
             + KING_EXPOSURE_WEIGHT * exposure_delta
             + KING_PRESSURE_WEIGHT * pressure_delta
+            + THREAT_WEIGHT * threats
             - (QUEEN_TRADE_PENALTY if queen_trade else 0.0)
         )
         score = personality * gain * aggression_gain * gambit_gain - CP_LOSS_WEIGHT * cp_loss
@@ -471,6 +484,7 @@ def score_candidates(
                 sacrifice_pawns=sacrifice,
                 king_exposure_delta=exposure_delta,
                 king_pressure_delta=pressure_delta,
+                new_threats=threats,
                 score=score,
                 repeats=_repeats_position(board, candidate.move),
             )
@@ -606,6 +620,43 @@ def _cheapest_capture_on(board: chess.Board, square: chess.Square) -> chess.Move
     if not recaptures:
         return None
     return min(recaptures, key=lambda move: _attacker_value(board, move))
+
+
+def _hanging_pieces(board: chess.Board, target_color: chess.Color) -> int:
+    """Count of `target_color`'s own non-king pieces that are attacked and
+    have no defender at all - the raw material a single further move could
+    win outright, independent of what that piece is worth."""
+    attacker_color = not target_color
+    count = 0
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece is None or piece.color != target_color or piece.piece_type == chess.KING:
+            continue
+        if board.is_attacked_by(attacker_color, square) and not board.is_attacked_by(
+            target_color, square
+        ):
+            count += 1
+    return count
+
+
+def _new_threats(board: chess.Board, move: chess.Move) -> int:
+    """How many *additional* opponent pieces this move leaves hanging,
+    compared to before it - the generic, piece-agnostic shape a fork, a
+    discovered attack, or a trap the opponent has to spot all share. Never
+    negative: a move that resolves an existing threat (recapturing, moving a
+    piece to safety) is just good play, not a personality concern, so it
+    scores 0 here rather than being penalised for the threat it removed.
+    """
+    defender = not board.turn
+    before = _hanging_pieces(board, defender)
+
+    after_board = board.copy(stack=False)
+    if move not in after_board.legal_moves:
+        return 0
+    after_board.push(move)
+
+    after = _hanging_pieces(after_board, defender)
+    return max(0, after - before)
 
 
 def _king_attack_deltas(board: chess.Board, move: chess.Move) -> tuple[int, int]:

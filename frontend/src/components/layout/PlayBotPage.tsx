@@ -151,12 +151,14 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
     canUndo,
     claimingDraw,
     canClaimDraw,
+    resigning,
     error,
     attemptMove,
     sanForMove,
     legalMovesFrom,
     undoMove,
     claimDraw,
+    resign,
   } = bot;
   const { muted, toggleMuted, playForMove, playIllegal } = useSoundEffects();
 
@@ -383,6 +385,21 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
                 }
               >
                 {claimingDraw ? 'Claiming…' : '½ Claim Draw'}
+              </button>
+            )}
+            {isLive && (
+              <button
+                className="button"
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Resign this game? It counts as a loss.')) {
+                    void resign();
+                  }
+                }}
+                disabled={botThinking || resigning}
+                title="Resign the game"
+              >
+                {resigning ? 'Resigning…' : '⚑ Resign'}
               </button>
             )}
             <button
