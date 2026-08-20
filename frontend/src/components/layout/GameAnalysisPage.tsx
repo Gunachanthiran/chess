@@ -20,6 +20,7 @@ import { commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
 import { formatEval } from '../../lib/evaluation';
 import { explorePosition } from '../../api/analysis';
+import { evaluatePositionLocally } from '../../lib/localEngine';
 import { accuracyColor, classificationColor, classificationLabel } from '../../styles/classification-colors';
 import { IconRefresh } from '../common/Icons';
 import type { ExplorePositionResult, Game, LegalMoveTarget, MoveAnalysis } from '../../types';
@@ -215,6 +216,13 @@ export function GameAnalysisPage({
   // since the latter is a fresh object every render.
   const [exploreEval, setExploreEval] = useState<ExplorePositionResult | null>(null);
   const [exploreLoading, setExploreLoading] = useState(false);
+  // Once the local engine (see lib/localEngine.ts) fails to load once - no
+  // WASM support, a worker blocked by the page's CSP, whatever - there is no
+  // reason to keep retrying it on every single drag for the rest of this
+  // page's life. `false` until proven otherwise; flips permanently to `true`
+  // on the first failure, after which every preview goes straight to the
+  // backend's own explore endpoint.
+  const localEngineUnavailableRef = useRef(false);
   useEffect(() => {
     if (!previewPosition) {
       setExploreEval(null);
@@ -223,7 +231,16 @@ export function GameAnalysisPage({
     }
     let active = true;
     setExploreLoading(true);
-    explorePosition(previewPosition.fen)
+
+    const evaluate = localEngineUnavailableRef.current
+      ? explorePosition(previewPosition.fen)
+      : evaluatePositionLocally(previewPosition.fen).catch((err) => {
+          localEngineUnavailableRef.current = true;
+          console.warn('[GameAnalysisPage] local engine unavailable, falling back to server explore:', err);
+          return explorePosition(previewPosition.fen);
+        });
+
+    evaluate
       .then((result) => {
         if (active) setExploreEval(result);
       })
