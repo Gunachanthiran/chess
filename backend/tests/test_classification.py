@@ -75,6 +75,22 @@ class TestForced:
             is MoveClassification.forced
         )
 
+    def test_a_decisive_non_mating_sacrifice_is_also_not_swallowed(self):
+        # Same bug, one level more common than the mating case: a sacrifice
+        # that just wins material outright (no mate anywhere in sight) can
+        # have just as wide a gap over "don't sacrifice" - and is just as
+        # much a real find, not a forced move.
+        assert (
+            classify(
+                win_pct_drop=0.0,
+                second_best_gap_cp=900,
+                is_sacrifice=True,
+                win_pct_before=60.0,
+                forces_mate=False,
+            )
+            is MoveClassification.brilliant
+        )
+
 
 class TestBook:
     def test_book_move_in_the_opening(self):

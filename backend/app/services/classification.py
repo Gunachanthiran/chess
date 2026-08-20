@@ -87,23 +87,26 @@ def classify_move(
     It bypasses both of `BRILLIANT_MIN_WIN_PCT`/`_MAX_WIN_PCT` below — those
     bounds exist to tell a real sacrifice apart from mopping-up-a-won-game on
     one side and a desperate-swindle-that-happened-to-work on the other, and
-    neither concern applies to a sacrifice that provably forces checkmate. It
-    also exempts the move from the gap-based half of rule 1 below, for the
-    same underlying reason: a mating line's eval gap over every alternative
-    is close to infinite by construction (nothing outscores checkmate), so
-    without this exemption *every* mating sacrifice would be swallowed by
-    "forced" before rule 4 ever saw it — exactly backwards, since finding the
-    one line that mates three moves faster than the "merely winning"
-    alternatives is the opposite of "no real choice existed".
+    neither concern applies to a sacrifice that provably forces checkmate.
+
+    `is_sacrifice` on its own (mate or not) exempts the move from the
+    gap-based half of rule 1 below. A genuine sacrifice that is also the
+    clear best move *by a wide margin* is exactly what "brilliant" means —
+    the alternative (not sacrificing) was always legally available, just
+    much worse, which is the opposite of "no real choice existed". Without
+    this exemption, any sufficiently decisive sacrifice — mating or merely
+    winning a piece outright — gets swallowed by "forced" before rule 4 ever
+    sees it, since sacrificing is *how* a move ends up scoring so far ahead
+    of the alternatives in the first place.
     """
     # 1. Forced: no real choice existed. A single legal move is unconditional;
-    # the gap-based half is skipped for a mate-forcing sacrifice (see above).
+    # the gap-based half is skipped for any genuine sacrifice (see above).
     if legal_move_count <= 1:
         return MoveClassification.forced
     if (
         second_best_gap_cp is not None
         and second_best_gap_cp > FORCED_GAP_CP
-        and not (is_sacrifice and forces_mate)
+        and not is_sacrifice
     ):
         return MoveClassification.forced
 
