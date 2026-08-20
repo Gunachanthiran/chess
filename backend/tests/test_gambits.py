@@ -19,9 +19,11 @@ class TestLoadGambits:
         ids = [g.id for g in gambits.load_gambits()]
         assert len(ids) == len(set(ids))
 
-    def test_every_gambit_has_at_least_two_starting_moves(self):
+    def test_every_gambit_has_at_least_one_starting_move(self):
+        # Almost every gambit is several moves deep, but a single committal
+        # first move (Grob's Attack, 1.g4) is a legitimate opening choice too.
         for gambit in gambits.load_gambits():
-            assert len(gambit.starting_moves) >= 2
+            assert len(gambit.starting_moves) >= 1
 
     def test_side_is_white_or_black(self):
         for gambit in gambits.load_gambits():

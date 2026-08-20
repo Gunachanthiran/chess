@@ -59,11 +59,17 @@ export function PlayBotSetupForm({
   // the weakened tiers are a separate, opt-in practice thing.
   const [practice, setPractice] = useState(false);
   const [practiceElo, setPracticeElo] = useState(DEFAULT_PRACTICE_ELO);
-  const [aggression, setAggression] = useState(3);
+  // Maximally sharp by default, not the middle of the slider - "play a bot"
+  // should mean a genuinely aggressive opponent out of the box, not a setting
+  // someone has to go find. Still just one drag away from a quieter game.
+  const [aggression, setAggression] = useState(5);
 
   const [gambits, setGambits] = useState<Gambit[]>([]);
   const [gambitsError, setGambitsError] = useState<string | null>(null);
-  const [selectedGambitValue, setSelectedGambitValue] = useState<string>(NO_GAMBIT_VALUE);
+  // Random, not "No Gambit", is the default selection for the same reason -
+  // a fresh game should come out swinging with one of the library's
+  // gambits/traps unless the player explicitly asks for plain engine play.
+  const [selectedGambitValue, setSelectedGambitValue] = useState<string>(RANDOM_GAMBIT_VALUE);
   const [adaptToOpponent, setAdaptToOpponent] = useState(true);
 
   useEffect(() => {
