@@ -201,6 +201,26 @@ class TestBrilliant:
             is MoveClassification.best
         )
 
+    def test_a_sacrifice_just_outside_the_best_band_is_still_brilliant(self):
+        # The exact Opera Game shape once more: 13.Rxd7 costs 1.2 points of
+        # win% - inside "excellent" (<= 2.0), just past "best" (<= 1.0).
+        # Rule 4 used to require the tightest band, so a real, sound
+        # sacrifice that cost a hair of engine-measured precision (which is
+        # normal - sacrificing material for compensation nearly always does)
+        # never got a chance to be flagged brilliant at all.
+        assert (
+            classify(win_pct_drop=1.2, is_sacrifice=True, win_pct_before=91.0)
+            is MoveClassification.brilliant
+        )
+
+    def test_a_sacrifice_past_the_excellent_band_is_not_brilliant(self):
+        # The widened eligibility still has a floor - "good" (drop > 2.0)
+        # is too costly to call brilliant no matter what was given up.
+        assert (
+            classify(win_pct_drop=3.0, is_sacrifice=True, win_pct_before=91.0)
+            is MoveClassification.good
+        )
+
 
 class TestGreat:
     def test_large_gap_to_second_best_is_great(self):
@@ -295,6 +315,37 @@ class TestMaterialHelpers:
         move = board.parse_san("Nf6")
         reply = chess.Move.from_uci("g3d6")  # Bxd6
         assert is_material_sacrifice(board, move, reply) is False
+
+    def test_a_direct_recapture_does_not_trigger_a_further_lookahead(self):
+        # The actual Opera Game position: 13.Rxd7 Rxd7 - White's rook takes
+        # a knight, Black's rook recaptures directly on d7. White's bishop
+        # on b5 can *technically* also capture on d7 (Bxd7+), so the naive
+        # "does the mover have any recapture available" check would find
+        # one and conclude the whole sequence was actually an even trade
+        # (R+B for N+R) - but Black's Rxd7 is a *direct* recapture of
+        # White's own move, not some unrelated capture that needs checking
+        # for a comeback, and Morphy's real next move (Rd1, not Bxd7+)
+        # confirms recapturing there was never the point.
+        board = chess.Board("3rkb1r/p2nqppp/5n2/1B2p1B1/4P3/1Q6/PPP2PPP/2KR3R w k - 3 13")
+        move = board.parse_san("Rxd7")
+        reply = chess.Move.from_uci("d8d7")  # ...Rxd7, a direct recapture
+        assert is_material_sacrifice(board, move, reply) is True
+
+    def test_an_exchange_sacrifice_is_a_sacrifice(self):
+        # Prompted by a real disagreement with a competitor's analysis tool:
+        # Morphy's Opera Game, 13.Rxd7 - a rook for a knight (net 2
+        # pawn-units), which their review flags as its top classification
+        # tier. Ours previously didn't, because SACRIFICE_MIN_PAWNS was 3
+        # and the exchange is exactly 2. This is the same shape (rook takes
+        # a defended minor piece) on a clean position with nothing else able
+        # to recapture, isolating just that threshold - Rxd7 itself hits a
+        # separate, real wrinkle (see the comment on the reply-cascade tests
+        # above) where a bishop can also recapture on d7, which is a
+        # different problem from the one this test is pinning down.
+        board = chess.Board("4k3/8/8/2p5/3n4/8/8/3RK3 w - - 0 1")
+        move = board.parse_san("Rxd4")
+        reply = chess.Move.from_uci("c5d4")  # ...cxd4
+        assert is_material_sacrifice(board, move, reply) is True
 
     def test_a_reply_capture_with_no_recapture_is_still_a_sacrifice(self):
         # Same shape as the queen-sac test above, phrased the other way: the

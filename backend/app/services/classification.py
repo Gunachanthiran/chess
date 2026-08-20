@@ -38,10 +38,27 @@ BRILLIANT_MIN_WIN_PCT = 20.0
 BRILLIANT_MAX_WIN_PCT = 95.0
 # Was 1: flagged plain trades (win a pawn, hand it straight back for
 # compensation) as "brilliant" since the one-ply lookahead in
-# `is_material_sacrifice` only has to see *a* pawn go missing. A real
-# sacrifice-the-kind-that-earns-an-exclamation-mark gives up at least a minor
-# piece's worth.
-SACRIFICE_MIN_PAWNS = 3
+# `is_material_sacrifice` only has to see *a* pawn go missing. Was then 3,
+# which went too far the other way and excluded a real, named category of
+# sacrifice: the exchange sacrifice (rook for minor piece, net 2) - checked
+# directly against a competitor's classification of Morphy's Opera Game,
+# where 13.Rxd7 (giving up the exchange to seize the seventh rank) is
+# exactly this shape and is flagged as their top tier. 2 is the actual
+# floor of "a real sacrifice" - a single extra pawn given back for
+# compensation is still just a good trade, not a sacrifice.
+SACRIFICE_MIN_PAWNS = 2
+
+# Rule 4 (brilliant) only ever considered upgrading the tightest "best" band
+# (win%-drop <= 1.0) - but a real sacrifice is very often *not* the engine's
+# literal top choice, by a hair, precisely because giving up material for
+# compensation is a measurable objective cost even when it's a brilliant
+# practical decision. The same Opera Game position that motivated the two
+# constants above is the evidence again: 13.Rxd7 costs 1.2 points of win%,
+# just outside BEST_MAX_DROP, which used to mean the brilliant check never
+# even ran for it regardless of the sacrifice being real and sound. Widened
+# to also cover "excellent" (<= 2.0) - still a genuinely strong move, not a
+# blunder wearing a sacrifice as a disguise.
+BRILLIANT_ELIGIBLE_BANDS = (MoveClassification.best, MoveClassification.excellent)
 
 # A "best" move is upgraded to "great" when every alternative falls off by at
 # least this much (mover POV centipawns) — the single clearly-right move in a
@@ -117,9 +134,9 @@ def classify_move(
     # 3. Win%-drop bands.
     band = _band(win_pct_drop)
 
-    # 4. Brilliant overrides "best" for sound sacrifices.
+    # 4. Brilliant overrides "best"/"excellent" for sound sacrifices.
     if (
-        band is MoveClassification.best
+        band in BRILLIANT_ELIGIBLE_BANDS
         and is_sacrifice
         and (forces_mate or BRILLIANT_MIN_WIN_PCT <= win_pct_before <= BRILLIANT_MAX_WIN_PCT)
     ):
@@ -177,15 +194,28 @@ def is_material_sacrifice(
     """Did the mover give up material that the opponent's best reply keeps?
 
     Looks up to two plies past the move: the engine's best reply from the
-    resulting position, and - when that reply is itself a capture - the
-    mover's own cheapest recapture on that same square. Without the second
-    step this mistook an ordinary trade for a sacrifice: if the opponent's
-    "best reply" to a quiet developing move is a capture that hangs right
-    back (a bishop trade, say), stopping the lookahead one ply too early
-    catches the material in mid-air - present in the recapturing side's
-    count, absent from the mover's - and reports a "sacrifice" for a trade
-    that was actually even. Real sacrifices (the mover has no recapture, or
-    only an inferior one) still show a genuine deficit after this.
+    resulting position, and - when that reply captures somewhere the
+    mover's own move did *not* just capture - the mover's own cheapest
+    recapture on that square. Without that step this mistook an ordinary
+    trade for a sacrifice: if the opponent's "best reply" to a quiet
+    developing move is a capture that hangs right back (a bishop trade,
+    say), stopping the lookahead one ply too early catches the material in
+    mid-air - present in the recapturing side's count, absent from the
+    mover's - and reports a "sacrifice" for a trade that was actually even.
+
+    The "somewhere the mover's own move did not just capture" qualifier is
+    deliberate and was a real bug found against a real game (Morphy's Opera
+    Game, 13.Rxd7 Rxd7): when `move` is itself a capture and `reply` is the
+    direct recapture on that same square - the ordinary shape of any
+    sacrifice-then-recapture - looking for a *further* mover recapture on
+    the same square answers a different question than the one this function
+    is asking. A piece being technically available to retake there again
+    says nothing about whether doing so is actually good; Morphy's own
+    14th move (Rd1, not Bxd7+) shows the engine-approved answer was "no",
+    keeping the initiative rather than repeating into an equal trade. Only
+    the *opponent's* reply capturing some other, unrelated square still
+    gets the further-recapture check, which is the one case that check was
+    ever meant to catch.
     """
     mover = board_before.turn
     balance_before = material_balance(board_before, mover)
@@ -196,9 +226,11 @@ def is_material_sacrifice(
     board.push(move)
 
     if reply is not None and reply in board.legal_moves:
-        recapture_square = reply.to_square if board.is_capture(reply) else None
+        is_reply_capture = board.is_capture(reply)
+        recapture_square = reply.to_square if is_reply_capture else None
+        is_direct_recapture = is_reply_capture and reply.to_square == move.to_square
         board.push(reply)
-        if recapture_square is not None:
+        if recapture_square is not None and not is_direct_recapture:
             recapture = _cheapest_capture_on(board, recapture_square)
             if recapture is not None:
                 board.push(recapture)
