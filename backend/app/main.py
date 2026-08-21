@@ -26,6 +26,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    # In addition to the explicit list above (CORS_ORIGINS - localhost, and
+    # any real production origin): any private-LAN IP on the dev server's
+    # own port. That covers testing this app from another device on the
+    # same Wi-Fi (a phone, say) without ever having to add today's IP to
+    # CORS_ORIGINS by hand - it's private address space either way, so this
+    # can never match a public internet origin regardless of environment.
+    allow_origin_regex=r"^http://(192\.168|10\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1]))\.\d{1,3}\.\d{1,3}:5173$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

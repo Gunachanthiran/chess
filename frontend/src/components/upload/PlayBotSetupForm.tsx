@@ -117,15 +117,18 @@ export function PlayBotSetupForm({
     if (busy) return;
 
     let gambitId: string | null;
-    let effectivePlayerColor = playerColor;
 
     if (selectedGambitValue === NO_GAMBIT_VALUE) {
       gambitId = null;
     } else if (selectedGambitValue === RANDOM_GAMBIT_VALUE) {
-      if (gambits.length > 0) {
-        const pick = gambits[Math.floor(Math.random() * gambits.length)];
-        gambitId = pick.id;
-        effectivePlayerColor = pick.side === 'white' ? 'black' : 'white';
+      // Respect the colour the player actually clicked — pick randomly only
+      // from gambits the *bot* can play on the opposite side, rather than
+      // picking from the whole library and silently flipping "Your colour"
+      // out from under a choice that's still showing on screen.
+      const botSide = playerColor === 'white' ? 'black' : 'white';
+      const pool = gambits.filter((gambit) => gambit.side === botSide);
+      if (pool.length > 0) {
+        gambitId = pool[Math.floor(Math.random() * pool.length)].id;
       } else {
         gambitId = null;
       }
@@ -133,7 +136,7 @@ export function PlayBotSetupForm({
       gambitId = selectedGambitValue;
     }
 
-    onStart(effectivePlayerColor, elo, aggression, gambitId, adaptToOpponent);
+    onStart(playerColor, elo, aggression, gambitId, adaptToOpponent);
   };
 
   return (
@@ -211,7 +214,7 @@ export function PlayBotSetupForm({
       ) : (
         <span className="form__hint">
           {selectedGambitValue === RANDOM_GAMBIT_VALUE
-            ? 'A gambit is picked at random when the game starts, and "Your colour" is set to match.'
+            ? 'A gambit matching "Your colour" is picked at random for the bot when the game starts.'
             : 'The bot plays on its own merits, with no opening preference.'}
         </span>
       )}

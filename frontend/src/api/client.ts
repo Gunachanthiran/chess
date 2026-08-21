@@ -7,8 +7,27 @@ import type { ApiErrorBody } from '../types';
  */
 const stripTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
+/**
+ * `VITE_API_BASE_URL` is still honoured when set (production points the
+ * static frontend at a real, separate API host), but the *default* is now
+ * derived from whatever host the page itself was loaded from, not a
+ * hardcoded `localhost`. That one hardcoded value used to need a manual
+ * `frontend/.env.local` override to reach the backend from another device
+ * on the same Wi-Fi (a phone, say) — but a LAN IP written into a file
+ * silently goes stale the moment the machine reconnects to Wi-Fi or
+ * switches networks, and this dev environment has hit that exact staleness
+ * repeatedly. Deriving it from `window.location.hostname` instead means
+ * whichever host actually served the page — `localhost`, `127.0.0.1`, or
+ * today's LAN IP, whatever it is — is also where its API calls go, with
+ * nothing left to go stale.
+ */
+function defaultApiBaseUrl(): string {
+  if (typeof window === 'undefined') return 'http://localhost:8000';
+  return `${window.location.protocol}//${window.location.hostname}:8000`;
+}
+
 export const API_BASE_URL = stripTrailingSlash(
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000',
+  import.meta.env.VITE_API_BASE_URL ?? defaultApiBaseUrl(),
 );
 
 export const WS_BASE_URL = stripTrailingSlash(
