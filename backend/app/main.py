@@ -27,14 +27,17 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     # In addition to the explicit list above (CORS_ORIGINS - localhost, and
-    # any real production origin): any private-LAN IP, or this machine's own
+    # any real production origin): any private-LAN IP, this machine's own
     # mDNS/Bonjour hostname (e.g. Gunas-MacBook-Pro.local - stable across
-    # Wi-Fi reconnects, unlike the IP), on the dev server's own port. That
-    # covers testing this app from another device on the same Wi-Fi (a
-    # phone, say) without ever having to add today's IP to CORS_ORIGINS by
-    # hand - both patterns are private/link-local either way, so neither can
-    # ever match a public internet origin regardless of environment.
-    allow_origin_regex=r"^http://((192\.168|10\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1]))\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9-]+\.local):5173$",
+    # Wi-Fi reconnects, unlike the IP), or the 192.0.0.0/29 "IPv4 Service
+    # Continuity" block (RFC 7335) Apple's Personal Hotspot NATs a connected
+    # Mac into (192.0.0.2 etc, distinct from the RFC1918 ranges above) - on
+    # the dev server's own port. That covers testing this app from another
+    # device on the same network (a phone, say - including the phone whose
+    # own hotspot the Mac is tethered to) without ever having to add today's
+    # address to CORS_ORIGINS by hand - none of these patterns can ever
+    # match a public internet origin regardless of environment.
+    allow_origin_regex=r"^http://((192\.168|10\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1]))\.\d{1,3}\.\d{1,3}|192\.0\.0\.\d{1,3}|[a-zA-Z0-9-]+\.local):5173$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
