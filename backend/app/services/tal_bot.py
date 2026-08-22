@@ -176,11 +176,20 @@ AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 32, 3: 65, 4: 105, 5: 150}
 # them (measured directly against the gambit feature - a well-known theoretical
 # pawn sacrifice cost more than 35cp in more than one tested position), so at
 # aggression 5 the "maximally Tal-like" setting rarely differed from
-# aggression 1 in practice. Still well short of the practice table's 120cp: a
-# 70cp concession at the top band is under a full pawn's worth of the engine's
-# own evaluation, deliberately staying "a real but sound offer" rather than
-# opening the door to speculative material for aesthetics.
-GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50, 5: 70}
+# aggression 1 in practice.
+#
+# Level 5 raised again, from 70 to 130 - a deliberate, explicit trade-off, not
+# a tuning correction like the jump above. 70cp kept this tier drawish against
+# genuinely strong opposition (~2600+): two near-optimal players trade toward
+# equality, the same reason two copies of Stockfish draw each other, so
+# "stay this close to the engine's own best move" was never going to produce
+# decisive results against an opponent that strong, however sound each
+# individual move stayed. Requested explicitly - win more, even at the cost of
+# occasionally losing a game this tier would previously have safely drawn or
+# held. Levels 1-4 are untouched: this is a top-of-the-range change, not a
+# curve-wide one, so a player who wants the calmer, closer-to-"never lose"
+# settings still has them.
+GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50, 5: 130}
 
 # How hard the personality terms push, per aggression level.
 #
@@ -201,6 +210,24 @@ AGGRESSION_PERSONALITY_GAIN: dict[int, float] = {
     3: 1.25,
     4: 2.0,
     5: 3.0,
+}
+
+# The Grandmaster tier's own gain table - identical at levels 1-4, but level 5
+# raised to 3.5 to match `GRANDMASTER_AGGRESSION_TOLERANCE_CP[5]`'s own jump to
+# 130cp for the same reason the two have always moved together: a wider gate
+# with an unchanged gain just adds more losing-tiebreak candidates to the pool
+# without picking them more often. Split into its own table (rather than
+# reusing `AGGRESSION_PERSONALITY_GAIN`) because the practice table's 3.0 was
+# tuned against ITS OWN 150cp gate on an already-weakened, elo-capped search -
+# raising it further there would push a handicapped tier past a calibration
+# that already works, for a request that was specifically about the
+# full-strength tier's draws against strong opposition.
+GRANDMASTER_AGGRESSION_PERSONALITY_GAIN: dict[int, float] = {
+    1: 0.0,
+    2: 0.85,
+    3: 1.25,
+    4: 2.0,
+    5: 3.5,
 }
 
 MIN_AGGRESSION = 1
@@ -515,7 +542,7 @@ def score_candidates(
     """
     mover = board.turn
     tolerance = tolerance_for(aggression, elo)
-    aggression_gain = personality_gain_for(aggression)
+    aggression_gain = personality_gain_for(aggression, elo)
     gambit_gain = gambit_strategy.personality_multiplier(strategy_context)
 
     cp_movers = [_mover_cp(candidate, mover) for candidate in candidates]
@@ -615,9 +642,17 @@ def tolerance_for(aggression: int, elo: int | None = None) -> int:
     return AGGRESSION_TOLERANCE_CP[level]
 
 
-def personality_gain_for(aggression: int) -> float:
-    """Personality multiplier for an aggression level, clamped to the 1-5 range."""
+def personality_gain_for(aggression: int, elo: int | None = None) -> float:
+    """Personality multiplier for an aggression level, clamped to the 1-5 range.
+
+    `elo` selects *which* table applies, mirroring `tolerance_for` exactly -
+    the two tables only actually differ at level 5 today, but the selection
+    logic is the same for the same reason: the Grandmaster tier's own gate and
+    gain move together (see `GRANDMASTER_AGGRESSION_PERSONALITY_GAIN`).
+    """
     level = max(MIN_AGGRESSION, min(MAX_AGGRESSION, aggression))
+    if elo is not None and is_grandmaster(elo):
+        return GRANDMASTER_AGGRESSION_PERSONALITY_GAIN[level]
     return AGGRESSION_PERSONALITY_GAIN[level]
 
 
