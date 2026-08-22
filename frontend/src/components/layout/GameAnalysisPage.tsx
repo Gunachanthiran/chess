@@ -12,13 +12,8 @@ import { EvalGraph } from '../moves/EvalGraph';
 import { AccuracyPanel } from '../analysis/AccuracyPanel';
 import { MoveSummaryPanel } from '../analysis/MoveSummaryPanel';
 import { RecommendationsPanel } from '../analysis/RecommendationsPanel';
-import { CoachPanel } from '../analysis/CoachPanel';
 import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
-import { useCoachVoice } from '../../lib/coachVoice';
-import { useCoachProfile, playRecordedClip } from '../../lib/coachProfile';
-import { buildGameNarrative, commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
-import { answerCoachQuestion } from '../../lib/coachQA';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
 import { formatEval } from '../../lib/evaluation';
 import { explorePosition } from '../../api/analysis';
@@ -107,7 +102,9 @@ export function GameAnalysisPage({
   // preview starts (the position it branches off from), never recomputed,
   // so stepping through the hypothetical line can't drift if the real game
   // position it launched from changes underneath it for any reason.
-  const [preview, setPreview] = useState<{ baseFen: string; sans: string[] } | null>(null);
+  const [preview, setPreview] = useState<{ baseFen: string; sans: string[]; candidateIndex: number } | null>(
+    null,
+  );
   const [previewStep, setPreviewStep] = useState(0);
 
   // Real navigation always wins: moving to a different actual position exits
@@ -117,10 +114,20 @@ export function GameAnalysisPage({
     setPreview(null);
   }, [currentMoveIndex]);
 
-  const handlePreview = (sans: string[]) => {
-    setPreview({ baseFen: displayFen, sans });
-    setPreviewStep(sans.length);
+  // Starts at the real position (step 0), not the line's end — the point is
+  // stepping through the recommendation one move at a time via `stepPreview`/
+  // the board banner's own Prev/Next, watching each move's point land,
+  // rather than seeing the final position first and having to walk backward.
+  const handlePreview = (sans: string[], candidateIndex: number) => {
+    setPreview({ baseFen: displayFen, sans, candidateIndex });
+    setPreviewStep(0);
   };
+
+  const stepPreview = (delta: number) => {
+    setPreviewStep((step) => (preview ? Math.max(0, Math.min(preview.sans.length, step + delta)) : step));
+  };
+
+  const closePreview = () => setPreview(null);
 
   const previewPosition = useMemo(() => {
     if (!preview) return null;
@@ -202,8 +209,13 @@ export function GameAnalysisPage({
       const baseFen = preview?.baseFen ?? displayFen;
       const priorSans = preview ? preview.sans.slice(0, previewStep) : [];
       const nextSans = [...priorSans, chosen.san];
+      // -1 when starting fresh from a drag (not one of the Stockfish
+      // candidates) — never matches a real row index, so no recommendation
+      // row shows itself as "active" for a freely-dragged move. Preserved
+      // when extending an already-active candidate preview.
+      const candidateIndex = preview?.candidateIndex ?? -1;
 
-      setPreview({ baseFen, sans: nextSans });
+      setPreview({ baseFen, sans: nextSans, candidateIndex });
       setPreviewStep(nextSans.length);
       return true;
     },
@@ -258,45 +270,11 @@ export function GameAnalysisPage({
   }, [previewPosition?.fen]);
 
   const { muted, toggleMuted, playForMove } = useSoundEffects();
-  const {
-    muted: coachMuted,
-    toggleMuted: toggleCoachMuted,
-    speak,
-    voices: coachVoices,
-    selectedVoiceURI: coachSelectedVoiceURI,
-    setVoice: setCoachVoice,
-  } = useCoachVoice();
-  const coachProfile = useCoachProfile();
 
-  // One deterministic pass over the whole game — see buildGameNarrative's own
-  // docstring for why this has to be a single upfront pass keyed on ply order
-  // rather than state accumulated during navigation (users jump around via
-  // notable-move nav, arrow keys, and move-list clicks, not always forward).
-  const narrative = useMemo(
-    () =>
-      buildGameNarrative(moves, {
-        game: game ? { opening_name: game.opening_name, eco: game.eco } : null,
-        accuracy: { white: whiteAccuracy, black: blackAccuracy },
-        customLines: coachProfile.customLines,
-      }),
-    [moves, game, whiteAccuracy, blackAccuracy, coachProfile.customLines],
-  );
-
-  const askCoach = useCallback(
-    (question: string) =>
-      answerCoachQuestion(question, {
-        move: currentMoveIndex > 0 ? moves[currentMoveIndex - 1] : null,
-        moves,
-        game,
-        accuracy: { white: whiteAccuracy, black: blackAccuracy },
-      }),
-    [currentMoveIndex, moves, game, whiteAccuracy, blackAccuracy],
-  );
-
-  // Sound + coach commentary on navigation. Every navigation path in the app
-  // — prev/next buttons, move-row clicks, arrow keys, Home/End, eval-graph
-  // clicks — can only move `currentMoveIndex`, so watching that one value
-  // covers all of them.
+  // Sound on navigation. Every navigation path in the app — prev/next
+  // buttons, move-row clicks, arrow keys, Home/End, eval-graph clicks — can
+  // only move `currentMoveIndex`, so watching that one value covers all of
+  // them.
   //
   // `playedRef` records the (move list, index) whose sound already played. It
   // starts null so mount is silent, and re-running the effect with unchanged
@@ -316,22 +294,7 @@ export function GameAnalysisPage({
     const move = moves[currentMoveIndex - 1];
     if (!move) return;
     playForMove(move.san);
-    if (isNotableMove(move.classification)) {
-      // A recorded clip (the user's own voice) fully replaces the
-      // synthesized one for this tier — that's the point of recording it,
-      // not something to layer under the TTS line.
-      const recordedClip = coachProfile.recordings[move.classification];
-      if (recordedClip) {
-        playRecordedClip(recordedClip);
-      } else {
-        const customLine = coachProfile.customLines[move.classification];
-        speak(
-          narrative.get(move.id) ?? commentaryForAnalysisMove(move, customLine),
-          move.classification,
-        );
-      }
-    }
-  }, [currentMoveIndex, moves, playForMove, speak, narrative, coachProfile.recordings, coachProfile.customLines]);
+  }, [currentMoveIndex, moves, playForMove]);
 
   // Keyboard navigation. Bound at the document so the board is reachable
   // without focusing it first, but skipped while the user is typing.
@@ -370,33 +333,6 @@ export function GameAnalysisPage({
   }, [goToPrev, goToNext, goToStart, goToEnd]);
 
   const currentMove = currentMoveIndex > 0 ? moves[currentMoveIndex - 1] : null;
-
-  // The `currentMoveIndex` values a brilliant/great/mistake/blunder lands on
-  // — CoachPanel's "Next"/"Previous" review-style controls jump between these
-  // instead of one ply at a time, since those are the moments actually worth
-  // stopping for (see lib/coach.ts's own `isNotableMove`).
-  const notableMoveIndices = useMemo(
-    () =>
-      moves.reduce<number[]>((indices, move, index) => {
-        if (isNotableMove(move.classification)) indices.push(index + 1);
-        return indices;
-      }, []),
-    [moves],
-  );
-  const goToNextNotable = useCallback(() => {
-    const next = notableMoveIndices.find((index) => index > currentMoveIndex);
-    if (next !== undefined) setCurrentMoveIndex(next);
-  }, [notableMoveIndices, currentMoveIndex, setCurrentMoveIndex]);
-  const goToPreviousNotable = useCallback(() => {
-    let previous: number | undefined;
-    for (const index of notableMoveIndices) {
-      if (index >= currentMoveIndex) break;
-      previous = index;
-    }
-    if (previous !== undefined) setCurrentMoveIndex(previous);
-  }, [notableMoveIndices, currentMoveIndex, setCurrentMoveIndex]);
-  const hasNextNotable = notableMoveIndices.some((index) => index > currentMoveIndex);
-  const hasPreviousNotable = notableMoveIndices.some((index) => index < currentMoveIndex);
 
   // The move about to be played *from* the position currently on the board —
   // distinct from `currentMove` (the one just played to reach it). Feeds
@@ -622,21 +558,13 @@ export function GameAnalysisPage({
           in App.css, independent of this source order.
         */}
         <aside className="analysis__recommendations-column">
-          <RecommendationsPanel upcomingMove={upcomingMove} onPreview={handlePreview} />
-          <CoachPanel
-            move={currentMove}
-            muted={coachMuted}
-            onToggleMute={toggleCoachMuted}
-            onNextNotable={goToNextNotable}
-            onPreviousNotable={goToPreviousNotable}
-            hasNextNotable={hasNextNotable}
-            hasPreviousNotable={hasPreviousNotable}
-            narrativeText={currentMove ? narrative.get(currentMove.id) : undefined}
-            voices={coachVoices}
-            selectedVoiceURI={coachSelectedVoiceURI}
-            onSelectVoice={setCoachVoice}
-            onAsk={askCoach}
-            profile={coachProfile}
+          <RecommendationsPanel
+            upcomingMove={upcomingMove}
+            onPreview={handlePreview}
+            previewCandidateIndex={preview?.candidateIndex ?? null}
+            previewStep={previewStep}
+            onStepPreview={stepPreview}
+            onClosePreview={closePreview}
           />
         </aside>
 

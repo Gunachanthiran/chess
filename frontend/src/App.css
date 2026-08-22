@@ -1723,7 +1723,11 @@
  * purely visual, independent of that order.
  */
 .analysis__body--with-recommendations {
-  grid-template-columns: 260px auto 380px;
+  /* Widened from 260px now that this column holds only the Stockfish
+     recommendations panel (the coach panel that used to share it is gone
+     for now) — the extra room lets each candidate line, and its new
+     step-through controls, breathe instead of wrapping tightly. */
+  grid-template-columns: 340px auto 380px;
 }
 
 .analysis__body--with-recommendations .analysis__recommendations-column {
@@ -2352,6 +2356,53 @@
 .recommendations__play:hover {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
   transform: scale(1.08);
+}
+
+.recommendations__row--active {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.recommendations__move--current {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* The step-through controls for whichever candidate is the active preview —
+   replaces that row's plain "▶ play" button while stepping is in progress. */
+.recommendations__stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.recommendations__stepper button {
+  border: none;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.7rem;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.recommendations__stepper button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.recommendations__stepper button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.recommendations__step-count {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  min-width: 28px;
+  text-align: center;
 }
 
 /* ---------- Board explore/preview banner ---------- */
