@@ -176,11 +176,23 @@ AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 32, 3: 65, 4: 105, 5: 150}
 # them (measured directly against the gambit feature - a well-known theoretical
 # pawn sacrifice cost more than 35cp in more than one tested position), so at
 # aggression 5 the "maximally Tal-like" setting rarely differed from
-# aggression 1 in practice. Still well short of the practice table's 120cp: a
-# 70cp concession at the top band is under a full pawn's worth of the engine's
-# own evaluation, deliberately staying "a real but sound offer" rather than
-# opening the door to speculative material for aesthetics.
-GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50, 5: 70}
+# aggression 1 in practice.
+#
+# Level 5 raised again, from 70 to 95 - deliberately a small step this time,
+# not a repeat of the 70->130 jump that was tried, measured to introduce real
+# losing chances, and reverted on request. That jump changed two things at
+# once (this gate, and a matching personality-gain increase) at a moment the
+# search was also unusually shallow (a separate, since-reverted attempt to
+# lengthen the per-move time budget was live in the same window) - too many
+# variables moving together to know which one actually caused the problem.
+# This round changes only this one number, by roughly the same *scale* as the
+# original 35->70 widening above (which was never reverted and remains
+# trusted), specifically requested with the search speed held fixed at its
+# current ~0.5s: real strength has essentially no headroom left at that speed
+# (measured directly - varying threads/hash/candidate-count barely moves the
+# depth reached), so this is the one lever actually available under that
+# constraint, applied carefully rather than aggressively.
+GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50, 5: 95}
 
 # How hard the personality terms push, per aggression level.
 #
