@@ -17,6 +17,10 @@ export type CoachMascotProps = {
   /** `null`/`undefined` renders the idle face (no verdict yet). */
   classification?: Classification | null;
   className?: string;
+  /** A personalized avatar photo (see `lib/coachProfile.ts`) — when set,
+   * renders in place of the illustrated mascot entirely. The user's own
+   * choice, not a likeness this app supplies. */
+  photoUrl?: string | null;
 };
 
 const FACES: Record<Classification | 'idle', ReactElement> = {
@@ -106,8 +110,13 @@ const FACES: Record<Classification | 'idle', ReactElement> = {
   ),
 };
 
-export function CoachMascot({ classification, className }: CoachMascotProps) {
+export function CoachMascot({ classification, className, photoUrl }: CoachMascotProps) {
   const face = FACES[classification ?? 'idle'];
+
+  if (photoUrl) {
+    return <img src={photoUrl} className={className} aria-hidden="true" alt="" />;
+  }
+
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
       <defs>

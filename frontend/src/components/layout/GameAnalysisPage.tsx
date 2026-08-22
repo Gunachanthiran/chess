@@ -16,6 +16,7 @@ import { CoachPanel } from '../analysis/CoachPanel';
 import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useCoachVoice } from '../../lib/coachVoice';
+import { useCoachProfile, playRecordedClip } from '../../lib/coachProfile';
 import { buildGameNarrative, commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
 import { answerCoachQuestion } from '../../lib/coachQA';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
@@ -265,6 +266,7 @@ export function GameAnalysisPage({
     selectedVoiceURI: coachSelectedVoiceURI,
     setVoice: setCoachVoice,
   } = useCoachVoice();
+  const coachProfile = useCoachProfile();
 
   // One deterministic pass over the whole game — see buildGameNarrative's own
   // docstring for why this has to be a single upfront pass keyed on ply order
@@ -275,8 +277,9 @@ export function GameAnalysisPage({
       buildGameNarrative(moves, {
         game: game ? { opening_name: game.opening_name, eco: game.eco } : null,
         accuracy: { white: whiteAccuracy, black: blackAccuracy },
+        customLines: coachProfile.customLines,
       }),
-    [moves, game, whiteAccuracy, blackAccuracy],
+    [moves, game, whiteAccuracy, blackAccuracy, coachProfile.customLines],
   );
 
   const askCoach = useCallback(
@@ -314,9 +317,21 @@ export function GameAnalysisPage({
     if (!move) return;
     playForMove(move.san);
     if (isNotableMove(move.classification)) {
-      speak(narrative.get(move.id) ?? commentaryForAnalysisMove(move), move.classification);
+      // A recorded clip (the user's own voice) fully replaces the
+      // synthesized one for this tier — that's the point of recording it,
+      // not something to layer under the TTS line.
+      const recordedClip = coachProfile.recordings[move.classification];
+      if (recordedClip) {
+        playRecordedClip(recordedClip);
+      } else {
+        const customLine = coachProfile.customLines[move.classification];
+        speak(
+          narrative.get(move.id) ?? commentaryForAnalysisMove(move, customLine),
+          move.classification,
+        );
+      }
     }
-  }, [currentMoveIndex, moves, playForMove, speak, narrative]);
+  }, [currentMoveIndex, moves, playForMove, speak, narrative, coachProfile.recordings, coachProfile.customLines]);
 
   // Keyboard navigation. Bound at the document so the board is reachable
   // without focusing it first, but skipped while the user is typing.
@@ -621,6 +636,7 @@ export function GameAnalysisPage({
             selectedVoiceURI={coachSelectedVoiceURI}
             onSelectVoice={setCoachVoice}
             onAsk={askCoach}
+            profile={coachProfile}
           />
         </aside>
 

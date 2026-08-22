@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { CoachMascot } from './CoachMascot';
+import { CoachPersonalize } from './CoachPersonalize';
 import { commentaryForAnalysisMove, detailForAnalysisMove, isNotableMove, quietCoachLine } from '../../lib/coach';
 import { scoreVoice } from '../../lib/coachVoice';
+import type { CoachProfileHook } from '../../lib/coachProfile';
 import { classificationColor, classificationIcon, classificationLabel } from '../../styles/classification-colors';
 import type { MoveAnalysis } from '../../types';
 
@@ -29,6 +31,10 @@ type CoachPanelProps = {
   /** Answers a free-text question from data already on screen — see
    * `answerCoachQuestion`. `undefined` hides the "Ask a question" control. */
   onAsk?: (question: string) => string;
+  /** The user's own photo/voice/reaction-line customization (see
+   * `lib/coachProfile.ts`). `undefined` hides the "Personalize" control
+   * entirely, leaving the panel exactly as it was before this existed. */
+  profile?: CoachProfileHook;
 };
 
 /** Tiers dramatic enough to earn the avatar's own reaction animation — a
@@ -78,11 +84,13 @@ export function CoachPanel({
   selectedVoiceURI = null,
   onSelectVoice,
   onAsk,
+  profile,
 }: CoachPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
+  const [personalizeOpen, setPersonalizeOpen] = useState(false);
 
   // A new move starts collapsed — "Explain" is an on-demand dig-deeper, not
   // a state that should carry over from whatever move was showing before.
@@ -112,9 +120,10 @@ export function CoachPanel({
           key={avatarKey}
           classification={move?.classification ?? null}
           className={`coach__avatar ${moodAnimationClass(move)}`}
+          photoUrl={profile?.avatarUrl}
         />
         <div className="coach__head-text">
-          <span className="coach__name">Rook</span>
+          <span className="coach__name">{profile?.displayName || 'Rook'}</span>
           {move && (
             <span
               className="coach__move-badge"
@@ -166,6 +175,15 @@ export function CoachPanel({
         {onAsk && (
           <button type="button" className="button coach__ask-toggle" onClick={() => setAskOpen((v) => !v)}>
             {askOpen ? 'Hide questions' : 'Ask a question'}
+          </button>
+        )}
+        {profile && (
+          <button
+            type="button"
+            className="button coach__personalize-toggle"
+            onClick={() => setPersonalizeOpen((v) => !v)}
+          >
+            {personalizeOpen ? 'Hide personalize' : 'Personalize'}
           </button>
         )}
         {showNotableNav && (
@@ -224,6 +242,8 @@ export function CoachPanel({
           {answer && <p className="coach__text coach__answer">{answer}</p>}
         </form>
       )}
+
+      {personalizeOpen && profile && <CoachPersonalize profile={profile} />}
     </div>
   );
 }

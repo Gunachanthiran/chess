@@ -1729,6 +1729,10 @@
 .analysis__body--with-recommendations .analysis__recommendations-column {
   grid-column: 1;
   grid-row: 1;
+  /* Extra breathing room from the board/eval-bar beyond the grid's own 24px
+     gap — the Stockfish recommendations and coach panels were reading as
+     crowded right up against the eval bar on some window widths. */
+  margin-right: 20px;
 }
 
 .analysis__body--with-recommendations .analysis__board-column {
@@ -2969,6 +2973,12 @@
   height: 72%;
 }
 
+.coach__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .coach__head-text {
   display: flex;
   flex-direction: column;
@@ -3108,4 +3118,69 @@
 .coach__answer {
   border-left: 3px solid var(--accent);
   padding-left: 10px;
+}
+
+.coach__personalize-toggle {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}
+
+.coach-personalize {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.coach-personalize__preview {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 40px;
+}
+
+.coach-personalize__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coach-personalize__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius-control);
+  background: var(--bg-sunken);
+}
+
+.coach-personalize__tier {
+  font-size: 0.82rem;
+  font-weight: 600;
+  flex: 0 0 100px;
+}
+
+.coach-personalize__line {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.coach-personalize__voice {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.coach-personalize__voice .button {
+  font-size: 0.78rem;
+  padding: 5px 10px;
+}
+
+.coach-personalize__record--active {
+  background: var(--danger);
+  color: var(--accent-contrast);
 }

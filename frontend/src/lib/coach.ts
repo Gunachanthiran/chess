@@ -220,7 +220,8 @@ const SUBOPTIMAL_TIERS = new Set<Classification>(['inaccuracy', 'mistake', 'blun
  * one is noise, not coaching. Only the moves a human commentator would
  * actually stop for get a line.
  */
-const NOTABLE_TIERS = new Set<Classification>(['brilliant', 'great', 'mistake', 'blunder']);
+export const NOTABLE_CLASSIFICATIONS: Classification[] = ['brilliant', 'great', 'mistake', 'blunder'];
+const NOTABLE_TIERS = new Set<Classification>(NOTABLE_CLASSIFICATIONS);
 
 export function isNotableMove(classification: Classification): boolean {
   return NOTABLE_TIERS.has(classification);
@@ -239,14 +240,18 @@ const ROOK_FLOURISH_TIERS = new Set<Classification>(['brilliant', 'great']);
 
 /** The line pool `commentaryForAnalysisMove`/`buildGameNarrative` both pick
  * from for one move — factored out so the two stay in sync on the
- * rook-flourish special case rather than duplicating it. */
-function templatesForMove(move: MoveAnalysis): string[] {
+ * rook-flourish special case rather than duplicating it. A user-authored
+ * `customLine` (see `lib/coachProfile.ts`) short-circuits to a single-element
+ * pool: no variety needed for a line the user wrote themselves, and `pick`/
+ * `pickAvoiding` degenerately always return it. */
+function templatesForMove(move: MoveAnalysis, customLine?: string): string[] {
+  if (customLine) return [customLine];
   const isRookFlourish = ROOK_FLOURISH_TIERS.has(move.classification) && pieceOf(move.san) === 'R';
   return isRookFlourish ? ROOK_LINES : (TEMPLATES[move.classification] ?? BEST_LINES);
 }
 
-export function commentaryForAnalysisMove(move: MoveAnalysis): string {
-  const template = pick(templatesForMove(move), move.ply);
+export function commentaryForAnalysisMove(move: MoveAnalysis, customLine?: string): string {
+  const template = pick(templatesForMove(move, customLine), move.ply);
   const suffix = SUBOPTIMAL_TIERS.has(move.classification) ? bestMoveSentence(move) : '';
   return template.replace('{san}', naturalizeSan(move.san)) + suffix;
 }
@@ -324,6 +329,9 @@ function ordinal(n: number): string {
 export type NarrativeContext = {
   game: { opening_name: string | null; eco: string | null } | null;
   accuracy: { white: number | null; black: number | null };
+  /** User-authored replacement lines per tier (see `lib/coachProfile.ts`) —
+   * absent/empty behaves exactly as before this existed. */
+  customLines?: Partial<Record<Classification, string>>;
 };
 
 /**
@@ -357,7 +365,7 @@ export function buildGameNarrative(moves: MoveAnalysis[], context: NarrativeCont
     if (!isNotableMove(move.classification)) return;
 
     const { text: template, index: usedIndex } = pickAvoiding(
-      templatesForMove(move),
+      templatesForMove(move, context.customLines?.[move.classification]),
       move.ply,
       lastTemplateIndexByTier[move.classification],
     );
