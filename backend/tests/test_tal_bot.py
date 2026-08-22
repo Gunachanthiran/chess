@@ -543,6 +543,35 @@ class TestRealEngine:
         move = tal_bot.choose_bot_move(board, elo=1500, aggression=aggression)
         assert board.is_legal(move)
 
+    def test_choose_bot_move_stays_on_a_real_gambit_line(self):
+        """End-to-end reproduction of the actual reported bug: Smith-Morra's
+        3.c3 declines an immediate free recapture on d4, a concession real
+        Stockfish routinely doesn't even surface in its own top-multipv list
+        at this depth - so `_ensure_gambit_candidate`'s targeted eval, not
+        just the unconditional eligibility exception, has to actually run for
+        this to pass. Matches the exact sequence manually verified live
+        against the real bot-game API before this fix (e4 c5 d4 cxd4 -> the
+        bot used to play Qxd4, deviating; it must now play c3)."""
+        from app.services import gambit_strategy, gambits
+
+        board = chess.Board()
+        for san in ("e4", "c5", "d4", "cxd4"):
+            board.push_san(san)
+        moves = [
+            ("e4", "e2e4", chess.WHITE),
+            ("c5", "c7c5", chess.BLACK),
+            ("d4", "d2d4", chess.WHITE),
+            ("cxd4", "c5d4", chess.BLACK),
+        ]
+        gambit = gambits.get_gambit("smith_morra_gambit")
+        context = gambit_strategy.build_context(board, gambit, moves, chess.WHITE, True)
+        assert context.next_move_san == "c3"
+
+        move = tal_bot.choose_bot_move(
+            board, elo=tal_bot.GRANDMASTER_ELO, aggression=5, strategy_context=context
+        )
+        assert board.san(move) == "c3"
+
 
 class _RecordingEngine:
     """Stand-in for StockfishEngine that records how it was built and called.

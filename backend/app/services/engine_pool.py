@@ -438,6 +438,45 @@ class StockfishEngine:
             candidates.append(CandidateMove(move=move, cp=cp, mate=mate))
         return candidates
 
+    def evaluate_move(
+        self,
+        board: chess.Board,
+        move: chess.Move,
+        depth: int | None = None,
+        time_limit: float | None = None,
+    ) -> CandidateMove:
+        """A real, actually-searched evaluation for exactly one move —
+        `root_moves` restricts the search to it, rather than reading it off a
+        ranked multipv list.
+
+        `analyse_candidates` only ever returns whatever the engine's own
+        top-`multipv` search surfaces; a move the engine ranks outside that
+        window (a deliberately-imperfect-per-engine gambit continuation is
+        the case this exists for — `tal_bot.choose_bot_move` calls this to
+        get a real score for the selected gambit's own next scripted move
+        when it isn't already in the ordinary candidate pool) simply never
+        appears there, no matter how wide `multipv` is asked to go. Getting an
+        actual score for it needs its own targeted search.
+        """
+        if self._engine is None:
+            raise EngineError("Stockfish engine is not running.", {"path": self.path})
+
+        limit = chess.engine.Limit(
+            depth=depth or self.depth,
+            time=time_limit or CANDIDATE_TIME_LIMIT_S,
+            nodes=self.nodes,
+        )
+        try:
+            info = self._engine.analyse(board, limit, root_moves=[move])
+        except chess.engine.EngineError as exc:
+            raise EngineError(
+                "Stockfish failed to analyse a position.",
+                {"fen": board.fen(), "reason": str(exc)},
+            ) from exc
+
+        cp, mate = _score_to_white_pov(info)
+        return CandidateMove(move=move, cp=cp, mate=mate)
+
     def _terminal_analysis(self, board: chess.Board) -> EngineAnalysis:
         if board.is_checkmate():
             # Side to move is mated: White POV is -1 if White is mated, else +1.

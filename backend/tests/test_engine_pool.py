@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import chess
 
-from app.services.engine_pool import StockfishEngine
+from app.services.engine_pool import CandidateMove, StockfishEngine
 
 
 class _FakeUciEngine:
@@ -55,3 +55,38 @@ class TestHashClearedBeforeEverySearch:
         engine.analyse(chess.Board())
 
         assert fake.calls.count('configure:{\'Clear Hash\': None}') == 2
+
+
+class _FakeRootMovesEngine:
+    """Records the `root_moves` a caller restricted the search to, and
+    returns a fixed score for whatever single move that was — enough to test
+    `evaluate_move` without a real Stockfish process."""
+
+    def __init__(self) -> None:
+        self.root_moves_seen: list[object] = []
+
+    def analyse(self, board, limit, root_moves=None):
+        self.root_moves_seen.append(root_moves)
+        return {
+            "score": chess.engine.PovScore(chess.engine.Cp(-42), chess.WHITE),
+            "pv": list(root_moves),
+        }
+
+
+class TestEvaluateMove:
+    """`evaluate_move` exists specifically so `tal_bot._ensure_gambit_candidate`
+    can get a real score for a gambit's own scripted move even when the
+    ordinary multipv search didn't happen to surface it — see that
+    function's own docstring for why a top-N search routinely misses a
+    deliberately engine-imperfect gambit continuation."""
+
+    def test_restricts_the_search_to_the_given_move(self):
+        engine = StockfishEngine(threads=1)
+        fake = _FakeRootMovesEngine()
+        engine._engine = fake
+
+        move = chess.Move.from_uci("e2e4")
+        result = engine.evaluate_move(chess.Board(), move)
+
+        assert fake.root_moves_seen == [[move]]
+        assert result == CandidateMove(move=move, cp=-42, mate=None)

@@ -1,21 +1,44 @@
-"""Turns a selected gambit plus the opponent's observed style into a small,
-additive nudge on `tal_bot`'s candidate scoring.
+"""Turns a selected gambit plus the opponent's observed style into scoring
+nudges on `tal_bot`'s candidate pool — plus one deterministic exception.
 
 This deliberately extends `tal_bot.py`'s existing two-knob design (strength
 cap, then personality re-rank over an already-eligible candidate pool — see
-that module's docstring) with a third, smaller knob: a gambit is one more
-*preference* among moves `tal_bot` has already decided are sound. Nothing
-here ever sees or changes eligibility (`score_candidates`' tolerance gate) —
-`personality_multiplier` and `candidate_bonus` are only ever applied to the
-personality score of a candidate that already passed that gate.
+that module's docstring) with a third knob: for every candidate *except* the
+gambit's own next scripted move, a gambit is just one more *preference* among
+moves `tal_bot` has already decided are sound — `personality_multiplier` and
+`candidate_bonus`'s style bonus are score terms only, applied strictly after
+eligibility is decided, and can never turn an ineligible candidate into the
+chosen move.
+
+The gambit's own next scripted move (`is_line_continuation`) is the one
+deliberate exception, in two parts:
+  - Eligibility: unconditional, not just widened — `tal_bot.score_candidates`
+    admits it regardless of cp_loss, and exempts it from the cp_loss tax in
+    the score. A finite ceiling was tried and measured to still fail on real
+    bundled gambits (see that function's own comment for the Smith-Morra/
+    Halloween Gambit evidence).
+  - Selection: once eligible, `tal_bot.select_move` plays it outright rather
+    than folding it into the score competition — measured directly that even
+    a generous fixed score bonus isn't reliable, since an unrelated eligible
+    candidate can have real personality merits of its own (a queen recapture
+    creating its own threats legitimately outscored the gambit's bonus in a
+    real position). "Play the selected gambit" is a stronger, more explicit
+    signal than the aggression slider.
+
+Both exceptions only ever apply to the SAN-exact move `is_line_continuation`
+identifies (verified against the whole game history so far by
+`is_gambit_line`) — pre-vetted named opening theory, not a speculative
+personality preference. Every other candidate on every other move is
+governed purely by the tolerance gate and the ordinary score competition,
+untouched by anything in this module.
 
 Priority order, matching the product requirement directly:
   1-4. legal move / tactical safety / position eval / best move — tal_bot's
-       existing tolerance gate, untouched by anything in this module.
+       existing tolerance gate, with the one exception above.
   5. opponent adaptation — `personality_multiplier` scales tal_bot's
      existing sacrifice/king-attack personality terms.
-  6. selected gambit preference — `candidate_bonus`'s line-continuation
-     bonus, the very last and smallest term in the score.
+  6. selected gambit preference — played outright while `active` (per
+     above); its style weights keep nudging the score once `extended`.
 """
 
 from __future__ import annotations
@@ -132,6 +155,23 @@ def personality_multiplier(context: StrategyContext | None) -> float:
     return ((weights.sacrifice * sac_scale) + (weights.king_attack * alert_scale)) / 2
 
 
+def is_line_continuation(
+    board: chess.Board, move: chess.Move, context: StrategyContext | None
+) -> bool:
+    """True when `move` is exactly the gambit's own next scripted move for an
+    active line, on the bot's own turn. Used both for `candidate_bonus`'s
+    line-continuation score bonus and — the one exception to "eligibility
+    never depends on the gambit" — `tal_bot.score_candidates`' wider ceiling
+    for this one specific, pre-vetted move (`GAMBIT_LINE_MAX_CP_LOSS`)."""
+    if context is None or context.gambit is None:
+        return False
+    if board.turn != context.bot_color:
+        return False
+    if context.status != "active" or context.next_move_san is None:
+        return False
+    return board.san(move) == context.next_move_san
+
+
 def candidate_bonus(
     board: chess.Board, candidate: CandidateMove, context: StrategyContext | None
 ) -> float:
@@ -145,10 +185,8 @@ def candidate_bonus(
 
     bonus = 0.0
 
-    if context.status == "active" and context.next_move_san is not None:
-        san = board.san(candidate.move)
-        if san == context.next_move_san:
-            bonus += GAMBIT_LINE_BONUS
+    if is_line_continuation(board, candidate.move, context):
+        bonus += GAMBIT_LINE_BONUS
 
     if context.status in ("active", "extended"):
         bonus += _style_bonus(board, candidate.move, context)

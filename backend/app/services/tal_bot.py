@@ -206,6 +206,7 @@ AGGRESSION_PERSONALITY_GAIN: dict[int, float] = {
 MIN_AGGRESSION = 1
 MAX_AGGRESSION = 5
 
+
 # --- Repetition avoidance --------------------------------------------------
 #
 # The bot used to drift into threefold repetitions simply because a shuffling
@@ -329,6 +330,9 @@ def choose_bot_move(
         candidates = engine.analyse_candidates(
             board, depth=depth, multipv=multipv, time_limit=time_limit
         )
+        candidates = _ensure_gambit_candidate(
+            engine, board, candidates, strategy_context, depth, time_limit
+        )
 
     if not candidates:
         raise EngineError(
@@ -337,6 +341,50 @@ def choose_bot_move(
         )
 
     return select_move(board, candidates, aggression, elo, strategy_context)
+
+
+def _ensure_gambit_candidate(
+    engine: StockfishEngine,
+    board: chess.Board,
+    candidates: list[CandidateMove],
+    strategy_context: StrategyContext | None,
+    depth: int,
+    time_limit: float | None,
+) -> list[CandidateMove]:
+    """If an active gambit's own next scripted move exists but the ordinary
+    multipv search in `choose_bot_move` didn't happen to surface it, fetch a
+    real, targeted evaluation for it (`StockfishEngine.evaluate_move`) and
+    append it to the pool.
+
+    This is the piece that actually makes `score_candidates`' unconditional
+    eligibility and cp_loss tax exemption for the gambit's own move reachable:
+    both only ever operate on candidates already in the pool, and a
+    deliberately engine-imperfect gambit continuation (the entire point of a
+    gambit) is exactly the kind of move a top-`multipv` search routinely
+    leaves out entirely, no matter how the eligibility rule is written — there is
+    nothing there for the ceiling to admit. Without this, "play the gambit"
+    kept silently failing the moment the engine's own shortlist didn't happen
+    to include the book move, regardless of any tolerance tuning.
+    """
+    if strategy_context is None or strategy_context.status != "active":
+        return candidates
+    next_san = strategy_context.next_move_san
+    if next_san is None:
+        return candidates
+
+    try:
+        move = board.parse_san(next_san)
+    except ValueError:
+        # Malformed data or a position this SAN no longer applies to —
+        # `gambit_strategy.build_context` should never produce this, but a
+        # live game is not the place to discover that with a crash.
+        return candidates
+
+    if any(candidate.move == move for candidate in candidates):
+        return candidates
+
+    extra = engine.evaluate_move(board, move, depth=depth, time_limit=time_limit)
+    return [*candidates, extra]
 
 
 def select_move(
@@ -362,6 +410,25 @@ def select_move(
 
     scored = score_candidates(board, candidates, aggression, elo, strategy_context)
     pool = _prefer_non_repeating(scored)
+
+    # An active gambit's own next scripted move, once actually in the pool
+    # (see choose_bot_move's _ensure_gambit_candidate), is played outright -
+    # not just favoured by score. GAMBIT_LINE_BONUS alone can't guarantee
+    # that: measured directly, a queen recapture's own threat-creation
+    # personality score legitimately outscored the fixed bonus in a real
+    # position (Smith-Morra's 3.c3 vs. simply retaking on d4), which would
+    # have silently reproduced "select a gambit, watch the bot abandon it"
+    # with a wider but still probabilistic gap. "Play the selected gambit" is
+    # a stronger, more explicit signal than the aggression slider - this
+    # applies at every aggression level, including 1 ("no personality"),
+    # since picking a gambit is a separate, deliberate choice from picking a
+    # strength/style setting. Still subject to the repetition filter above
+    # (this early in a game that's essentially never live, but a plain "="
+    # rather than a special case).
+    if strategy_context is not None and strategy_context.status == "active" and strategy_context.next_move_san is not None:
+        for item in pool:
+            if gambit_strategy.is_line_continuation(board, item.candidate.move, strategy_context):
+                return item.candidate.move
 
     # Aggression 1 is plain elo-limited Stockfish: no personality at all, just
     # the engine's own ranking over whatever the repetition filter left.
@@ -434,9 +501,17 @@ def score_candidates(
     `elo` only selects the tolerance table (see `tolerance_for`); every
     personality term is tier-independent. `strategy_context` (optional - see
     `gambit_strategy.py`) folds in a selected gambit and the opponent's
-    observed style as two more score terms; it is applied strictly *after*
-    `eligible` is decided below, so it can never rescue a candidate the
-    tolerance gate has already rejected.
+    observed style as two more score terms; those *score* terms are applied
+    strictly after `eligible` is decided, so neither can turn an otherwise
+    ineligible candidate into the chosen move by outscoring the field. The one
+    exception to eligibility itself is the gambit's own next scripted move,
+    which is unconditionally eligible regardless of cp_loss (see the comment
+    where `eligible` is computed below) - pre-vetted opening theory, not a
+    preference. That same move is also exempt from `CP_LOSS_WEIGHT`'s cp_loss tax in the
+    score itself (once eligible, still scored - just not taxed for the exact
+    concession the eligibility exception just decided was fine), so a real
+    gambit's book cost doesn't quietly outweigh `GAMBIT_LINE_BONUS` and get
+    outscored by a quieter alternative anyway.
     """
     mover = board.turn
     tolerance = tolerance_for(aggression, elo)
@@ -453,7 +528,28 @@ def score_candidates(
     scored: list[ScoredCandidate] = []
     for candidate, cp_mover in zip(candidates, cp_movers):
         cp_loss = best_cp - cp_mover
-        eligible = cp_loss <= tolerance
+        is_gambit_move = gambit_strategy.is_line_continuation(board, candidate.move, strategy_context)
+
+        # The one exception to "eligibility is decided from cp_loss alone,
+        # before any gambit/personality term": an active gambit's own next
+        # scripted move is unconditionally eligible, not just given a wider
+        # cp_loss ceiling. A finite ceiling was tried first and measured to
+        # still fail on real, bundled gambits - Smith-Morra's own key idea,
+        # 3.c3, deliberately declines an immediate free recapture on d4, which
+        # the engine reads as a far larger concession than any ceiling narrow
+        # enough to still mean something would admit (the Halloween Gambit
+        # sacrifices two knights outright - "how much a real gambit can cost"
+        # and "how much a real blunder costs" simply overlap; there is no
+        # principled finite cp number between them). The gambit's
+        # starting_moves are pre-vetted, named opening theory, not a
+        # heuristic preference, and `gambit_strategy.build_context` already
+        # guarantees the entire game so far is an exact match for that theory
+        # before this ever applies (`is_gambit_line`) - the actual safety net
+        # is upstream, in `validate_gambits()` (`tests/test_gambits.py`)
+        # checking every bundled entry replays legally, and in the library
+        # being hand-curated named theory rather than generated data.
+        eligible = cp_loss <= tolerance or is_gambit_move
+
         sacrifice = _sacrifice_pawns(board, candidate.move)
         exposure_delta, pressure_delta = _king_attack_deltas(board, candidate.move)
         threats = _new_threats(board, candidate.move)
@@ -469,7 +565,20 @@ def score_candidates(
             + THREAT_WEIGHT * threats
             - (QUEEN_TRADE_PENALTY if queen_trade else 0.0)
         )
-        score = personality * gain * aggression_gain * gambit_gain - CP_LOSS_WEIGHT * cp_loss
+        # The gambit's own scripted move is exempt from the cp_loss tax in the
+        # score itself, not just from the eligibility gate above: at
+        # CP_LOSS_WEIGHT=0.5, a realistic ~100cp book concession costs 50
+        # score points - more than GAMBIT_LINE_BONUS (40) can make back, which
+        # would leave the move "eligible" but still reliably outscored by a
+        # quieter, higher-eval alternative, silently reproducing the same
+        # abandon-the-gambit bug this eligibility exception exists to fix.
+        # This is still not unconditional: a candidate with a genuinely
+        # stronger personality score (a real sacrifice/king-hunt/threat this
+        # position actually offers) can still outscore it, same as any other
+        # eligible move - only the raw "book theory costs centipawns" tax is
+        # waived, not competition from other real tactical chances.
+        taxed_cp_loss = 0.0 if is_gambit_move else cp_loss
+        score = personality * gain * aggression_gain * gambit_gain - CP_LOSS_WEIGHT * taxed_cp_loss
         # Priority 6 (selected gambit preference) - the very last term, and
         # only ever added on top of a score whose eligibility was already
         # decided above from cp_loss alone.

@@ -1,8 +1,13 @@
 """The gambit/opponent-adaptation layer bolted onto tal_bot's existing
-personality re-rank. The single most important guarantee: a selected gambit
-can only ever break a tie among moves tal_bot's tolerance gate has already
-accepted — it can never rescue a candidate that gate rejected, and it can
-never be chosen if it isn't even in the candidate pool.
+personality re-rank. The core guarantee: the gambit's *score* terms
+(`personality_multiplier`, `candidate_bonus`) can only ever break a tie among
+moves tal_bot's tolerance gate has already accepted — they can never rescue a
+candidate that gate rejected, and a gambit move that isn't even in the
+candidate pool can never be chosen regardless. The one deliberate exception is
+eligibility itself for the gambit's own next scripted move, which gets a
+separate, wider ceiling (`GAMBIT_LINE_MAX_CP_LOSS`) than the aggression
+table — pre-vetted opening theory, not a preference — but that ceiling is
+still a real cap, not unconditional.
 """
 
 import chess
@@ -80,7 +85,7 @@ class TestBuildContext:
         assert context.opponent is NEUTRAL_PROFILE
 
 
-class TestCandidateBonusNeverOverridesEligibility:
+class TestEligibilityGuarantees:
     def test_gambit_move_absent_from_the_pool_cannot_be_chosen(self):
         """The gambit's next move isn't even a candidate here — the bonus
         function has nothing to attach to, and the engine's own top pick wins."""
@@ -92,17 +97,51 @@ class TestCandidateBonusNeverOverridesEligibility:
         chosen = tal_bot.select_move(board, pool, aggression=5, strategy_context=context)
         assert board.san(chosen) != "e4"  # never offered, so never chosen
 
-    def test_gambit_move_outside_tolerance_is_not_chosen(self):
-        """The gambit's move (e4) IS in the pool, but far enough below the
-        best move that no aggression level's tolerance gate admits it — the
-        gambit bonus must not be able to override that."""
+    def test_gambit_move_beyond_grandmaster_tolerance_still_playable(self):
+        """The actual bug this eligibility exception fixes: at the tight
+        Grandmaster tolerance (70cp at aggression 5), a real gambit's book
+        move used to get excluded from the eligible pool entirely — even
+        though nothing else was wrong with it — so the bot would silently
+        abandon the very gambit line it was told to play. 100cp comfortably
+        clears that 70cp ceiling, so it must still be chosen once it's the
+        gambit's own next scripted move."""
         board = chess.Board()
         gambit = gambits.get_gambit("kings_gambit")
         context = build_context(board, gambit, [], chess.WHITE, True)
 
-        # 300cp behind the best move — outside even the loosest practice-tier
-        # tolerance band (AGGRESSION_TOLERANCE_CP[5] == 120).
-        pool = candidates(board, ("d4", 300), ("e4", 0))
+        pool = candidates(board, ("d4", 100), ("e4", 0))
+        chosen = tal_bot.select_move(
+            board, pool, aggression=5, elo=tal_bot.GRANDMASTER_ELO, strategy_context=context
+        )
+        assert board.san(chosen) == "e4"
+
+    def test_gambit_move_stays_eligible_at_any_cp_loss(self):
+        """Eligibility for the gambit's own scripted move is unconditional,
+        not just a wider ceiling — measured necessary against real bundled
+        gambits: Smith-Morra's 3.c3 declines an immediate free recapture (a
+        concession an engine reads as far larger than "slightly worse"), and
+        the Halloween Gambit sacrifices two knights outright. A 900cp gap —
+        comfortably past any finite ceiling that would still mean anything —
+        must still be chosen once it's the gambit's own next scripted move,
+        exactly as a small gap already is above."""
+        board = chess.Board()
+        gambit = gambits.get_gambit("kings_gambit")
+        context = build_context(board, gambit, [], chess.WHITE, True)
+
+        pool = candidates(board, ("d4", 900), ("e4", 0))
+        chosen = tal_bot.select_move(board, pool, aggression=5, strategy_context=context)
+        assert board.san(chosen) == "e4"
+
+    def test_only_the_exact_scripted_move_gets_the_exemption(self):
+        """The unconditional eligibility is scoped to the gambit's own next
+        move (e4 here) specifically — not "any move, because a gambit
+        happens to be active." An unrelated weak candidate at the same huge
+        cp_loss must still lose to the engine's actual best move."""
+        board = chess.Board()
+        gambit = gambits.get_gambit("kings_gambit")
+        context = build_context(board, gambit, [], chess.WHITE, True)
+
+        pool = candidates(board, ("d4", 900), ("a3", 0))  # a3 isn't the gambit's move
         chosen = tal_bot.select_move(board, pool, aggression=5, strategy_context=context)
         assert board.san(chosen) == "d4"
 
