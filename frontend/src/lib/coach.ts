@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import type { Classification, MoveAnalysis } from '../types';
+import type { Classification, MoveAnalysis, Side } from '../types';
 
 /**
  * Template-based coaching commentary for the analysis page only — no LLM
@@ -196,32 +196,6 @@ const TEMPLATES: Record<Classification, string[]> = {
   forced: FORCED_LINES,
 };
 
-/**
- * The coach's face for one move, dramatic swings for the tiers worth
- * reacting to (see `isNotableMove` below), calmer for the rest — plain
- * Unicode emoji only, no ZWJ sequences, for the same reason the figurine
- * glyphs elsewhere in this panel got an explicit font fallback: coverage for
- * anything fancier isn't guaranteed everywhere this renders.
- */
-const COACH_EXPRESSIONS: Record<Classification, string> = {
-  brilliant: '🤯',
-  great: '🔥',
-  best: '😌',
-  excellent: '🙂',
-  good: '🙂',
-  book: '📖',
-  inaccuracy: '😬',
-  mistake: '😅',
-  blunder: '😱',
-  forced: '🙃',
-};
-
-/** Shown before any move has been played yet — no verdict to react to. */
-export const COACH_IDLE_EXPRESSION = '♜';
-
-export function coachExpression(classification: Classification): string {
-  return COACH_EXPRESSIONS[classification] ?? COACH_IDLE_EXPRESSION;
-}
 
 /** A few interchangeable ways to say "nothing worth interrupting for here" —
  * picked deterministically from `ply` (see the module docstring above), so
@@ -263,11 +237,16 @@ export function isNotableMove(classification: Classification): boolean {
  */
 const ROOK_FLOURISH_TIERS = new Set<Classification>(['brilliant', 'great']);
 
-export function commentaryForAnalysisMove(move: MoveAnalysis): string {
+/** The line pool `commentaryForAnalysisMove`/`buildGameNarrative` both pick
+ * from for one move — factored out so the two stay in sync on the
+ * rook-flourish special case rather than duplicating it. */
+function templatesForMove(move: MoveAnalysis): string[] {
   const isRookFlourish = ROOK_FLOURISH_TIERS.has(move.classification) && pieceOf(move.san) === 'R';
-  const template = isRookFlourish
-    ? pick(ROOK_LINES, move.ply)
-    : pick(TEMPLATES[move.classification] ?? BEST_LINES, move.ply);
+  return isRookFlourish ? ROOK_LINES : (TEMPLATES[move.classification] ?? BEST_LINES);
+}
+
+export function commentaryForAnalysisMove(move: MoveAnalysis): string {
+  const template = pick(templatesForMove(move), move.ply);
   const suffix = SUBOPTIMAL_TIERS.has(move.classification) ? bestMoveSentence(move) : '';
   return template.replace('{san}', naturalizeSan(move.san)) + suffix;
 }
@@ -291,4 +270,131 @@ export function detailForAnalysisMove(move: MoveAnalysis): string {
         : "No change in winning chances — right on the engine's own line.";
   const best = bestMoveSentence(move);
   return best ? `${swingLine}${best}` : swingLine;
+}
+
+export type GamePhase = 'opening' | 'middlegame' | 'endgame';
+
+/** A cheap phase estimate from data already on `MoveAnalysis` — no chess.js
+ * board needed, just the move number plus a piece count off `fen_before`'s
+ * own placement field. Good enough for "is this early enough to still
+ * mention the opening name" / "few enough pieces left to call this an
+ * endgame", not a rigorous phase detector. */
+export function gamePhase(move: MoveAnalysis): GamePhase {
+  const pieceField = move.fen_before.split(' ')[0];
+  const pieceCount = (pieceField.match(/[kqrbnp]/gi) ?? []).length;
+  if (move.move_number <= 10) return 'opening';
+  if (move.move_number >= 30 || pieceCount <= 12) return 'endgame';
+  return 'middlegame';
+}
+
+/** Like `pick`, but re-rolls once (to the next line, wrapping) when the
+ * deterministic seed would repeat whatever line index was used last time for
+ * this tier — avoids two notable moves in a row reading the exact same
+ * template. No-ops (keeps the seeded pick) when there's only one line to
+ * choose from. */
+function pickAvoiding(
+  lines: string[],
+  seed: number,
+  avoidIndex: number | undefined,
+): { text: string; index: number } {
+  const primary = ((seed % lines.length) + lines.length) % lines.length;
+  const index = lines.length > 1 && primary === avoidIndex ? (primary + 1) % lines.length : primary;
+  return { text: lines[index], index };
+}
+
+function capitalizeSide(side: Side): string {
+  return side === 'white' ? 'White' : 'Black';
+}
+
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+export type NarrativeContext = {
+  game: { opening_name: string | null; eco: string | null } | null;
+  accuracy: { white: number | null; black: number | null };
+};
+
+/**
+ * One deterministic pass over the whole game (ply order), producing enriched
+ * commentary for every NOTABLE move (same set `isNotableMove` already
+ * defines) — non-notable plies are simply absent from the returned map, and
+ * callers keep falling back to `quietCoachLine`/`commentaryForAnalysisMove`
+ * as before. All "memory" (last template index per tier, per-side streaks,
+ * whether the opening's been mentioned yet) is a local variable scoped to
+ * this one call — never module state — so a single upfront pass keyed purely
+ * on ply order stays stable regardless of how the user actually navigates
+ * (notable-move nav, arrow keys, and the move list can all jump around
+ * non-linearly; a ref incremented during navigation would not).
+ */
+export function buildGameNarrative(moves: MoveAnalysis[], context: NarrativeContext): Map<string, string> {
+  const result = new Map<string, string>();
+  const lastTemplateIndexByTier: Partial<Record<Classification, number>> = {};
+  const sideStreak: Record<Side, { tier: Classification | null; count: number }> = {
+    white: { tier: null, count: 0 },
+    black: { tier: null, count: 0 },
+  };
+  let openingMentioned = false;
+
+  const notableIndices: number[] = [];
+  moves.forEach((move, index) => {
+    if (isNotableMove(move.classification)) notableIndices.push(index);
+  });
+  const lastNotableIndex = notableIndices.length > 0 ? notableIndices[notableIndices.length - 1] : -1;
+
+  moves.forEach((move, index) => {
+    if (!isNotableMove(move.classification)) return;
+
+    const { text: template, index: usedIndex } = pickAvoiding(
+      templatesForMove(move),
+      move.ply,
+      lastTemplateIndexByTier[move.classification],
+    );
+    lastTemplateIndexByTier[move.classification] = usedIndex;
+
+    let text = template.replace('{san}', naturalizeSan(move.san));
+    if (SUBOPTIMAL_TIERS.has(move.classification)) text += bestMoveSentence(move);
+
+    const streak = sideStreak[move.side];
+    if (streak.tier === move.classification) {
+      streak.count += 1;
+    } else {
+      streak.tier = move.classification;
+      streak.count = 1;
+    }
+    if (streak.count >= 2 && (move.classification === 'blunder' || move.classification === 'mistake')) {
+      text += ` That's ${capitalizeSide(move.side)}'s ${ordinal(streak.count)} ${move.classification} in a row.`;
+    }
+    if (streak.count >= 2 && (move.classification === 'brilliant' || move.classification === 'great')) {
+      text += ` ${capitalizeSide(move.side)} is on fire — back-to-back ${move.classification} moves.`;
+    }
+
+    if (!openingMentioned && gamePhase(move) === 'opening' && context.game?.opening_name) {
+      const ecoPrefix = context.game.eco ? `${context.game.eco} — ` : '';
+      text += ` And this is happening in the ${ecoPrefix}${context.game.opening_name}.`;
+      openingMentioned = true;
+    }
+
+    if (index === lastNotableIndex) {
+      const acc = context.accuracy[move.side];
+      if (acc !== null) {
+        text += ` Final ${capitalizeSide(move.side).toLowerCase()} accuracy for the game: ${Math.round(acc)}%.`;
+      }
+    }
+
+    result.set(move.id, text);
+  });
+
+  return result;
 }

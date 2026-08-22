@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
-import {
-  COACH_IDLE_EXPRESSION,
-  coachExpression,
-  commentaryForAnalysisMove,
-  detailForAnalysisMove,
-  isNotableMove,
-  quietCoachLine,
-} from '../../lib/coach';
+import { CoachMascot } from './CoachMascot';
+import { commentaryForAnalysisMove, detailForAnalysisMove, isNotableMove, quietCoachLine } from '../../lib/coach';
+import { scoreVoice } from '../../lib/coachVoice';
 import { classificationColor, classificationIcon, classificationLabel } from '../../styles/classification-colors';
 import type { MoveAnalysis } from '../../types';
 
@@ -23,6 +18,17 @@ type CoachPanelProps = {
   onPreviousNotable?: () => void;
   hasNextNotable?: boolean;
   hasPreviousNotable?: boolean;
+  /** The game-arc-aware line for a notable move (see `buildGameNarrative`),
+   * when the caller has one — falls back to the per-move-isolated
+   * `commentaryForAnalysisMove` when omitted, so this component still works
+   * standalone. */
+  narrativeText?: string;
+  voices?: SpeechSynthesisVoice[];
+  selectedVoiceURI?: string | null;
+  onSelectVoice?: (voiceURI: string | null) => void;
+  /** Answers a free-text question from data already on screen — see
+   * `answerCoachQuestion`. `undefined` hides the "Ask a question" control. */
+  onAsk?: (question: string) => string;
 };
 
 /** Tiers dramatic enough to earn the avatar's own reaction animation — a
@@ -39,13 +45,21 @@ function moodAnimationClass(move: MoveAnalysis | null): string {
   return '';
 }
 
+/** English-first, best-scored-first ordering for the voice picker — falls
+ * back to the full list if the browser exposes no English voices at all. */
+function rankedVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  const english = voices.filter((v) => /^en/i.test(v.lang));
+  const pool = english.length > 0 ? english : voices;
+  return [...pool].sort((a, b) => scoreVoice(b) - scoreVoice(a));
+}
+
 /**
  * A face for the coach: avatar/name card, a move-quality badge, the *visible*
  * text of whatever it's currently saying (so muting the voice, or a browser
- * with none, never loses the commentary), and an "Explain" toggle for the
- * longer win%-swing read on the same move — the chess.com Game Review
- * layout's shape, built from data this app already computes rather than a
- * per-move engine call.
+ * with none, never loses the commentary), an "Explain" toggle for the longer
+ * win%-swing read on the same move, and an optional "Ask a question" form —
+ * the chess.com Game Review layout's shape, built from data this app already
+ * computes rather than a per-move engine call or any LLM.
  *
  * `commentaryForAnalysisMove`/`detailForAnalysisMove` are pure functions of
  * `move`, so this renders straight from them rather than staying in sync
@@ -59,8 +73,16 @@ export function CoachPanel({
   onPreviousNotable,
   hasNextNotable = false,
   hasPreviousNotable = false,
+  narrativeText,
+  voices = [],
+  selectedVoiceURI = null,
+  onSelectVoice,
+  onAsk,
 }: CoachPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState<string | null>(null);
 
   // A new move starts collapsed — "Explain" is an on-demand dig-deeper, not
   // a state that should carry over from whatever move was showing before.
@@ -72,29 +94,27 @@ export function CoachPanel({
   const text = !move
     ? "Step through the game, chat, and I'll walk you through it."
     : notable
-      ? commentaryForAnalysisMove(move)
+      ? (narrativeText ?? commentaryForAnalysisMove(move))
       : quietCoachLine(move.ply);
 
-  const expression = move ? coachExpression(move.classification) : COACH_IDLE_EXPRESSION;
   // Re-keying on the move restarts the reaction animation every time — a
   // step back to a move already reacted to should still play it again,
   // rather than only firing the first time each position is visited.
   const avatarKey = move ? `${move.id}-${move.classification}` : 'idle';
 
   const showNotableNav = onNextNotable !== undefined || onPreviousNotable !== undefined;
+  const voiceOptions = rankedVoices(voices);
 
   return (
     <div className="panel coach">
       <div className="coach__head">
-        <span
+        <CoachMascot
           key={avatarKey}
+          classification={move?.classification ?? null}
           className={`coach__avatar ${moodAnimationClass(move)}`}
-          aria-hidden="true"
-        >
-          {expression}
-        </span>
+        />
         <div className="coach__head-text">
-          <span className="coach__name">GothamChess</span>
+          <span className="coach__name">Rook</span>
           {move && (
             <span
               className="coach__move-badge"
@@ -105,6 +125,21 @@ export function CoachPanel({
             </span>
           )}
         </div>
+        {voiceOptions.length > 0 && onSelectVoice && (
+          <select
+            className="form__input coach__voice-select"
+            value={selectedVoiceURI ?? ''}
+            onChange={(e) => onSelectVoice(e.target.value || null)}
+            aria-label="Coach voice"
+          >
+            <option value="">Auto (recommended)</option>
+            {voiceOptions.map((v) => (
+              <option key={v.voiceURI} value={v.voiceURI}>
+                {v.name} ({v.lang})
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="button"
           className="button coach__mute"
@@ -126,6 +161,11 @@ export function CoachPanel({
         {move && (
           <button type="button" className="button coach__explain" onClick={() => setExpanded((v) => !v)}>
             {expanded ? 'Hide detail' : 'Explain'}
+          </button>
+        )}
+        {onAsk && (
+          <button type="button" className="button coach__ask-toggle" onClick={() => setAskOpen((v) => !v)}>
+            {askOpen ? 'Hide questions' : 'Ask a question'}
           </button>
         )}
         {showNotableNav && (
@@ -151,6 +191,39 @@ export function CoachPanel({
           </div>
         )}
       </div>
+
+      {askOpen && onAsk && (
+        <form
+          className="coach__ask"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = question.trim();
+            if (!q) return;
+            setAnswer(onAsk(q));
+          }}
+        >
+          <label className="form__label" htmlFor="coach-question">
+            Ask the coach
+          </label>
+          <div className="form__row">
+            <input
+              id="coach-question"
+              className="form__input coach__ask-input"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="e.g. why was that a blunder?"
+            />
+            <button
+              type="submit"
+              className="button coach__ask-submit"
+              disabled={question.trim().length === 0}
+            >
+              Ask
+            </button>
+          </div>
+          {answer && <p className="coach__text coach__answer">{answer}</p>}
+        </form>
+      )}
     </div>
   );
 }

@@ -16,7 +16,8 @@ import { CoachPanel } from '../analysis/CoachPanel';
 import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useCoachVoice } from '../../lib/coachVoice';
-import { commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
+import { buildGameNarrative, commentaryForAnalysisMove, isNotableMove } from '../../lib/coach';
+import { answerCoachQuestion } from '../../lib/coachQA';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
 import { formatEval } from '../../lib/evaluation';
 import { explorePosition } from '../../api/analysis';
@@ -256,7 +257,38 @@ export function GameAnalysisPage({
   }, [previewPosition?.fen]);
 
   const { muted, toggleMuted, playForMove } = useSoundEffects();
-  const { muted: coachMuted, toggleMuted: toggleCoachMuted, speak } = useCoachVoice();
+  const {
+    muted: coachMuted,
+    toggleMuted: toggleCoachMuted,
+    speak,
+    voices: coachVoices,
+    selectedVoiceURI: coachSelectedVoiceURI,
+    setVoice: setCoachVoice,
+  } = useCoachVoice();
+
+  // One deterministic pass over the whole game — see buildGameNarrative's own
+  // docstring for why this has to be a single upfront pass keyed on ply order
+  // rather than state accumulated during navigation (users jump around via
+  // notable-move nav, arrow keys, and move-list clicks, not always forward).
+  const narrative = useMemo(
+    () =>
+      buildGameNarrative(moves, {
+        game: game ? { opening_name: game.opening_name, eco: game.eco } : null,
+        accuracy: { white: whiteAccuracy, black: blackAccuracy },
+      }),
+    [moves, game, whiteAccuracy, blackAccuracy],
+  );
+
+  const askCoach = useCallback(
+    (question: string) =>
+      answerCoachQuestion(question, {
+        move: currentMoveIndex > 0 ? moves[currentMoveIndex - 1] : null,
+        moves,
+        game,
+        accuracy: { white: whiteAccuracy, black: blackAccuracy },
+      }),
+    [currentMoveIndex, moves, game, whiteAccuracy, blackAccuracy],
+  );
 
   // Sound + coach commentary on navigation. Every navigation path in the app
   // — prev/next buttons, move-row clicks, arrow keys, Home/End, eval-graph
@@ -282,9 +314,9 @@ export function GameAnalysisPage({
     if (!move) return;
     playForMove(move.san);
     if (isNotableMove(move.classification)) {
-      speak(commentaryForAnalysisMove(move), move.classification);
+      speak(narrative.get(move.id) ?? commentaryForAnalysisMove(move), move.classification);
     }
-  }, [currentMoveIndex, moves, playForMove, speak]);
+  }, [currentMoveIndex, moves, playForMove, speak, narrative]);
 
   // Keyboard navigation. Bound at the document so the board is reachable
   // without focusing it first, but skipped while the user is typing.
@@ -584,6 +616,11 @@ export function GameAnalysisPage({
             onPreviousNotable={goToPreviousNotable}
             hasNextNotable={hasNextNotable}
             hasPreviousNotable={hasPreviousNotable}
+            narrativeText={currentMove ? narrative.get(currentMove.id) : undefined}
+            voices={coachVoices}
+            selectedVoiceURI={coachSelectedVoiceURI}
+            onSelectVoice={setCoachVoice}
+            onAsk={askCoach}
           />
         </aside>
 

@@ -2948,6 +2948,7 @@
 .coach__head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -2959,16 +2960,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.8rem;
-  color: var(--accent-contrast);
-  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  overflow: hidden;
+  background: var(--bg-sunken);
+}
+
+.coach__avatar svg {
+  width: 72%;
+  height: 72%;
 }
 
 .coach__head-text {
   display: flex;
   flex-direction: column;
+  flex: 1 1 100px;
   gap: 2px;
-  min-width: 0;
+  min-width: 60px;
 }
 
 .coach__move-badge {
@@ -3077,4 +3083,29 @@
   display: flex;
   gap: 6px;
   margin-left: auto;
+}
+
+.coach__voice-select {
+  font-size: 0.8rem;
+  max-width: 160px;
+}
+
+.coach__ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coach__ask-input {
+  flex: 1;
+}
+
+.coach__ask-submit {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}
+
+.coach__answer {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
 }
