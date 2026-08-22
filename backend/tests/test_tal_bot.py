@@ -622,7 +622,7 @@ class TestGrandmasterRouting:
         assert engine.kwargs["elo"] is None
         assert engine.kwargs["depth"] == tal_bot.GRANDMASTER_SEARCH_DEPTH
         assert engine.calls[0]["depth"] == tal_bot.GRANDMASTER_SEARCH_DEPTH
-        assert engine.calls[0]["time_limit"] == tal_bot.GRANDMASTER_TIME_LIMIT_S
+        assert engine.calls[0]["time_limit"] == tal_bot.settings.GRANDMASTER_TIME_LIMIT_S
         assert engine.calls[0]["multipv"] == tal_bot.GRANDMASTER_MULTIPV
         # Deliberately *narrower* than the practice tiers (it used to be wider).
         # MultiPV costs depth: every extra line has to be refuted to the same

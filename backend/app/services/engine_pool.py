@@ -124,7 +124,7 @@ class EngineAnalysis:
 # synchronous HTTP request, so "open" meant "spawn a fresh process, do the UCI
 # handshake, configure it" on *every single move* - pure fixed overhead paid
 # again and again, and the dominant cost of a bot move on a CPU-starved host
-# (see tal_bot.GRANDMASTER_TIME_LIMIT_S's history of chasing this exact
+# (see settings.GRANDMASTER_TIME_LIMIT_S's history of chasing this exact
 # latency by cutting search time, which was never the actual bottleneck).
 #
 # `reuse_process=True` opts a `StockfishEngine` into a small process cache

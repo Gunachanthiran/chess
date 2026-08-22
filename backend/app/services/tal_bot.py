@@ -34,6 +34,7 @@ from dataclasses import dataclass
 
 import chess
 
+from app.config import settings
 from app.errors import EngineError
 from app.services import gambit_strategy
 from app.services.classification import PIECE_VALUES, material_balance
@@ -82,41 +83,12 @@ GRANDMASTER_ELO = 3600
 GRANDMASTER_SEARCH_DEPTH = 26
 
 # The candidate search's default wall-clock ceiling (1.5s) is tuned for the
-# practice tiers and would cut a depth-18 search off long before it finished,
-# quietly making GRANDMASTER_SEARCH_DEPTH decorative. This tier gets a longer
-# leash; it still bounds the synchronous HTTP request.
-#
-# Was 20s, then 10s, then 5s, then 2s, now 0.5s — each cut for the same
-# reason (a live opponent felt every move as a real wait). The search
-# essentially always spends its *entire* requested budget before reaching
-# depth 26 regardless of host, so this constant is, in practice, choosing
-# "how many seconds of search" outright, not a rarely-hit safety ceiling.
-#
-# On the free-tier host this is not a clean 1:1 mapping, though: this is
-# *requested* engine time, not *delivered* wall-clock time there. A
-# CPU-starved process (this host gets roughly a tenth of a real core) gets
-# scheduled far less often, so Stockfish's own internal clock-checking
-# between search iterations happens less frequently too — by the time it
-# next checks the clock and notices the deadline passed, more real time has
-# elapsed than the deadline itself. Measured overshoot so far: 5s requested
-# -> 10-15s real, then 2s requested -> 7s real (~3.5x). 0.5s here is that
-# measured ratio applied forward, aimed at landing near ~2s real wall-clock
-# time — an estimate again, not a guarantee, since the ratio itself has
-# varied between measurements (position complexity, host load).
-#
-# Below roughly this point, the fixed per-move cost of spawning a fresh
-# Stockfish process and completing the UCI handshake (~0.4s measured
-# locally, likely more when CPU-starved — see `engine_pool.StockfishEngine`)
-# starts to dominate over the search time itself, so further cuts here have
-# rapidly diminishing returns. The next real lever past that floor is
-# reusing one long-lived engine process across moves instead of spawning a
-# new one per move — a bigger change (needs a lifecycle-managed, lock-guarded
-# shared engine), not attempted yet since it hasn't been asked for.
-#
-# Nothing between the browser and uvicorn imposes a shorter deadline
-# (`apiFetch` sets no timeout, no proxy sits in front of the app), so the
-# request survives whatever this ends up actually taking.
-GRANDMASTER_TIME_LIMIT_S = 0.5
+# practice tiers and would cut a depth-18+ search off long before it
+# finished, quietly making GRANDMASTER_SEARCH_DEPTH decorative. This tier
+# gets a longer leash, read from `settings.GRANDMASTER_TIME_LIMIT_S` (see
+# that field's own comment for the measured depth-vs-time history and why
+# it's a setting rather than a constant here) rather than hardcoded, so a
+# resource-constrained deployment can tune it down without a code change.
 
 
 def is_grandmaster(elo: int) -> bool:
@@ -318,7 +290,7 @@ def choose_bot_move(
             elo=None, depth=GRANDMASTER_SEARCH_DEPTH, reuse_process=True
         )
         depth = GRANDMASTER_SEARCH_DEPTH
-        time_limit = GRANDMASTER_TIME_LIMIT_S
+        time_limit = settings.GRANDMASTER_TIME_LIMIT_S
         multipv = GRANDMASTER_MULTIPV
     else:
         engine = StockfishEngine(elo=elo, reuse_process=True)

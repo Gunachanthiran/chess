@@ -99,6 +99,25 @@ class Settings(BaseSettings):
     # actual fix for that, at the cost of a slower job overall.
     ANALYSIS_TIME_LIMIT_S: float = 8.0
 
+    # Wall-clock ceiling for the Grandmaster bot tier's own move search
+    # (tal_bot.choose_bot_move) - separate from ANALYSIS_TIME_LIMIT_S above,
+    # which bounds the full-game analysis pipeline instead. Repeatedly cut
+    # down in the past (20s -> 10s -> 5s -> 2s -> 0.5s) specifically to keep
+    # a live Play Bot opponent from feeling like a real wait on a
+    # CPU-constrained deployment (e.g. Render's free tier) - but measured
+    # directly on this machine, 0.5s only reached depth ~11-12 in a real
+    # middlegame, nowhere near GRANDMASTER_SEARCH_DEPTH's 26, silently
+    # undermining "unrestricted full-strength Stockfish" for the one tier
+    # whose entire premise is being genuinely hard to beat. 8.0 (matching
+    # ANALYSIS_TIME_LIMIT_S's own established default above) measured to
+    # depth ~20 in the same position - real, substantial strength, not a
+    # cosmetic bump. The UI already shows a "bot thinking" state during this
+    # wait (PlayBotPage's `botThinking`), so the extra time reads as the bot
+    # actually calculating rather than a stall. A CPU-constrained deployment
+    # can set this back down via its own `.env` without touching code, same
+    # as every other setting on this page.
+    GRANDMASTER_TIME_LIMIT_S: float = 8.0
+
     CORS_ORIGINS: str = "http://localhost:5173"
 
     LICHESS_API_BASE: str = "https://lichess.org"
