@@ -61,32 +61,6 @@ class TestToleranceTable:
         )
 
 
-class TestGrandmasterPersonalityGain:
-    """Mirrors TestGrandmasterToleranceTable: the Grandmaster tier's own gain
-    table moves together with its own tolerance table (see
-    GRANDMASTER_AGGRESSION_PERSONALITY_GAIN's own comment) - they only
-    actually differ at level 5 today."""
-
-    @pytest.mark.parametrize("level", [1, 2, 3, 4])
-    def test_matches_the_practice_table_below_level_five(self, level):
-        assert tal_bot.personality_gain_for(
-            level, elo=tal_bot.GRANDMASTER_ELO
-        ) == tal_bot.AGGRESSION_PERSONALITY_GAIN[level]
-
-    def test_level_five_is_raised_above_the_practice_table(self):
-        """Requested explicitly, alongside the wider tolerance: a wider gate
-        with an unchanged gain just adds losing-tiebreak candidates to the
-        pool without picking them more often (see this table's own comment)."""
-        gm = tal_bot.personality_gain_for(5, elo=tal_bot.GRANDMASTER_ELO)
-        practice = tal_bot.personality_gain_for(5, elo=1500)
-        assert gm > practice
-        assert gm == tal_bot.GRANDMASTER_AGGRESSION_PERSONALITY_GAIN[5]
-
-    def test_an_unknown_tier_reads_the_practice_table(self):
-        for level in range(1, 6):
-            assert tal_bot.personality_gain_for(level) == tal_bot.AGGRESSION_PERSONALITY_GAIN[level]
-
-
 class TestGrandmasterToleranceTable:
     """The top tier trades style for strength on a much tighter budget.
 
@@ -104,12 +78,8 @@ class TestGrandmasterToleranceTable:
             assert gm < practice
 
     def test_top_grandmaster_tolerance_stays_within_engine_noise(self):
-        """130cp - just under a pawn and a half - is the deliberately widened
-        budget requested to stop this tier drawing so often against strong
-        (~2600+) opposition; still meaningfully tighter than the practice
-        table's 150cp ceiling, which is tuned against an already-weakened,
-        elo-capped search rather than this tier's full-strength one."""
-        assert tal_bot.tolerance_for(5, elo=tal_bot.GRANDMASTER_ELO) <= 135
+        """70cp is "a real but sound offer", still well under a full pawn."""
+        assert tal_bot.tolerance_for(5, elo=tal_bot.GRANDMASTER_ELO) <= 75
 
     @pytest.mark.parametrize("elo", [800, 1500, 2000, 2500, tal_bot.GRANDMASTER_ELO - 1])
     def test_practice_tiers_keep_the_original_table(self, elo):
@@ -140,11 +110,11 @@ class TestGrandmasterToleranceTable:
     def test_a_costly_sacrifice_is_refused_at_grandmaster_but_taken_in_practice(self):
         """The behavioural difference, not just the table's numbers.
 
-        Bxh7+ is 140cp behind the engine's best: inside the practice tier's
-        level-5 budget (150cp) and outside the Grandmaster one (130cp).
+        Bxh7+ is 90cp behind the engine's best: inside the practice tier's
+        level-5 budget (120cp) and outside the Grandmaster one (70cp).
         """
         board = chess.Board(GREEK_GIFT_FEN)
-        pool = candidates(board, ("O-O", 150), ("Bxh7+", 10))
+        pool = candidates(board, ("O-O", 100), ("Bxh7+", 10))
 
         practice = tal_bot.select_move(board, pool, aggression=5, elo=1500)
         grandmaster = tal_bot.select_move(
@@ -170,11 +140,11 @@ class TestGrandmasterToleranceTable:
     def test_the_tier_gate_reaches_the_eligibility_flag(self):
         """The gate's direct effect: which candidates are allowed at all.
 
-        140cp behind the engine's best: inside the practice tier's level-5
-        budget (150cp) but still outside the Grandmaster one (130cp).
+        90cp behind the engine's best: inside the practice tier's level-5
+        budget (120cp) but still outside the Grandmaster one (70cp).
         """
         board = chess.Board(GREEK_GIFT_FEN)
-        pool = candidates(board, ("O-O", 150), ("Bxh7+", 10))
+        pool = candidates(board, ("O-O", 100), ("Bxh7+", 10))
 
         gm_scored = {
             board.san(item.candidate.move): item
