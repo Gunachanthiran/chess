@@ -78,9 +78,8 @@ class TestGrandmasterToleranceTable:
             assert gm < practice
 
     def test_top_grandmaster_tolerance_stays_within_engine_noise(self):
-        """95cp - a modest, deliberate step up from 70 - stays under a full
-        pawn, still meaningfully tighter than the practice table's 150cp."""
-        assert tal_bot.tolerance_for(5, elo=tal_bot.GRANDMASTER_ELO) <= 100
+        """70cp is "a real but sound offer", still well under a full pawn."""
+        assert tal_bot.tolerance_for(5, elo=tal_bot.GRANDMASTER_ELO) <= 75
 
     @pytest.mark.parametrize("elo", [800, 1500, 2000, 2500, tal_bot.GRANDMASTER_ELO - 1])
     def test_practice_tiers_keep_the_original_table(self, elo):
@@ -111,11 +110,11 @@ class TestGrandmasterToleranceTable:
     def test_a_costly_sacrifice_is_refused_at_grandmaster_but_taken_in_practice(self):
         """The behavioural difference, not just the table's numbers.
 
-        Bxh7+ is 110cp behind the engine's best: inside the practice tier's
-        level-5 budget (150cp) and outside the Grandmaster one (95cp).
+        Bxh7+ is 90cp behind the engine's best: inside the practice tier's
+        level-5 budget (120cp) and outside the Grandmaster one (70cp).
         """
         board = chess.Board(GREEK_GIFT_FEN)
-        pool = candidates(board, ("O-O", 120), ("Bxh7+", 10))
+        pool = candidates(board, ("O-O", 100), ("Bxh7+", 10))
 
         practice = tal_bot.select_move(board, pool, aggression=5, elo=1500)
         grandmaster = tal_bot.select_move(
@@ -141,11 +140,11 @@ class TestGrandmasterToleranceTable:
     def test_the_tier_gate_reaches_the_eligibility_flag(self):
         """The gate's direct effect: which candidates are allowed at all.
 
-        110cp behind the engine's best: inside the practice tier's level-5
-        budget (150cp) but still outside the Grandmaster one (95cp).
+        90cp behind the engine's best: inside the practice tier's level-5
+        budget (120cp) but still outside the Grandmaster one (70cp).
         """
         board = chess.Board(GREEK_GIFT_FEN)
-        pool = candidates(board, ("O-O", 120), ("Bxh7+", 10))
+        pool = candidates(board, ("O-O", 100), ("Bxh7+", 10))
 
         gm_scored = {
             board.san(item.candidate.move): item
