@@ -42,6 +42,7 @@ export type BotGameHook = {
     aggression: number,
     gambitId: string | null,
     adaptToOpponent: boolean,
+    fullAttackMode: boolean,
   ) => Promise<string | null>;
   /**
    * Re-fetches an existing game by id and adopts it as current — used to
@@ -282,6 +283,7 @@ export function useBotGame(): BotGameHook {
       aggression: number,
       gambitId: string | null,
       adaptToOpponent: boolean,
+      fullAttackMode: boolean,
     ): Promise<string | null> => {
       setCreating(true);
       setError(null);
@@ -293,6 +295,7 @@ export function useBotGame(): BotGameHook {
           bot_aggression: aggression,
           gambit_id: gambitId,
           adapt_to_opponent: adaptToOpponent,
+          full_attack_mode: fullAttackMode,
         });
         botGameRef.current = data.bot_game;
         setBotGame(data.bot_game);

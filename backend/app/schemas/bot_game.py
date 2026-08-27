@@ -58,6 +58,14 @@ class CreateBotGameRequest(BaseModel):
         default=True,
         description="Whether the bot nudges its personality toward the opponent's observed style.",
     )
+    full_attack_mode: bool = Field(
+        default=False,
+        description=(
+            "Sacrifices freely, including a whole rook, for a direct attack — "
+            "a separate, explicit override of the aggression slider's own "
+            "tolerance, not a sharper aggression level."
+        ),
+    )
 
     @field_validator("gambit_id")
     @classmethod
@@ -93,6 +101,7 @@ class BotGameOut(BaseModel):
     bot_aggression: int
     gambit_id: str | None
     adapt_to_opponent: bool
+    full_attack_mode: bool
     status: BotGameStatus
     result: str | None
     created_at: datetime

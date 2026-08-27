@@ -160,6 +160,88 @@ class TestGrandmasterToleranceTable:
         assert practice_scored["Bxh7+"].eligible is True
 
 
+class TestFullAttackMode:
+    """A separate, explicit opt-in - not another aggression-table edit (that
+    axis has already been widened and reverted twice this session and is
+    left exactly as it is). Requested directly: real sacrifices, including a
+    whole rook, "worth more" than the aggression slider ever offers."""
+
+    def test_tolerance_bypasses_aggression_and_elo_entirely(self):
+        """Not just wider - a full override, regardless of what aggression/
+        elo are passed alongside it."""
+        assert (
+            tal_bot.tolerance_for(1, elo=tal_bot.GRANDMASTER_ELO, full_attack=True)
+            == tal_bot.FULL_ATTACK_TOLERANCE_CP
+        )
+        assert (
+            tal_bot.tolerance_for(5, elo=1500, full_attack=True)
+            == tal_bot.FULL_ATTACK_TOLERANCE_CP
+        )
+        assert tal_bot.FULL_ATTACK_TOLERANCE_CP > tal_bot.AGGRESSION_TOLERANCE_CP[5]
+        assert tal_bot.FULL_ATTACK_TOLERANCE_CP > tal_bot.GRANDMASTER_AGGRESSION_TOLERANCE_CP[5]
+
+    def test_personality_gain_bypasses_aggression_entirely(self):
+        assert (
+            tal_bot.personality_gain_for(1, full_attack=True)
+            == tal_bot.FULL_ATTACK_PERSONALITY_GAIN
+        )
+        assert tal_bot.FULL_ATTACK_PERSONALITY_GAIN > tal_bot.AGGRESSION_PERSONALITY_GAIN[5]
+
+    def test_a_rook_sized_sacrifice_is_chosen_only_in_full_attack_mode(self):
+        """The actual behavioural proof: a sacrifice far outside every
+        aggression level - including Grandmaster's - is chosen when
+        full_attack=True, and is not chosen at any aggression level without
+        it."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        pool = candidates(board, ("O-O", 400), ("Bxh7+", 10))  # 390cp gap
+
+        assert board.san(
+            tal_bot.select_move(board, pool, aggression=5, full_attack=True)
+        ) == "Bxh7+"
+
+        # Same pool, full_attack off: excluded at every tier that matters.
+        assert board.san(
+            tal_bot.select_move(board, pool, aggression=5, elo=1500)
+        ) == "O-O"
+        assert board.san(
+            tal_bot.select_move(board, pool, aggression=5, elo=tal_bot.GRANDMASTER_ELO)
+        ) == "O-O"
+
+    def test_still_a_real_ceiling_not_unconditional(self):
+        """A candidate beyond even FULL_ATTACK_TOLERANCE_CP - a genuine
+        blunder, not a sacrifice with real compensation - must still lose to
+        the engine's actual best move."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        pool = candidates(board, ("O-O", 700), ("Bxh7+", 10))  # 690cp > 600cp ceiling
+
+        chosen = tal_bot.select_move(board, pool, aggression=5, full_attack=True)
+        assert board.san(chosen) == "O-O"
+
+    def test_overrides_aggression_one_too(self):
+        """Turning Full Attack Mode on is itself the deliberate signal - it
+        still engages personality selection even if the aggression slider
+        happens to sit at 1 ("plain engine, no personality")."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        pool = candidates(board, ("O-O", 400), ("Bxh7+", 10))
+
+        assert board.san(
+            tal_bot.select_move(board, pool, aggression=1, full_attack=True)
+        ) == "Bxh7+"
+        # Confirms aggression=1 really was the reason it wouldn't otherwise pick it.
+        assert board.san(
+            tal_bot.select_move(board, pool, aggression=1, full_attack=False)
+        ) == "O-O"
+
+    def test_full_attack_false_is_the_default_and_a_pure_no_op(self):
+        """Every existing caller - omitting the parameter entirely - must be
+        completely unaffected."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        pool = candidates(board, ("O-O", 40), ("Bxh7+", 10))
+        with_default = tal_bot.select_move(board, pool, aggression=5)
+        explicit_false = tal_bot.select_move(board, pool, aggression=5, full_attack=False)
+        assert with_default == explicit_false
+
+
 class TestAggressionOne:
     def test_returns_the_engines_own_top_candidate(self):
         board = chess.Board(GREEK_GIFT_FEN)
@@ -541,6 +623,11 @@ class TestRealEngine:
     def test_choose_bot_move_returns_a_legal_move(self, aggression):
         board = chess.Board(GREEK_GIFT_FEN)
         move = tal_bot.choose_bot_move(board, elo=1500, aggression=aggression)
+        assert board.is_legal(move)
+
+    def test_full_attack_mode_returns_a_legal_move(self):
+        board = chess.Board(GREEK_GIFT_FEN)
+        move = tal_bot.choose_bot_move(board, elo=1500, aggression=3, full_attack=True)
         assert board.is_legal(move)
 
     def test_choose_bot_move_stays_on_a_real_gambit_line(self):
