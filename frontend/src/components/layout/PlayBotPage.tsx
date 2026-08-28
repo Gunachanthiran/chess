@@ -38,38 +38,25 @@ const GAMBIT_STATUS_TEXT: Record<GambitStatus, string> = {
 /**
  * "Opening / Status / Opponent Style / Bot Strategy" — makes it visible why
  * the bot changed its behaviour, rather than the personality shift being a
- * silent black box. Rendered once a gambit was selected, Full Attack Mode is
- * on, or both; a plain free-play game with neither looks exactly as it did
- * before this existed.
+ * silent black box. Only rendered once a gambit was actually selected; plain
+ * free-play games look exactly as they did before this existed.
  */
 function BotStrategyPanel({ botGame }: { botGame: BotGame }) {
-  if (!botGame.gambit_name && !botGame.full_attack_mode) return null;
+  if (!botGame.gambit_name) return null;
 
   return (
     <div className="panel bot-strategy">
       <div className="panel__header">Strategy</div>
-      {botGame.full_attack_mode && (
-        <div className="bot-strategy__row">
-          <span className="bot-strategy__label">Mode</span>
-          <span className="bot-strategy__value bot-strategy__value--full-attack">
-            🔥 Full Attack
-          </span>
-        </div>
-      )}
-      {botGame.gambit_name && (
-        <>
-          <div className="bot-strategy__row">
-            <span className="bot-strategy__label">Opening</span>
-            <span className="bot-strategy__value">{botGame.gambit_name}</span>
-          </div>
-          <div className="bot-strategy__row">
-            <span className="bot-strategy__label">Status</span>
-            <span className={`bot-strategy__value bot-strategy__value--${botGame.gambit_status}`}>
-              {GAMBIT_STATUS_TEXT[botGame.gambit_status]}
-            </span>
-          </div>
-        </>
-      )}
+      <div className="bot-strategy__row">
+        <span className="bot-strategy__label">Opening</span>
+        <span className="bot-strategy__value">{botGame.gambit_name}</span>
+      </div>
+      <div className="bot-strategy__row">
+        <span className="bot-strategy__label">Status</span>
+        <span className={`bot-strategy__value bot-strategy__value--${botGame.gambit_status}`}>
+          {GAMBIT_STATUS_TEXT[botGame.gambit_status]}
+        </span>
+      </div>
       {botGame.opponent_style.length > 0 && (
         <div className="bot-strategy__row">
           <span className="bot-strategy__label">Opponent Style</span>

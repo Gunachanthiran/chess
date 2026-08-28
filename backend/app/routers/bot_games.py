@@ -56,7 +56,6 @@ def create_bot_game(
         bot_aggression=payload.bot_aggression,
         gambit_id=payload.gambit_id,
         adapt_to_opponent=payload.adapt_to_opponent,
-        full_attack_mode=payload.full_attack_mode,
     )
     return _response(bot_game)
 

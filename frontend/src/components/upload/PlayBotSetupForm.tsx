@@ -19,7 +19,6 @@ type PlayBotSetupFormProps = {
     aggression: number,
     gambitId: string | null,
     adaptToOpponent: boolean,
-    fullAttackMode: boolean,
   ) => void;
   /** True while the create request is in flight. */
   busy?: boolean;
@@ -72,10 +71,6 @@ export function PlayBotSetupForm({
   // gambits/traps unless the player explicitly asks for plain engine play.
   const [selectedGambitValue, setSelectedGambitValue] = useState<string>(RANDOM_GAMBIT_VALUE);
   const [adaptToOpponent, setAdaptToOpponent] = useState(true);
-  // Off by default — a separate, explicit "go for broke" override of the
-  // aggression slider's own tolerance, not a sharper aggression level, so it
-  // stays an opt-in rather than the default experience.
-  const [fullAttackMode, setFullAttackMode] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -141,7 +136,7 @@ export function PlayBotSetupForm({
       gambitId = selectedGambitValue;
     }
 
-    onStart(playerColor, elo, aggression, gambitId, adaptToOpponent, fullAttackMode);
+    onStart(playerColor, elo, aggression, gambitId, adaptToOpponent);
   };
 
   return (
@@ -325,38 +320,8 @@ export function PlayBotSetupForm({
         />
         <span className="form__hint">
           1 = precise, 5 = maximally sharp/sacrificial. {AGGRESSION_LABELS[aggression]}
-          {fullAttackMode && ' Aggression is overridden by Full Attack Mode.'}
         </span>
       </div>
-
-      <span className="form__label">Full Attack Mode</span>
-      <div className="tabs" role="radiogroup" aria-label="Full attack mode">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={fullAttackMode}
-          className={`tabs__tab${fullAttackMode ? ' tabs__tab--active' : ''}`}
-          onClick={() => setFullAttackMode(true)}
-          disabled={busy}
-        >
-          On
-        </button>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={!fullAttackMode}
-          className={`tabs__tab${!fullAttackMode ? ' tabs__tab--active' : ''}`}
-          onClick={() => setFullAttackMode(false)}
-          disabled={busy}
-        >
-          Off
-        </button>
-      </div>
-      <span className="form__hint">
-        {fullAttackMode
-          ? 'No holds barred — the bot looks for real sacrifices, including a whole rook, for a direct attack. Expect a real chance of it losing games it would otherwise hold.'
-          : "Sacrifices stay within the aggression slider's own, safer range."}
-      </span>
 
       {error && <div className="alert alert--error">{error}</div>}
 

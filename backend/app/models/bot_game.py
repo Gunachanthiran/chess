@@ -55,13 +55,6 @@ class BotGame(Base):
     adapt_to_opponent: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
-    # Opt-in, unlike adapt_to_opponent above — a separate, explicit override
-    # of the aggression slider's own tolerance (see tal_bot.py's FULL_ATTACK_*
-    # constants), not a sharper aggression level. Off by default: turning it
-    # on is a deliberate "go for broke" choice, not the safe default.
-    full_attack_mode: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
 
     status: Mapped[BotGameStatus] = mapped_column(
         Enum(

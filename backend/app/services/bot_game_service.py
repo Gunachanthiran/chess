@@ -106,43 +106,23 @@ def strategy_status(bot_game: BotGame) -> tuple[str | None, str, list[str], str 
     tags = list(context.opponent.tags)
 
     if context.gambit is None:
-        summary = _FULL_ATTACK_ONLY_SUMMARY if bot_game.full_attack_mode else None
-        return None, "no_gambit", tags, summary
+        return None, "no_gambit", tags, None
 
-    return (
-        context.gambit.name,
-        context.status,
-        tags,
-        _strategy_summary(context, bot_game.full_attack_mode),
-    )
+    return context.gambit.name, context.status, tags, _strategy_summary(context)
 
 
-# Shown when Full Attack Mode is on but no gambit is selected — the gambit
-# panel's Opening/Status rows have nothing to show, but the mode itself is
-# still worth surfacing (see PlayBotPage.tsx's BotStrategyPanel).
-_FULL_ATTACK_ONLY_SUMMARY = (
-    "Full Attack Mode: no holds barred — real sacrifices, including a rook, "
-    "for a direct attack."
-)
-# Appended to whatever the gambit-status summary already says, so a game
-# with both a gambit and Full Attack Mode selected shows both.
-_FULL_ATTACK_SUFFIX = " Full Attack Mode: sacrificing on sight for a direct attack."
-
-
-def _strategy_summary(context: gambit_strategy.StrategyContext, full_attack_mode: bool = False) -> str:
+def _strategy_summary(context: gambit_strategy.StrategyContext) -> str:
     gambit = context.gambit
     assert gambit is not None
     opponent_desc = ", ".join(context.opponent.tags)
     if context.status == "active":
-        summary = f"Following {gambit.name} — opponent reads {opponent_desc}."
-    elif context.status == "extended":
+        return f"Following {gambit.name} — opponent reads {opponent_desc}."
+    if context.status == "extended":
         style_desc = ", ".join(gambit.style)
-        summary = f"{gambit.name} line complete — keeping its {style_desc} character against a {opponent_desc} opponent."
-    elif context.status == "deviated":
-        summary = f"Off the {gambit.name} line — adapting to a {opponent_desc} opponent."
-    else:
-        summary = "Free play."
-    return summary + _FULL_ATTACK_SUFFIX if full_attack_mode else summary
+        return f"{gambit.name} line complete — keeping its {style_desc} character against a {opponent_desc} opponent."
+    if context.status == "deviated":
+        return f"Off the {gambit.name} line — adapting to a {opponent_desc} opponent."
+    return "Free play."
 
 
 def load_moves(db: Session, bot_game: BotGame) -> list[BotGameMove]:
@@ -165,7 +145,6 @@ def create_bot_game(
     bot_aggression: int,
     gambit_id: str | None = None,
     adapt_to_opponent: bool = True,
-    full_attack_mode: bool = False,
 ) -> BotGame:
     """Create a game; if the bot has White, it plays the opening move at once."""
     bot_game = BotGame(
@@ -174,7 +153,6 @@ def create_bot_game(
         bot_aggression=bot_aggression,
         gambit_id=gambit_id,
         adapt_to_opponent=adapt_to_opponent,
-        full_attack_mode=full_attack_mode,
         status=BotGameStatus.in_progress,
     )
     db.add(bot_game)
@@ -184,9 +162,7 @@ def create_bot_game(
     if player_color is BotColor.black:
         board = chess.Board()
         context = _strategy_context(bot_game, board, [])
-        bot_move = tal_bot.choose_bot_move(
-            board, bot_elo, bot_aggression, context, full_attack_mode
-        )
+        bot_move = tal_bot.choose_bot_move(board, bot_elo, bot_aggression, context)
         _record_move(db, bot_game, board, bot_move, ply=1, is_bot_move=True)
         db.commit()
 
@@ -307,11 +283,7 @@ def submit_player_move(db: Session, bot_game: BotGame, uci: str) -> BotGame:
     if not _finish_if_over(bot_game, board):
         context = _strategy_context(bot_game, board, [*moves, played_move])
         bot_move = tal_bot.choose_bot_move(
-            board,
-            bot_game.bot_elo,
-            bot_game.bot_aggression,
-            context,
-            bot_game.full_attack_mode,
+            board, bot_game.bot_elo, bot_game.bot_aggression, context
         )
         _record_move(db, bot_game, board, bot_move, ply=next_ply, is_bot_move=True)
         _finish_if_over(bot_game, board)

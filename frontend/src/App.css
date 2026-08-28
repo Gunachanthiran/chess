@@ -2774,11 +2774,6 @@
   color: var(--text-dim);
 }
 
-.bot-strategy__value--full-attack {
-  color: var(--danger);
-  text-transform: none;
-}
-
 .bot-strategy__summary {
   margin: 2px 0 0;
   padding-top: 8px;

@@ -222,9 +222,6 @@ export type BotGame = {
   bot_aggression: number;
   gambit_id: string | null;
   adapt_to_opponent: boolean;
-  /** "Go for broke" opt-in — see PlayBotSetupForm's own toggle. A separate
-   * override of the aggression slider's tolerance, not a sharper level. */
-  full_attack_mode: boolean;
   status: BotGameStatus;
   result: string | null;
   moves: BotGameMove[];
@@ -253,7 +250,6 @@ export type CreateBotGameRequest = {
   bot_aggression: number;
   gambit_id: string | null;
   adapt_to_opponent: boolean;
-  full_attack_mode: boolean;
 };
 
 /** Body of POST /api/bot-games/{id}/moves — `e2e4`, or `e7e8q` when promoting. */
