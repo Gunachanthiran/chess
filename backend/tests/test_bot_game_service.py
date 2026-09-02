@@ -1,7 +1,8 @@
-"""Tests for bot game state: board reconstruction and game-over detection.
+"""Tests for bot game state: board reconstruction, game-over detection, the
+live opening indicator, and PGN export for post-game analysis.
 
-No database is touched here - `reconstruct_board` and `_finish_if_over` are the
-two pieces that decide legality and results, and both are pure.
+No database is touched here - every function under test is pure, working
+only off a `BotGame`/`BotGameMove` list built directly in memory.
 """
 
 import chess
@@ -11,7 +12,7 @@ from app.errors import ValidationError
 from app.models.bot_game import BotColor, BotGame, BotGameStatus
 from app.models.bot_game_move import BotGameMove
 from app.models.move_analysis import Side
-from app.services import bot_game_service
+from app.services import bot_game_service, pgn_service, tal_bot
 
 
 def move_rows(*ucis: str) -> list[BotGameMove]:
@@ -266,3 +267,56 @@ class TestCurrentOpening:
         bot_game.moves = list(reversed(rows))
 
         assert bot_game_service.current_opening(bot_game)[1] == "Ruy Lopez"
+
+
+class TestPgnForAnalysis:
+    """`pgn_for_analysis` has exactly one real consumer:
+    `pgn_service.parse_pgn`, reached via `create_game_from_pgn` in the
+    `/analyze` route. The round trip through that real parser — not just
+    eyeballing the PGN text — is what actually proves this produces
+    something the analysis pipeline can use, the same way a bot game's own
+    moves are never trusted without being replayed.
+    """
+
+    def test_round_trips_through_the_real_pgn_parser(self):
+        bot_game = game(player_color=BotColor.white)
+        bot_game.result = bot_game_service.WHITE_WIN
+        bot_game.moves = move_rows("e2e4", "e7e5", "g1f3", "b8c6", "f1c4")
+
+        parsed = pgn_service.parse_pgn(bot_game_service.pgn_for_analysis(bot_game))
+
+        assert parsed.moves_uci == ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4"]
+        assert parsed.result == "1-0"
+        assert parsed.white_name == "You"
+        assert "Tal Bot" in parsed.black_name
+
+    def test_names_the_bot_on_whichever_side_it_played(self):
+        bot_game = game(player_color=BotColor.black)
+        bot_game.moves = move_rows("e2e4")
+
+        parsed = pgn_service.parse_pgn(bot_game_service.pgn_for_analysis(bot_game))
+
+        assert "Tal Bot" in parsed.white_name
+        assert parsed.black_name == "You"
+
+    def test_grandmaster_tier_is_named_rather_than_shown_as_a_raw_elo(self):
+        bot_game = game(player_color=BotColor.white)
+        bot_game.bot_elo = tal_bot.GRANDMASTER_ELO
+        bot_game.moves = move_rows("e2e4")
+
+        parsed = pgn_service.parse_pgn(bot_game_service.pgn_for_analysis(bot_game))
+
+        assert "Grandmaster" in parsed.black_name
+        assert str(tal_bot.GRANDMASTER_ELO) not in parsed.black_name
+
+    def test_an_unfinished_result_becomes_the_pgn_wildcard(self):
+        """A `resign`ed/`in_progress` game's `result` can be `None` — the PGN
+        spec has no such thing, so this becomes `*` ("unknown/ongoing"),
+        which `pgn_service._parse_result` already maps back to the same
+        sentinel rather than rejecting the file."""
+        bot_game = game()
+        bot_game.result = None
+        bot_game.moves = move_rows("e2e4")
+
+        parsed = pgn_service.parse_pgn(bot_game_service.pgn_for_analysis(bot_game))
+        assert parsed.result == "*"

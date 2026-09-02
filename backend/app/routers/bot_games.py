@@ -7,9 +7,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
-from app.errors import NotFoundError
-from app.models.bot_game import BotGame
+from app.errors import ConflictError, NotFoundError
+from app.models.analysis_job import AnalysisJob, JobStatus
+from app.models.bot_game import BotGame, BotGameStatus
+from app.models.game import GameSource
 from app.routers.games import parse_uuid
+from app.schemas.analysis_job import AnalysisJobOut, AnalysisJobResponse
 from app.schemas.bot_game import (
     BotGameOut,
     BotGameResponse,
@@ -19,6 +22,8 @@ from app.schemas.bot_game import (
     SubmitBotMoveRequest,
 )
 from app.services import bot_game_service
+from app.services.game_service import create_game_from_pgn
+from app.tasks.analyze_game import analyze_game
 
 router = APIRouter(prefix="/bot-games", tags=["bot-games"])
 
@@ -135,3 +140,45 @@ def resign_bot_game(bot_game_id: str, db: Session = Depends(get_db)) -> BotGameR
     bot_game = _get_bot_game(db, bot_game_id)
     bot_game = bot_game_service.resign(db, bot_game)
     return _response(bot_game)
+
+
+@router.post(
+    "/{bot_game_id}/analyze",
+    response_model=AnalysisJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def analyze_bot_game(bot_game_id: str, db: Session = Depends(get_db)) -> AnalysisJobResponse:
+    """Runs a real Stockfish analysis on a finished bot game — the exact same
+    pipeline (`AnalysisJob` + the `analyze_game` Celery task) an uploaded or
+    imported game gets, via `bot_game_service.pgn_for_analysis` +
+    `create_game_from_pgn`. This mints a brand new `games` row every call
+    rather than tracking "already analysed" on the bot game itself — a second
+    click makes a second analysed copy, the same way re-uploading a PGN
+    would; there is no external game id here for the existing upload/import
+    dedup logic to key off.
+    """
+    bot_game = _get_bot_game(db, bot_game_id)
+    if bot_game.status is BotGameStatus.in_progress:
+        raise ConflictError(
+            "This game is still in progress — finish or resign it before analysing.",
+            {"bot_game_id": bot_game_id},
+        )
+
+    pgn_text = bot_game_service.pgn_for_analysis(bot_game)
+    # `pgn_service.parse_pgn` (reached via `create_game_from_pgn`) is what
+    # actually rejects a genuinely move-less game — a `ValidationError` from
+    # there ("PGN contains no moves") surfaces to the caller unchanged rather
+    # than being re-checked here.
+    game = create_game_from_pgn(db, pgn_text, GameSource.upload)
+
+    job = AnalysisJob(game_id=game.id, status=JobStatus.pending, progress_pct=0)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    async_result = analyze_game.delay(str(job.id))
+    job.celery_task_id = async_result.id
+    db.commit()
+    db.refresh(job)
+
+    return AnalysisJobResponse(job=AnalysisJobOut.model_validate(job))

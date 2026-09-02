@@ -342,6 +342,48 @@
   margin-bottom: 12px;
 }
 
+/* ---------- Promotion picker ---------- */
+
+.promotion-picker__backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  /* Above everything, including the board's own overlay layers
+     (`.board-badges`/`.board-fx`, z-index up to 3). */
+  z-index: 20;
+  padding: 20px;
+}
+
+.promotion-picker {
+  width: min(320px, 100%);
+}
+
+.promotion-picker__choices {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.promotion-picker__choice {
+  aspect-ratio: 1 / 1;
+  padding: 8px;
+  border-radius: var(--radius-control);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+
+.promotion-picker__choice:hover,
+.promotion-picker__choice:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-panel));
+  transform: translateY(-2px);
+}
+
 /*
  * A `.panel-section` is a sub-block inside a shared `.panel` — used to combine
  * several panels (accuracy, move breakdown, moves) into one bordered card
@@ -2974,13 +3016,54 @@
   color: var(--text-dim);
 }
 
-/* Read-only move cells (bot games have nothing to navigate to). */
-.move-list__cell--static {
-  cursor: default;
-  color: var(--text);
+/* Houses the "Moves" header and (only while reviewing a past position on
+   the Play Bot page) the "Back to live" button, side by side. */
+.move-list__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.move-list__header-row .panel__header {
+  margin-bottom: 0;
+}
+
+.move-list__live-button {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.move-list__live-button:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 /* ---------- Play vs bot ---------- */
+
+/* Shown between the board and the bottom player bar while `reviewPly` has a
+   past position on screen instead of the live one — same accent-tinted
+   treatment as the analysis board's own `.preview-banner`, so "you're
+   looking at something other than the real current position" reads the
+   same way in both places. */
+.review-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: 0.85rem;
+  animation: page-fade-in 0.2s ease both;
+}
 
 .bot-status {
   display: inline-flex;

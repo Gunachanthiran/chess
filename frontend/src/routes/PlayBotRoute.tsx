@@ -31,6 +31,11 @@ export function PlayBotRoute({ bot }: PlayBotRouteProps) {
   }
 
   return (
-    <PlayBotPage bot={bot} onNewGame={() => navigate('/play')} onExit={() => navigate('/analyze')} />
+    <PlayBotPage
+      bot={bot}
+      onNewGame={() => navigate('/play')}
+      onExit={() => navigate('/analyze')}
+      onAnalyzed={(jobId) => navigate(`/analysis/${jobId}`)}
+    />
   );
 }

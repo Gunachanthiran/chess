@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import type { PieceDropHandlerArgs, PieceHandlerArgs, SquareHandlerArgs } from 'react-chessboard';
 import {
@@ -134,6 +135,12 @@ const MOVE_DOT =
 // A thick ring hugging the piece, corners filled — the standard capture cue.
 const CAPTURE_RING =
   'radial-gradient(circle at center, transparent 0%, transparent 62%, rgba(0, 0, 0, 0.28) 63%, rgba(0, 0, 0, 0.28) 100%)';
+// A hot red glow centred on a king in check — the same `backgroundImage`
+// layering trick as the two markers above, so it composes cleanly with a
+// last-move highlight underneath it instead of fighting for the same
+// `backgroundColor`.
+const CHECK_GLOW =
+  'radial-gradient(circle at center, rgba(255, 32, 32, 0.85) 0%, rgba(255, 32, 32, 0.5) 30%, transparent 72%)';
 
 /** Each square is exactly one eighth of the board along both axes. */
 const SQUARE_PCT = 100 / 8;
@@ -489,6 +496,27 @@ export function ChessBoard({
     [legalMovesFor, onPieceDrop, setSelectedOrigin, clearSelection],
   );
 
+  // The side to move's own king, only while it's actually in check — read off
+  // `renderedFen` (what's actually on screen right now) rather than
+  // `displayFen`, so this can never flag a square the board hasn't caught up
+  // to painting yet. A malformed FEN degrades to "no glow" rather than a
+  // thrown render.
+  const checkSquare = useMemo(() => {
+    try {
+      const chess = new Chess(renderedFen);
+      if (!chess.inCheck()) return null;
+      const turn = chess.turn();
+      for (const row of chess.board()) {
+        for (const cell of row) {
+          if (cell && cell.type === 'k' && cell.color === turn) return cell.square;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [renderedFen]);
+
   const squareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
 
@@ -497,6 +525,14 @@ export function ChessBoard({
       const to = lastMoveUci.slice(2, 4);
       styles[from] = { backgroundColor: HIGHLIGHT };
       styles[to] = { backgroundColor: HIGHLIGHT };
+    }
+
+    // Never collides with the capture-ring/move-dot markers below: a king's
+    // own square can never itself be a legal drop target (you can neither
+    // capture nor land a piece on it), so this is always the only
+    // `backgroundImage` a checked king's square ever gets.
+    if (checkSquare) {
+      styles[checkSquare] = { ...styles[checkSquare], backgroundImage: CHECK_GLOW };
     }
 
     // The active origin is whichever gesture is live — a drag in progress, or
@@ -516,7 +552,7 @@ export function ChessBoard({
     }
 
     return styles;
-  }, [lastMoveUci, allowDragging, legalMovesFor, dragOrigin, selectedOrigin]);
+  }, [lastMoveUci, checkSquare, allowDragging, legalMovesFor, dragOrigin, selectedOrigin]);
 
   const badgePosition = useMemo(
     () => (moveBadge ? squareBadgePosition(moveBadge.square, boardOrientation) : null),

@@ -1,5 +1,10 @@
 import { apiFetch } from './client';
-import type { BotGameResponse, CreateBotGameRequest, SubmitBotMoveRequest } from '../types';
+import type {
+  AnalysisJob,
+  BotGameResponse,
+  CreateBotGameRequest,
+  SubmitBotMoveRequest,
+} from '../types';
 
 /**
  * Thin wrappers over `apiFetch` for the "play a Tal-style bot" endpoints.
@@ -75,4 +80,20 @@ export function resignBotGame(id: string, signal?: AbortSignal): Promise<BotGame
     method: 'POST',
     signal,
   });
+}
+
+/**
+ * POST /api/bot-games/{id}/analyze — mints a real `games` row from a
+ * finished bot game and queues the same Stockfish analysis any uploaded or
+ * imported game gets. Unlike every other function above, this returns the
+ * *job*, not the bot game — `api/analysis.ts`'s `createAnalysisJob` convention,
+ * since that's what the caller actually needs (to navigate to
+ * `/analysis/{job.id}`), not a `{ bot_game }` envelope.
+ */
+export async function analyzeBotGame(id: string, signal?: AbortSignal): Promise<AnalysisJob> {
+  const data = await apiFetch<{ job: AnalysisJob }>(
+    `/api/bot-games/${encodeURIComponent(id)}/analyze`,
+    { method: 'POST', signal },
+  );
+  return data.job;
 }

@@ -10,6 +10,7 @@ produced the "bot produces invalid moves" bug class this design guards against.
 from __future__ import annotations
 
 import chess
+import chess.pgn
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -133,6 +134,41 @@ def load_moves(db: Session, bot_game: BotGame) -> list[BotGameMove]:
             .order_by(BotGameMove.ply.asc())
         ).all()
     )
+
+
+def _bot_display_name(bot_game: BotGame) -> str:
+    if bot_game.bot_elo >= tal_bot.GRANDMASTER_ELO:
+        return f"Tal Bot (Grandmaster, aggression {bot_game.bot_aggression})"
+    return f"Tal Bot ({bot_game.bot_elo}, aggression {bot_game.bot_aggression})"
+
+
+def pgn_for_analysis(bot_game: BotGame) -> str:
+    """Serialises a finished bot game to PGN text — headers included — so it
+    can be handed to `game_service.create_game_from_pgn` and get *exactly*
+    the same treatment (a real `games` row, a real `AnalysisJob`) as any
+    uploaded or imported game. `pgn_service.parse_pgn` is what reads this
+    back; the headers set here (`White`/`Black`/`Result`) are exactly the
+    ones it looks for.
+
+    Moves replay from their own stored `uci`, the same authoritative source
+    `reconstruct_board` uses — never SAN, which python-chess would have to
+    re-disambiguate against a position it wasn't actually recorded from.
+    """
+    bot_name = _bot_display_name(bot_game)
+    white_name = "You" if bot_game.player_color is BotColor.white else bot_name
+    black_name = bot_name if bot_game.player_color is BotColor.white else "You"
+
+    game = chess.pgn.Game()
+    game.headers["Event"] = "ChessScope bot game"
+    game.headers["White"] = white_name
+    game.headers["Black"] = black_name
+    game.headers["Result"] = bot_game.result or "*"
+
+    node = game
+    for move in sorted(bot_game.moves, key=lambda row: row.ply):
+        node = node.add_variation(chess.Move.from_uci(move.uci))
+
+    return str(game)
 
 
 # --- Commands --------------------------------------------------------------
