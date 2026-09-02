@@ -680,10 +680,36 @@ export function ChessBoard({
               <PieceSilhouette type={captureFx.type} color={captureFx.color} />
             </span>
 
-            {/* The blade itself — a bright flash swept along the same
-                diagonal the two halves just split along. */}
+            {/* The blade itself — a drawn gladius swept along the same
+                diagonal the two halves just split along, rather than an
+                abstract flash. `capture-fx-blade-gradient` is one shared id:
+                only one capture-cut is ever mounted at a time (a fresh one
+                replaces the last via `key={captureFx.id}`), so nothing ever
+                needs two independent instances of it live at once. */}
             <span className={`capture-fx__blade capture-fx__blade--${captureFx.orientation}`}>
-              <span className="capture-fx__blade-bar" />
+              <svg className="capture-fx__sword" viewBox="0 0 100 16" aria-hidden="true">
+                <defs>
+                  <linearGradient id="capture-fx-blade-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#f5f5f0" />
+                    <stop offset="45%" stopColor="#ffffff" />
+                    <stop offset="55%" stopColor="#c9cdd3" />
+                    <stop offset="100%" stopColor="#8b9198" />
+                  </linearGradient>
+                </defs>
+                {/* Crossguard, grip, pommel — bronze, matching the piece art. */}
+                <rect x="15" y="2" width="3" height="12" rx="1" fill="#c9a24b" stroke="#7a5c1e" strokeWidth="0.6" />
+                <rect x="6" y="6" width="10" height="4" rx="1.5" fill="#8b5a2b" stroke="#5c3a1a" strokeWidth="0.6" />
+                <circle cx="4" cy="8" r="3" fill="#c9a24b" stroke="#7a5c1e" strokeWidth="0.6" />
+                {/* The blade, tapering to a point, with a thin highlight
+                    running down it for a metallic sheen. */}
+                <path
+                  d="M18,5.2 L90,6.2 L100,8 L90,9.8 L18,10.8 Z"
+                  fill="url(#capture-fx-blade-gradient)"
+                  stroke="#5a5f66"
+                  strokeWidth="0.5"
+                />
+                <path d="M18,7.6 L92,7.9 L92,8.1 L18,8.4 Z" fill="#ffffff" opacity="0.6" />
+              </svg>
             </span>
 
             {captureFx.shards.map((shard, index) => (
