@@ -10,6 +10,8 @@ import {
   undoBotMove,
 } from '../api/botGame';
 import { ApiError, errorMessage } from '../api/client';
+import { capturedPieceFromMove } from '../components/board/ChessBoard';
+import type { CapturedPiece } from '../components/board/ChessBoard';
 import type { BotColor, BotGame, BotGameMove, LegalMoveTarget } from '../types';
 
 export type BotGameHook = {
@@ -19,8 +21,8 @@ export type BotGameHook = {
   displayFen: string;
   /** UCI of the last move played, for the board highlight. */
   lastMoveUci: string | null;
-  /** Whether that last move took a piece — drives the board's capture effect. */
-  lastMoveIsCapture: boolean;
+  /** The piece that last move took, or `null` — drives the board's capture-cut effect. */
+  lastCapture: CapturedPiece | null;
   /** True while POST /moves is in flight — covers "accepted?" and "bot replying". */
   botThinking: boolean;
   /** True while POST /api/bot-games is in flight. */
@@ -105,19 +107,26 @@ export type BotGameHook = {
  * Mirrors `useGameNavigation`'s `buildFen`: UCI first, SAN as a fallback, and if
  * both fail the server's own recorded FEN wins — rendering a position that
  * silently disagrees with the move list is the failure mode worth avoiding.
+ *
+ * Also returns the *last* successfully-replayed move's own chess.js `Move`
+ * object (`lastMove`) — `BotGameMove` itself has no `fen_before` to do a
+ * single-move replay from the way `GameAnalysisPage` does, so this is the
+ * one point that ever sees the real `Move`, captured piece included, and is
+ * cheap to keep since the replay is already happening regardless.
  */
-function buildBoard(moves: BotGameMove[]): Chess {
+function buildBoard(moves: BotGameMove[]): { chess: Chess; lastMove: Move | null } {
   const chess = new Chess();
+  let lastMove: Move | null = null;
 
   for (let i = 0; i < moves.length; i += 1) {
     const move = moves[i];
     try {
       // UCI is the canonical form: `e2e4`, or `e7e8q` when promoting.
       const promotion = move.uci.length > 4 ? move.uci.slice(4, 5) : undefined;
-      chess.move({ from: move.uci.slice(0, 2), to: move.uci.slice(2, 4), promotion });
+      lastMove = chess.move({ from: move.uci.slice(0, 2), to: move.uci.slice(2, 4), promotion });
     } catch {
       try {
-        chess.move(move.san);
+        lastMove = chess.move(move.san);
       } catch {
         console.warn(
           `[useBotGame] could not replay ply ${move.ply} (${move.san} / ${move.uci});` +
@@ -128,12 +137,12 @@ function buildBoard(moves: BotGameMove[]): Chess {
         } catch {
           // Even the recorded FEN is unusable; keep whatever replayed cleanly.
         }
-        return chess;
+        return { chess, lastMove };
       }
     }
   }
 
-  return chess;
+  return { chess, lastMove };
 }
 
 /**
@@ -191,7 +200,7 @@ export function useBotGame(): BotGameHook {
   const [resigning, setResigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<
-    { fen: string; uci: string; isCapture: boolean } | null
+    { fen: string; uci: string; capture: CapturedPiece | null } | null
   >(null);
 
   // Board mirroring `botGame.moves`. Rebuilt from scratch whenever the game
@@ -205,17 +214,14 @@ export function useBotGame(): BotGameHook {
   const inFlightRef = useRef(false);
 
   const serverBoard = useMemo(() => {
-    const chess = buildBoard(botGame?.moves ?? []);
+    const { chess, lastMove } = buildBoard(botGame?.moves ?? []);
     chessRef.current = chess;
     botGameRef.current = botGame;
     const moves = botGame?.moves ?? [];
     return {
       fen: chess.fen(),
       lastUci: moves.length > 0 ? moves[moves.length - 1].uci : null,
-      // Same `x`-in-SAN convention `useSoundEffects` keys its capture sound
-      // off of — see `GameAnalysisPage`'s identical comment for why that's
-      // deliberate rather than an independent guess.
-      lastIsCapture: moves.length > 0 ? moves[moves.length - 1].san.includes('x') : false,
+      lastCapture: lastMove ? capturedPieceFromMove(lastMove) : null,
       // A best-effort client-side hint for the "Claim Draw" button's enabled
       // state only — the server (bot_game_service.claim_draw) is still the
       // real arbiter on click. Threefold repetition and the fifty-move rule
@@ -228,7 +234,7 @@ export function useBotGame(): BotGameHook {
 
   const displayFen = optimistic?.fen ?? serverBoard.fen;
   const lastMoveUci = optimistic?.uci ?? serverBoard.lastUci;
-  const lastMoveIsCapture = optimistic?.isCapture ?? serverBoard.lastIsCapture;
+  const lastCapture = optimistic ? optimistic.capture : serverBoard.lastCapture;
 
   const isLegalMove = useCallback(
     (sourceSquare: string, targetSquare: string, promotion?: string): boolean => {
@@ -363,7 +369,7 @@ export function useBotGame(): BotGameHook {
       setBotThinking(true);
       setError(null);
       // Display-only; discarded in `finally` whatever happens.
-      setOptimistic({ fen: legal.after, uci, isCapture: legal.captured !== undefined });
+      setOptimistic({ fen: legal.after, uci, capture: capturedPieceFromMove(legal) });
 
       try {
         // 2 + 3. The response carries the player's move *and* the bot's reply.
@@ -483,7 +489,7 @@ export function useBotGame(): BotGameHook {
     botGame,
     displayFen,
     lastMoveUci,
-    lastMoveIsCapture,
+    lastCapture,
     botThinking,
     creating,
     undoing,

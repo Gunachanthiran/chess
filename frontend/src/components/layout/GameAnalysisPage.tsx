@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
 import type { PieceDropHandlerArgs } from 'react-chessboard';
-import { ChessBoard } from '../board/ChessBoard';
+import { ChessBoard, capturedPieceFromMove } from '../board/ChessBoard';
+import type { CapturedPiece } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
 import { PieceSetPicker } from '../board/PieceSetPicker';
 import { EvalBar } from '../board/EvalBar';
@@ -133,7 +134,7 @@ export function GameAnalysisPage({
     if (!preview) return null;
     const chess = new Chess(preview.baseFen);
     let lastMoveUci: string | null = null;
-    let lastMoveIsCapture = false;
+    let lastCapture: CapturedPiece | null = null;
     for (let i = 0; i < previewStep; i += 1) {
       let move;
       try {
@@ -145,9 +146,9 @@ export function GameAnalysisPage({
         break;
       }
       lastMoveUci = move.lan;
-      lastMoveIsCapture = move.captured !== undefined;
+      lastCapture = capturedPieceFromMove(move);
     }
-    return { fen: chess.fen(), lastMoveUci, lastMoveIsCapture };
+    return { fen: chess.fen(), lastMoveUci, lastCapture };
   }, [preview, previewStep]);
 
   /** Whatever position is actually on the board right now — the real game's,
@@ -352,11 +353,33 @@ export function GameAnalysisPage({
       ? { square: lastMoveUci.slice(2, 4), classification: currentMove.classification }
       : null;
 
-  // Drives the capture impact effect (see `ChessBoard`) for the real game
-  // position. SAN's own `x` is the same signal `useSoundEffects` keys its
-  // capture sound off of, so the board's ears and eyes never disagree about
-  // whether a given move was a capture.
-  const lastMoveIsCapture = currentMove ? currentMove.san.includes('x') : false;
+  // Drives the capture-cut effect (see `ChessBoard`) for the real game
+  // position. `MoveAnalysis` itself doesn't carry the captured piece's type,
+  // so this replays just the one move — UCI first, SAN as a fallback, same
+  // preference `useGameNavigation`'s `buildFen` uses — to read it off
+  // chess.js's own `Move` object.
+  const lastCapture = useMemo<CapturedPiece | null>(() => {
+    if (!currentMove) return null;
+    try {
+      const chess = new Chess(currentMove.fen_before);
+      const promotion = currentMove.uci.length > 4 ? currentMove.uci.slice(4, 5) : undefined;
+      let move;
+      try {
+        move = chess.move({
+          from: currentMove.uci.slice(0, 2) as Square,
+          to: currentMove.uci.slice(2, 4) as Square,
+          promotion,
+        });
+      } catch {
+        move = chess.move(currentMove.san);
+      }
+      return capturedPieceFromMove(move);
+    } catch {
+      // Malformed move data — same "don't fight it, just skip the effect"
+      // fallback `useGameNavigation`'s `buildFen` takes on the same failure.
+      return null;
+    }
+  }, [currentMove]);
 
   // Chess.com-style flanking bars instead of a name row in the page header:
   // whichever side sits at the bottom of the board (`orientation`) gets the
@@ -479,9 +502,7 @@ export function GameAnalysisPage({
             <ChessBoard
               displayFen={boardFen}
               lastMoveUci={previewPosition ? previewPosition.lastMoveUci : lastMoveUci}
-              lastMoveIsCapture={
-                previewPosition ? previewPosition.lastMoveIsCapture : lastMoveIsCapture
-              }
+              lastCapture={previewPosition ? previewPosition.lastCapture : lastCapture}
               boardOrientation={orientation}
               moveBadge={previewPosition ? null : moveBadge}
               allowDragging

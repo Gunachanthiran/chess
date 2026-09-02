@@ -152,7 +152,7 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
     botGame,
     displayFen,
     lastMoveUci,
-    lastMoveIsCapture,
+    lastCapture,
     botThinking,
     creating,
     undoing,
@@ -343,7 +343,7 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
           <ChessBoard
             displayFen={displayFen}
             lastMoveUci={lastMoveUci}
-            lastMoveIsCapture={lastMoveIsCapture}
+            lastCapture={lastCapture}
             boardOrientation={playerColor}
             allowDragging={isLive && !botThinking}
             onPieceDrop={handlePieceDrop}

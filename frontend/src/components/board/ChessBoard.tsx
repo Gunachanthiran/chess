@@ -9,6 +9,8 @@ import {
 import { unlockAudio } from '../../lib/sound';
 import { useBoardTheme } from '../../lib/boardTheme';
 import { usePieceSet } from '../../lib/pieceSet';
+import { PieceSilhouette } from '../../lib/pieceSilhouettes';
+import type { PieceColor, PieceType } from '../../lib/pieceSilhouettes';
 import type { Classification, LegalMoveTarget } from '../../types';
 
 /** A classification marker to float over one square of the board. */
@@ -17,6 +19,39 @@ export type MoveBadge = {
   square: string;
   classification: Classification;
 };
+
+/** The piece a just-played move took, driving the board's capture-cut effect.
+ * King is deliberately excluded — chess ends before a king is ever actually
+ * captured, so there is no real case to render. */
+export type CapturedPiece = {
+  type: Exclude<PieceType, 'k'>;
+  color: PieceColor;
+};
+
+/**
+ * Derives `CapturedPiece` from a chess.js `Move` (or the same two fields
+ * plucked off one). One shared conversion, used everywhere a caller computes
+ * `lastCapture` by replaying a chess.js move, so the "captured piece's
+ * colour is the *opposite* of the mover's" logic — and the defensive
+ * `'k'` guard below — exist exactly once.
+ *
+ * chess.js types `move.captured` as the full `PieceSymbol` (which includes
+ * `'k'`) even though a king can never actually be captured — real chess ends
+ * with checkmate first. Rather than assert that away, `'k'` is treated the
+ * same as "nothing was captured": if it ever did happen (a chess.js bug, an
+ * unexpected FEN), the effect just quietly doesn't fire instead of the app
+ * crashing on a value its own type system said was impossible.
+ */
+export function capturedPieceFromMove(move: {
+  captured?: string;
+  color: PieceColor;
+}): CapturedPiece | null {
+  if (!move.captured || move.captured === 'k') return null;
+  return {
+    type: move.captured as CapturedPiece['type'],
+    color: move.color === 'w' ? 'b' : 'w',
+  };
+}
 
 type ChessBoardProps = {
   /** Position to render. Derived upstream from `currentMoveIndex`. */
@@ -42,13 +77,13 @@ type ChessBoardProps = {
    */
   onPieceDrop?: (args: PieceDropHandlerArgs) => boolean;
   /**
-   * True when `lastMoveUci` took a piece — drives the capture impact effect
-   * (shockwave + shard burst + a small board shake) on that square. Optional
-   * and defaults to `false`, so a caller that never wires this up (there is
-   * none left, but the type doesn't require it) just never sees the effect
-   * rather than crashing on a missing prop.
+   * The piece `lastMoveUci` took, or `null`/omitted for a non-capturing move
+   * — drives the board's capture-cut effect (the taken piece's own
+   * silhouette sliced in two along a blade flash, plus a shard burst and a
+   * small board shake) on the destination square. Optional; a caller that
+   * never wires this up just never sees the effect.
    */
-  lastMoveIsCapture?: boolean;
+  lastCapture?: CapturedPiece | null;
   /**
    * Legal destinations for a piece the player has just picked up (by drag)
    * or clicked (the first tap of a click-to-move pair), used to draw the
@@ -182,16 +217,44 @@ function squareCenterPosition(
  */
 const BOARD_MOVE_ANIMATION_MS = 150;
 
-/** How many debris shards fly out of a capture impact. */
-const CAPTURE_FX_SHARD_COUNT = 7;
+/** How many debris shards fly out of a capture impact, alongside the sliced piece. */
+const CAPTURE_FX_SHARD_COUNT = 5;
 /**
- * Total lifetime of the impact effect once it starts (shockwave + shards
- * fading out), in ms — must stay roughly in sync with the CSS animation
- * durations on `.capture-fx__ring`/`.capture-fx__shard` in App.css.
+ * Total lifetime of the impact effect once it starts (piece halves flying
+ * apart, shockwave, blade flash, shards, all fading out), in ms — must stay
+ * roughly in sync with the longest CSS animation duration in App.css's
+ * "Capture impact effect" section (currently `.capture-fx__piece-half`'s
+ * 560ms).
  */
-const CAPTURE_FX_LIFETIME_MS = 620;
+const CAPTURE_FX_LIFETIME_MS = 680;
 /** How long the board's own impact shake runs, in ms. */
 const CAPTURE_SHAKE_MS = 220;
+
+/** Which diagonal the "blade" cuts along. */
+type CutOrientation = 'tlbr' | 'trbl';
+
+/**
+ * End transform for each half of the sliced piece, keyed by cut orientation
+ * — `a` is the half above/right of the cut line, `b` the half below/left.
+ * Percentages are (as with shards, see `buildCaptureShards`'s comment)
+ * relative to the half's own box, which App.css sizes to fill `.capture-fx`
+ * exactly. Halves separate roughly perpendicular to the blade, each with a
+ * little rotation and a downward bias — the piece falling apart, not just
+ * sliding sideways.
+ */
+const PIECE_CUT_TRAJECTORY: Record<CutOrientation, { a: string; b: string }> = {
+  // "/" blade (top-right to bottom-left): the upper-left half kicks up-left,
+  // the lower-right half drops down-right.
+  trbl: {
+    a: 'translate(-46%, -30%) rotate(-26deg)',
+    b: 'translate(42%, 48%) rotate(24deg)',
+  },
+  // "\" blade (top-left to bottom-right): mirrored.
+  tlbr: {
+    a: 'translate(46%, -30%) rotate(26deg)',
+    b: 'translate(-42%, 48%) rotate(-24deg)',
+  },
+};
 
 type CaptureShard = { dx: number; dy: number; rotate: number; delay: number };
 
@@ -235,7 +298,7 @@ export function ChessBoard({
   boardOrientation = 'white',
   allowDragging,
   onPieceDrop,
-  lastMoveIsCapture = false,
+  lastCapture = null,
   legalMovesFor,
   moveBadge = null,
 }: ChessBoardProps) {
@@ -292,27 +355,44 @@ export function ChessBoard({
     clearSelection();
   }, [displayFen, clearDragOrigin, clearSelection]);
 
-  // Capture impact effect: a shockwave + shard burst on the destination
-  // square, plus a brief board shake. `id` is a bump counter, not a boolean,
-  // so replaying the exact same capture (e.g. clicking back and forward past
-  // it in the move list) restarts the animation via a changed `key` instead
-  // of silently no-op'ing because "isCapture" never toggled.
-  const [captureFx, setCaptureFx] = useState<{ id: number; square: string; shards: CaptureShard[] } | null>(
-    null,
-  );
+  // Capture-cut effect: the taken piece's own silhouette sliced in two along
+  // a blade flash, a shard burst, and a brief board shake — all on the
+  // destination square. `id` is a bump counter, not a boolean, so replaying
+  // the exact same capture (e.g. clicking back and forward past it in the
+  // move list) restarts the animation via a changed `key` instead of
+  // silently no-op'ing because "there's a capture here" never toggled.
+  const [captureFx, setCaptureFx] = useState<{
+    id: number;
+    square: string;
+    type: CapturedPiece['type'];
+    color: PieceColor;
+    orientation: CutOrientation;
+    shards: CaptureShard[];
+  } | null>(null);
   const captureFxIdRef = useRef(0);
   const [boardShaking, setBoardShaking] = useState(false);
 
   useLayoutEffect(() => {
-    if (!lastMoveIsCapture || !lastMoveUci || lastMoveUci.length < 4) return;
+    if (!lastCapture || !lastMoveUci || lastMoveUci.length < 4) return;
     const square = lastMoveUci.slice(2, 4);
+    const { type, color } = lastCapture;
 
-    // Wait out react-chessboard's own slide first, so the burst reads as the
+    // Wait out react-chessboard's own slide first, so the cut reads as the
     // impact of the piece landing rather than announcing the capture before
     // it visibly arrives.
     const showTimer = window.setTimeout(() => {
       captureFxIdRef.current += 1;
-      setCaptureFx({ id: captureFxIdRef.current, square, shards: buildCaptureShards() });
+      setCaptureFx({
+        id: captureFxIdRef.current,
+        square,
+        type,
+        color,
+        // Which way the blade cuts is the one thing about this effect that's
+        // randomized rather than derived — real variety, since which piece
+        // and which square are dictated entirely by the actual move.
+        orientation: Math.random() < 0.5 ? 'tlbr' : 'trbl',
+        shards: buildCaptureShards(),
+      });
       setBoardShaking(true);
       window.setTimeout(() => setBoardShaking(false), CAPTURE_SHAKE_MS);
     }, BOARD_MOVE_ANIMATION_MS);
@@ -328,7 +408,12 @@ export function ChessBoard({
     };
     // `lastMoveUci` alone would miss a capture replayed onto the very same
     // square as the previous one; both together fire on every real new move.
-  }, [lastMoveUci, lastMoveIsCapture]);
+    //
+    // Depends on `lastCapture`'s *fields*, not the object itself: callers
+    // (GameAnalysisPage, useBotGame) construct a fresh `{ type, color }`
+    // literal on every render, so depending on the reference would re-fire
+    // this effect — and restart the animation — on any unrelated re-render.
+  }, [lastMoveUci, lastCapture?.type, lastCapture?.color]);
 
   const handlePieceDrag = useCallback(
     ({ square }: PieceHandlerArgs) => {
@@ -531,6 +616,40 @@ export function ChessBoard({
             <span className="capture-fx__flash" />
             <span className="capture-fx__ring" />
             <span className="capture-fx__ring capture-fx__ring--delay" />
+
+            {/*
+              The taken piece itself, drawn twice and clipped to opposite
+              triangles of the same diagonal — at rest (frame 0) the two
+              halves overlap exactly and read as the whole intact piece; the
+              keyframe in App.css then carries each half apart along
+              `--capture-fx-piece-end` (see `PIECE_CUT_TRAJECTORY`). Both
+              halves render the *full* silhouette rather than pre-split
+              paths — clip-path, not the SVG data, does the cutting — so this
+              works identically for every piece type with zero per-piece art.
+            */}
+            <span
+              className={`capture-fx__piece-half capture-fx__piece-half--a capture-fx__piece-half--${captureFx.orientation}`}
+              style={
+                { '--capture-fx-piece-end': PIECE_CUT_TRAJECTORY[captureFx.orientation].a } as React.CSSProperties
+              }
+            >
+              <PieceSilhouette type={captureFx.type} color={captureFx.color} />
+            </span>
+            <span
+              className={`capture-fx__piece-half capture-fx__piece-half--b capture-fx__piece-half--${captureFx.orientation}`}
+              style={
+                { '--capture-fx-piece-end': PIECE_CUT_TRAJECTORY[captureFx.orientation].b } as React.CSSProperties
+              }
+            >
+              <PieceSilhouette type={captureFx.type} color={captureFx.color} />
+            </span>
+
+            {/* The blade itself — a bright flash swept along the same
+                diagonal the two halves just split along. */}
+            <span className={`capture-fx__blade capture-fx__blade--${captureFx.orientation}`}>
+              <span className="capture-fx__blade-bar" />
+            </span>
+
             {captureFx.shards.map((shard, index) => (
               <span
                 key={index}
