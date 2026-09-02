@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
 import type { PieceDropHandlerArgs } from 'react-chessboard';
-import { ChessBoard, lastMoveInfoFromMove } from '../board/ChessBoard';
-import type { LastMoveInfo } from '../board/ChessBoard';
+import { ChessBoard, capturedPieceFromMove } from '../board/ChessBoard';
+import type { CapturedPiece } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
 import { PieceSetPicker } from '../board/PieceSetPicker';
 import { EvalBar } from '../board/EvalBar';
@@ -134,7 +134,7 @@ export function GameAnalysisPage({
     if (!preview) return null;
     const chess = new Chess(preview.baseFen);
     let lastMoveUci: string | null = null;
-    let lastMove: LastMoveInfo | null = null;
+    let lastCapture: CapturedPiece | null = null;
     for (let i = 0; i < previewStep; i += 1) {
       let move;
       try {
@@ -146,9 +146,9 @@ export function GameAnalysisPage({
         break;
       }
       lastMoveUci = move.lan;
-      lastMove = lastMoveInfoFromMove(move);
+      lastCapture = capturedPieceFromMove(move);
     }
-    return { fen: chess.fen(), lastMoveUci, lastMove };
+    return { fen: chess.fen(), lastMoveUci, lastCapture };
   }, [preview, previewStep]);
 
   /** Whatever position is actually on the board right now — the real game's,
@@ -353,12 +353,12 @@ export function GameAnalysisPage({
       ? { square: lastMoveUci.slice(2, 4), classification: currentMove.classification }
       : null;
 
-  // Drives the movement flourish and capture-cut effect (see `ChessBoard`)
-  // for the real game position. `MoveAnalysis` itself doesn't carry the
-  // mover's/captured piece's types, so this replays just the one move — UCI
-  // first, SAN as a fallback, same preference `useGameNavigation`'s
-  // `buildFen` uses — to read them off chess.js's own `Move` object.
-  const lastMove = useMemo<LastMoveInfo | null>(() => {
+  // Drives the capture-cut effect (see `ChessBoard`) for the real game
+  // position. `MoveAnalysis` itself doesn't carry the captured piece's type,
+  // so this replays just the one move — UCI first, SAN as a fallback, same
+  // preference `useGameNavigation`'s `buildFen` uses — to read it off
+  // chess.js's own `Move` object.
+  const lastCapture = useMemo<CapturedPiece | null>(() => {
     if (!currentMove) return null;
     try {
       const chess = new Chess(currentMove.fen_before);
@@ -373,7 +373,7 @@ export function GameAnalysisPage({
       } catch {
         move = chess.move(currentMove.san);
       }
-      return lastMoveInfoFromMove(move);
+      return capturedPieceFromMove(move);
     } catch {
       // Malformed move data — same "don't fight it, just skip the effect"
       // fallback `useGameNavigation`'s `buildFen` takes on the same failure.
@@ -502,7 +502,7 @@ export function GameAnalysisPage({
             <ChessBoard
               displayFen={boardFen}
               lastMoveUci={previewPosition ? previewPosition.lastMoveUci : lastMoveUci}
-              lastMove={previewPosition ? previewPosition.lastMove : lastMove}
+              lastCapture={previewPosition ? previewPosition.lastCapture : lastCapture}
               boardOrientation={orientation}
               moveBadge={previewPosition ? null : moveBadge}
               allowDragging

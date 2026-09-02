@@ -1,7 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Chess } from 'chess.js';
-import type { Square } from 'chess.js';
-import { Chessboard, defaultPieces } from 'react-chessboard';
+import { Chessboard } from 'react-chessboard';
 import type { PieceDropHandlerArgs, PieceHandlerArgs, SquareHandlerArgs } from 'react-chessboard';
 import {
   classificationColor,
@@ -11,6 +9,7 @@ import {
 import { unlockAudio } from '../../lib/sound';
 import { useBoardTheme } from '../../lib/boardTheme';
 import { usePieceSet } from '../../lib/pieceSet';
+import { PieceSilhouette } from '../../lib/pieceSilhouettes';
 import type { PieceColor, PieceType } from '../../lib/pieceSilhouettes';
 import type { Classification, LegalMoveTarget } from '../../types';
 
@@ -21,83 +20,36 @@ export type MoveBadge = {
   classification: Classification;
 };
 
-/** The piece a capturing move took. King is deliberately excluded — chess
- * ends before a king is ever actually captured, so there is no real case to
- * render. */
+/** The piece a just-played move took, driving the board's capture-cut effect.
+ * King is deliberately excluded — chess ends before a king is ever actually
+ * captured, so there is no real case to render. */
 export type CapturedPiece = {
   type: Exclude<PieceType, 'k'>;
   color: PieceColor;
 };
 
 /**
- * Everything about the move that produced the board's current position —
- * who moved, from where to where, and what (if anything) it took. Drives
- * both the per-piece-type movement flourish (a knight hops, a rook glides,
- * a bishop leans into its slide...) and the capture-cut sword effect.
+ * Derives `CapturedPiece` from a chess.js `Move` (or the same two fields
+ * plucked off one). One shared conversion, used everywhere a caller computes
+ * `lastCapture` by replaying a chess.js move, so the "captured piece's
+ * colour is the *opposite* of the mover's" logic — and the defensive
+ * `'k'` guard below — exist exactly once.
+ *
+ * chess.js types `move.captured` as the full `PieceSymbol` (which includes
+ * `'k'`) even though a king can never actually be captured — real chess ends
+ * with checkmate first. Rather than assert that away, `'k'` is treated the
+ * same as "nothing was captured": if it ever did happen (a chess.js bug, an
+ * unexpected FEN), the effect just quietly doesn't fire instead of the app
+ * crashing on a value its own type system said was impossible.
  */
-export type LastMoveInfo = {
-  from: string;
-  to: string;
-  piece: PieceType;
-  color: PieceColor;
-  /**
-   * Square the taken piece actually sits on. Equal to `to` for every
-   * capture except en passant, where the taken pawn sits one rank behind
-   * `to` — the capturing pawn never lands on the square it removes a piece
-   * from. `null` when this move captured nothing.
-   */
-  captureSquare: string | null;
-  capture: CapturedPiece | null;
-  /**
-   * True for a castling move (`O-O`/`O-O-O`). King and rook move together,
-   * which doesn't decompose into one piece's own flourish, so the movement
-   * overlay skips these and falls back to `react-chessboard`'s own plain
-   * slide (which handles the two-square diff correctly on its own).
-   */
-  isCastle: boolean;
-};
-
-function capturedPieceFrom(captured: string | undefined, moverColor: PieceColor): CapturedPiece | null {
-  // chess.js types a captured piece as the full `PieceSymbol` (which
-  // includes `'k'`) even though a king can never actually be captured —
-  // real chess ends with checkmate first. Rather than assert that away,
-  // `'k'` is treated the same as "nothing was captured": if it ever did
-  // happen (a chess.js bug, an unexpected FEN), the effect just quietly
-  // doesn't fire instead of the app crashing on a value its own type system
-  // said was impossible.
-  if (!captured || captured === 'k') return null;
-  // The captured piece always belongs to whoever's *not* making this move —
-  // chess.js's own `Move` only carries the piece type and the *mover's*
-  // colour, never the captured piece's colour directly.
-  return { type: captured as CapturedPiece['type'], color: moverColor === 'w' ? 'b' : 'w' };
-}
-
-/**
- * Builds `LastMoveInfo` from a chess.js `Move` (or the same handful of
- * fields plucked off one). The one place that knows how to read a mover's
- * piece/colour, a captured piece's type/colour, en passant's offset capture
- * square, and castling, so no caller has to re-derive any of it — and every
- * caller building `lastMove` from a replayed move (GameAnalysisPage,
- * useBotGame) gets it identically.
- */
-export function lastMoveInfoFromMove(move: {
-  from: string;
-  to: string;
-  piece: string;
-  color: PieceColor;
+export function capturedPieceFromMove(move: {
   captured?: string;
-  flags: string;
-}): LastMoveInfo {
-  const isEnPassant = move.flags.includes('e');
-  const capture = capturedPieceFrom(move.captured, move.color);
+  color: PieceColor;
+}): CapturedPiece | null {
+  if (!move.captured || move.captured === 'k') return null;
   return {
-    from: move.from,
-    to: move.to,
-    piece: move.piece as PieceType,
-    color: move.color,
-    capture,
-    captureSquare: capture ? (isEnPassant ? `${move.to[0]}${move.from[1]}` : move.to) : null,
-    isCastle: move.flags.includes('k') || move.flags.includes('q'),
+    type: move.captured as CapturedPiece['type'],
+    color: move.color === 'w' ? 'b' : 'w',
   };
 }
 
@@ -125,13 +77,13 @@ type ChessBoardProps = {
    */
   onPieceDrop?: (args: PieceDropHandlerArgs) => boolean;
   /**
-   * Full detail of the move that produced `displayFen` — drives the
-   * per-piece-type movement flourish and, when it took something, the
-   * capture-cut sword effect. Optional; a caller that never wires this up
-   * just gets `react-chessboard`'s own plain slide with no flourish and no
-   * capture effect, same as before this system existed.
+   * The piece `lastMoveUci` took, or `null`/omitted for a non-capturing move
+   * — drives the board's capture-cut effect (the taken piece's own
+   * silhouette sliced in two along a blade flash, plus a shard burst and a
+   * small board shake) on the destination square. Optional; a caller that
+   * never wires this up just never sees the effect.
    */
-  lastMove?: LastMoveInfo | null;
+  lastCapture?: CapturedPiece | null;
   /**
    * Legal destinations for a piece the player has just picked up (by drag)
    * or clicked (the first tap of a click-to-move pair), used to draw the
@@ -250,7 +202,7 @@ function squareBadgePosition(
   return squarePercentPosition(square, boardOrientation, BADGE_ANCHOR_X, BADGE_ANCHOR_Y);
 }
 
-/** Dead centre of a square — where the movement/capture overlays below are anchored. */
+/** Dead centre of a square — where the capture impact effect below is anchored. */
 function squareCenterPosition(
   square: string,
   boardOrientation: 'white' | 'black',
@@ -259,50 +211,20 @@ function squareCenterPosition(
 }
 
 /**
- * Converts a delta expressed as a percentage of the *board's* width into a
- * percentage of *one square's* width. A CSS `%` inside `transform:
- * translate()` always resolves against the translated element's own box —
- * never its parent's or the board's — so every element this app animates by
- * a board-relative distance (a movement flourish, a capture-cut half, a
- * shard) is deliberately sized to exactly one square, and its own travel
- * distances are expressed in this unit rather than raw board percentages.
+ * `react-chessboard`'s own slide animation for the capturing piece — kept as
+ * one named constant so the capture-impact effect below can wait for it to
+ * finish before it plays, and so the two can never quietly drift apart.
  */
-function toOwnSquarePercent(boardDeltaPct: number): number {
-  return (boardDeltaPct / SQUARE_PCT) * 100;
-}
-
-/** Fallback slide duration for a move this board has no `LastMoveInfo` for
- * (a caller that hasn't wired `lastMove` up) — matches what every move on
- * this board used before the per-piece movement system existed. */
-const DEFAULT_SLIDE_MS = 150;
-/** Castling moves two pieces at once, which doesn't decompose into one
- * piece's own flourish — `react-chessboard`'s own diff-based slide handles
- * it correctly on its own, just a little slower than a single piece's move. */
-const CASTLE_SLIDE_MS = 220;
-
-/**
- * How long each piece type's own movement flourish takes, in ms. The knight
- * gets noticeably longer than the rest — it's the one piece whose motion is
- * a real hop/arc rather than a glide, and needs the extra time to read as
- * one rather than a fast, jerky slide.
- */
-const MOVEMENT_DURATION_MS: Record<PieceType, number> = {
-  p: 190,
-  n: 360,
-  b: 260,
-  r: 220,
-  q: 250,
-  k: 260,
-};
+const BOARD_MOVE_ANIMATION_MS = 150;
 
 /** How many debris shards fly out of a capture impact, alongside the sliced piece. */
 const CAPTURE_FX_SHARD_COUNT = 5;
 /**
- * Total lifetime of the capture-cut effect once it starts (piece halves
- * flying apart, shockwave, blade flash, shards, all fading out), in ms —
- * must stay roughly in sync with the longest CSS animation duration in
- * App.css's "Capture impact effect" section (currently
- * `.capture-fx__piece-half`'s 560ms).
+ * Total lifetime of the impact effect once it starts (piece halves flying
+ * apart, shockwave, blade flash, shards, all fading out), in ms — must stay
+ * roughly in sync with the longest CSS animation duration in App.css's
+ * "Capture impact effect" section (currently `.capture-fx__piece-half`'s
+ * 560ms).
  */
 const CAPTURE_FX_LIFETIME_MS = 680;
 /** How long the board's own impact shake runs, in ms. */
@@ -314,10 +236,11 @@ type CutOrientation = 'tlbr' | 'trbl';
 /**
  * End transform for each half of the sliced piece, keyed by cut orientation
  * — `a` is the half above/right of the cut line, `b` the half below/left.
- * Percentages are, per `toOwnSquarePercent`'s comment, relative to the
- * half's own box, which App.css sizes to fill `.capture-fx` exactly. Halves
- * separate roughly perpendicular to the blade, each with a little rotation
- * and a downward bias — the piece falling apart, not just sliding sideways.
+ * Percentages are (as with shards, see `buildCaptureShards`'s comment)
+ * relative to the half's own box, which App.css sizes to fill `.capture-fx`
+ * exactly. Halves separate roughly perpendicular to the blade, each with a
+ * little rotation and a downward bias — the piece falling apart, not just
+ * sliding sideways.
  */
 const PIECE_CUT_TRAJECTORY: Record<CutOrientation, { a: string; b: string }> = {
   // "/" blade (top-right to bottom-left): the upper-left half kicks up-left,
@@ -336,12 +259,18 @@ const PIECE_CUT_TRAJECTORY: Record<CutOrientation, { a: string; b: string }> = {
 type CaptureShard = { dx: number; dy: number; rotate: number; delay: number };
 
 /**
- * One-off scatter of shard trajectories for a single capture. Spread evenly
- * around the compass with a little jitter on each — enough that a burst
- * never looks mechanically identical twice, without needing to be
- * reproducible (this is transient visual flourish, not anything a test or
- * replay depends on). `dx`/`dy` are percentages of the shard's own box, per
- * `toOwnSquarePercent`'s comment.
+ * One-off scatter of shard trajectories for a single capture. `dx`/`dy` are
+ * percentages, but deliberately *not* board-relative: a CSS `%` inside
+ * `transform: translate()` always resolves against the element's own box,
+ * never its parent's, so `.capture-fx__shard` is sized in App.css to fill
+ * `.capture-fx` exactly (see that rule's comment) and these percentages are
+ * fractions of *that* — roughly half to three-quarters of one square outward,
+ * which is what `distance` below actually means.
+ *
+ * Spread evenly around the compass with a little jitter on each — enough
+ * that a burst never looks mechanically identical twice, without needing to
+ * be reproducible (this is transient visual flourish, not anything a test or
+ * replay depends on).
  */
 function buildCaptureShards(): CaptureShard[] {
   return Array.from({ length: CAPTURE_FX_SHARD_COUNT }, (_, i) => {
@@ -357,36 +286,6 @@ function buildCaptureShards(): CaptureShard[] {
   });
 }
 
-/** True when the viewer has asked the OS/browser for reduced motion. Read
- * fresh each time rather than cached — it's cheap, and the preference can
- * change while the app is open. */
-function prefersReducedMotion(): boolean {
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
-}
-
-/** Whether a piece of the given type/colour is sitting on `square` in `fen`.
- * The one safety check the movement overlay is built on: it only ever
- * animates a piece flying from `from` to `to` when that piece is verifiably
- * still at `from` in the position currently on screen. That single check is
- * what keeps the overlay correct without it having to know anything about
- * *why* the position changed — a normal single move forward satisfies it; a
- * multi-ply jump (a move-list click, "go to end") or a step *backward*
- * almost never does, in which case this board falls back to `react-chessboard`'s
- * own plain diff-based slide instead of animating a piece "from" a square it
- * was never actually just on. */
-function pieceIsAt(fen: string, square: string, type: PieceType, color: PieceColor): boolean {
-  try {
-    const piece = new Chess(fen).get(square as Square);
-    return !!piece && piece.type === type && piece.color === color;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Presentational board. It renders whatever FEN it is given and owns no game
  * state of its own: even with dragging enabled the piece only *moves* when the
@@ -399,7 +298,7 @@ export function ChessBoard({
   boardOrientation = 'white',
   allowDragging,
   onPieceDrop,
-  lastMove = null,
+  lastCapture = null,
   legalMovesFor,
   moveBadge = null,
 }: ChessBoardProps) {
@@ -410,27 +309,9 @@ export function ChessBoard({
   // position. This is deliberate: a stale-frame flash here is the visible
   // symptom of the board-desync bug class we are designing this page against.
   const [renderedFen, setRenderedFen] = useState(displayFen);
-  // How long `react-chessboard`'s *own* slide takes. 0 whenever the
-  // movement overlay below is handling a move itself (the normal case) —
-  // otherwise `react-chessboard`'s own animation would run at the same time
-  // as ours, doubling the piece up. Bumped only for the moves the overlay
-  // deliberately steps aside for (see the effect below).
-  const [boardAnimationMs, setBoardAnimationMs] = useState(DEFAULT_SLIDE_MS);
 
   const { colors } = useBoardTheme();
   const { pieces } = usePieceSet();
-  // Whichever piece art is actually on screen right now (Classic or Line) —
-  // used to draw both the movement overlay and the capture-cut halves, so
-  // neither ever mismatches the art style the rest of the board is using.
-  const activePieceRenderers = pieces ?? defaultPieces;
-  const renderPieceGlyph = useCallback(
-    (type: PieceType, color: PieceColor) => {
-      const code = `${color}${type.toUpperCase()}`;
-      const Renderer = activePieceRenderers[code];
-      return Renderer ? <Renderer /> : null;
-    },
-    [activePieceRenderers],
-  );
 
   // Square a piece is currently being dragged from, or null when nothing is in
   // hand. Purely ephemeral view state: it drives the legal-move markers and
@@ -468,24 +349,18 @@ export function ChessBoard({
 
   const clearSelection = useCallback(() => setSelectedOrigin(null), [setSelectedOrigin]);
 
-  // The piece currently flying from one square to another, per its own
-  // piece-type flourish — see `MOVEMENT_DURATION_MS`/the big effect below.
-  // `id` is a bump counter (not the squares) so replaying the exact same
-  // move (e.g. stepping back then forward again past it) restarts the
-  // animation via a changed `key`.
-  const [activeMovement, setActiveMovement] = useState<{
-    id: number;
-    from: string;
-    to: string;
-    piece: PieceType;
-    color: PieceColor;
-  } | null>(null);
-  const movementIdRef = useRef(0);
+  useLayoutEffect(() => {
+    setRenderedFen(displayFen);
+    clearDragOrigin();
+    clearSelection();
+  }, [displayFen, clearDragOrigin, clearSelection]);
 
-  // Capture-cut effect: the taken piece's own art sliced in two along a
-  // blade flash, a shard burst, and a brief board shake — all on the
-  // square the capture actually happened on (see `LastMoveInfo.captureSquare`
-  // — not always the mover's destination square, because of en passant).
+  // Capture-cut effect: the taken piece's own silhouette sliced in two along
+  // a blade flash, a shard burst, and a brief board shake — all on the
+  // destination square. `id` is a bump counter, not a boolean, so replaying
+  // the exact same capture (e.g. clicking back and forward past it in the
+  // move list) restarts the animation via a changed `key` instead of
+  // silently no-op'ing because "there's a capture here" never toggled.
   const [captureFx, setCaptureFx] = useState<{
     id: number;
     square: string;
@@ -497,143 +372,48 @@ export function ChessBoard({
   const captureFxIdRef = useRef(0);
   const [boardShaking, setBoardShaking] = useState(false);
 
-  // `lastMove` is a fresh `{ ... }` literal from the caller on every render
-  // (GameAnalysisPage/useBotGame both rebuild it each time), so depending on
-  // it directly would re-run the effect below — and restart whatever
-  // animation is mid-flight — on any unrelated re-render. `useMemo` keyed on
-  // its actual fields collapses that back down to one stable reference that
-  // only changes when the move itself does.
-  const stableLastMove = useMemo(
-    () => lastMove,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      lastMove?.from,
-      lastMove?.to,
-      lastMove?.piece,
-      lastMove?.color,
-      lastMove?.captureSquare,
-      lastMove?.capture?.type,
-      lastMove?.capture?.color,
-      lastMove?.isCastle,
-    ],
-  );
-
-  // Whether this is the very first commit for this board instance (mount,
-  // or a hard reload landing mid-game) — guards the effect below so it never
-  // tries to animate a piece "arriving" at a position the viewer is simply
-  // *seeing for the first time*, which would show every piece already on
-  // the board flying in from nowhere.
-  const hasRenderedOnceRef = useRef(false);
-
   useLayoutEffect(() => {
-    clearDragOrigin();
-    clearSelection();
+    if (!lastCapture || !lastMoveUci || lastMoveUci.length < 4) return;
+    const square = lastMoveUci.slice(2, 4);
+    const { type, color } = lastCapture;
 
-    if (!hasRenderedOnceRef.current) {
-      hasRenderedOnceRef.current = true;
-      setRenderedFen(displayFen);
-      setBoardAnimationMs(DEFAULT_SLIDE_MS);
-      setActiveMovement(null);
-      return;
-    }
+    // Wait out react-chessboard's own slide first, so the cut reads as the
+    // impact of the piece landing rather than announcing the capture before
+    // it visibly arrives.
+    const showTimer = window.setTimeout(() => {
+      captureFxIdRef.current += 1;
+      setCaptureFx({
+        id: captureFxIdRef.current,
+        square,
+        type,
+        color,
+        // Which way the blade cuts is the one thing about this effect that's
+        // randomized rather than derived — real variety, since which piece
+        // and which square are dictated entirely by the actual move.
+        orientation: Math.random() < 0.5 ? 'tlbr' : 'trbl',
+        shards: buildCaptureShards(),
+      });
+      setBoardShaking(true);
+      window.setTimeout(() => setBoardShaking(false), CAPTURE_SHAKE_MS);
+    }, BOARD_MOVE_ANIMATION_MS);
 
-    const reduceMotion = prefersReducedMotion();
-    const canAnimateMovement =
-      !!stableLastMove &&
-      !stableLastMove.isCastle &&
-      !reduceMotion &&
-      pieceIsAt(renderedFen, stableLastMove.from, stableLastMove.piece, stableLastMove.color);
-
-    /** Fires the capture-cut effect `delayMs` after this move visibly lands
-     * — whichever animation (ours or `react-chessboard`'s own) is actually
-     * playing. Returns a cleanup that cancels both its timers. */
-    const scheduleCaptureCut = (move: LastMoveInfo, delayMs: number): (() => void) => {
-      if (!move.capture || !move.captureSquare || reduceMotion) return () => {};
-      const { capture, captureSquare } = move;
-      const showTimer = window.setTimeout(() => {
-        captureFxIdRef.current += 1;
-        setCaptureFx({
-          id: captureFxIdRef.current,
-          square: captureSquare,
-          type: capture.type,
-          color: capture.color,
-          // Which way the blade cuts is the one thing about this effect
-          // that's randomized rather than derived — real variety, since
-          // which piece and which square are dictated entirely by the move.
-          orientation: Math.random() < 0.5 ? 'tlbr' : 'trbl',
-          shards: buildCaptureShards(),
-        });
-        setBoardShaking(true);
-        window.setTimeout(() => setBoardShaking(false), CAPTURE_SHAKE_MS);
-      }, delayMs);
-      const clearTimer = window.setTimeout(() => setCaptureFx(null), delayMs + CAPTURE_FX_LIFETIME_MS);
-      return () => {
-        window.clearTimeout(showTimer);
-        window.clearTimeout(clearTimer);
-      };
-    };
-
-    if (!canAnimateMovement) {
-      // Plain path: `react-chessboard`'s own diff-based slide handles it —
-      // either because there's nothing to animate from (no `lastMove`), the
-      // move was a castle, the viewer asked for reduced motion, or the
-      // safety check above couldn't verify the mover was really at `from`
-      // (a multi-ply jump, a step backward). Same behaviour every move on
-      // this board had before the per-piece system existed.
-      const slideMs = stableLastMove?.isCastle ? CASTLE_SLIDE_MS : DEFAULT_SLIDE_MS;
-      setBoardAnimationMs(slideMs);
-      setRenderedFen(displayFen);
-      setActiveMovement(null);
-      return stableLastMove ? scheduleCaptureCut(stableLastMove, slideMs) : undefined;
-    }
-
-    // Custom path: take over from `react-chessboard` entirely for this move
-    // — otherwise its own slide would run at the same time as our overlay,
-    // doubling the piece up.
-    setBoardAnimationMs(0);
-
-    // "In transit" position: the pre-move board with the mover's origin
-    // square, its destination square, and (for en passant) the actually-
-    // captured square all emptied, so nothing sits under the overlay piece
-    // while it's mid-flight and no captured piece is left behind for it to
-    // overlap.
-    let inTransitFen = displayFen;
-    try {
-      const chess = new Chess(renderedFen);
-      chess.remove(stableLastMove.from as Square);
-      chess.remove(stableLastMove.to as Square);
-      if (stableLastMove.captureSquare && stableLastMove.captureSquare !== stableLastMove.to) {
-        chess.remove(stableLastMove.captureSquare as Square);
-      }
-      inTransitFen = chess.fen();
-    } catch {
-      // Malformed square name — fall back to jumping straight to the final
-      // position rather than leaving the board looking broken.
-    }
-    setRenderedFen(inTransitFen);
-
-    movementIdRef.current += 1;
-    setActiveMovement({
-      id: movementIdRef.current,
-      from: stableLastMove.from,
-      to: stableLastMove.to,
-      piece: stableLastMove.piece,
-      color: stableLastMove.color,
-    });
-
-    const duration = MOVEMENT_DURATION_MS[stableLastMove.piece];
-    const landTimer = window.setTimeout(() => {
-      setRenderedFen(displayFen);
-      setActiveMovement(null);
-    }, duration);
-
-    const cancelCaptureCut = scheduleCaptureCut(stableLastMove, duration);
+    const clearTimer = window.setTimeout(
+      () => setCaptureFx(null),
+      BOARD_MOVE_ANIMATION_MS + CAPTURE_FX_LIFETIME_MS,
+    );
 
     return () => {
-      window.clearTimeout(landTimer);
-      cancelCaptureCut();
+      window.clearTimeout(showTimer);
+      window.clearTimeout(clearTimer);
     };
-  }, [displayFen, stableLastMove, clearDragOrigin, clearSelection]);
+    // `lastMoveUci` alone would miss a capture replayed onto the very same
+    // square as the previous one; both together fire on every real new move.
+    //
+    // Depends on `lastCapture`'s *fields*, not the object itself: callers
+    // (GameAnalysisPage, useBotGame) construct a fresh `{ type, color }`
+    // literal on every render, so depending on the reference would re-fire
+    // this effect — and restart the animation — on any unrelated re-render.
+  }, [lastMoveUci, lastCapture?.type, lastCapture?.color]);
 
   const handlePieceDrag = useCallback(
     ({ square }: PieceHandlerArgs) => {
@@ -748,14 +528,6 @@ export function ChessBoard({
     [captureFx, boardOrientation],
   );
 
-  const movementPositions = useMemo(() => {
-    if (!activeMovement) return null;
-    const from = squareCenterPosition(activeMovement.from, boardOrientation);
-    const to = squareCenterPosition(activeMovement.to, boardOrientation);
-    if (!from || !to) return null;
-    return { from, to };
-  }, [activeMovement, boardOrientation]);
-
   return (
     <div className={`chessboard-wrapper${boardShaking ? ' chessboard-wrapper--impact' : ''}`}>
       <Chessboard
@@ -774,7 +546,7 @@ export function ChessBoard({
             : {}),
           allowDrawingArrows: false,
           showNotation: true,
-          animationDurationInMs: boardAnimationMs,
+          animationDurationInMs: BOARD_MOVE_ANIMATION_MS,
           ...(pieces ? { pieces } : {}),
           squareStyles,
           lightSquareStyle: { backgroundColor: colors.light },
@@ -828,33 +600,6 @@ export function ChessBoard({
       )}
 
       {/*
-        The piece currently mid-move, drawn with whichever piece art
-        (Classic/Line) the rest of the board is using — see
-        `renderPieceGlyph`. Positioned at its *source* square; `--mv-dx/dy`
-        (the source→destination delta, in the "percent of one square" unit
-        `toOwnSquarePercent` produces) is what each piece type's own
-        `@keyframes` in App.css actually travels along.
-      */}
-      {activeMovement && movementPositions && (
-        <div className="board-fx" aria-hidden="true">
-          <span
-            key={activeMovement.id}
-            className={`movement-fx__piece movement-fx__piece--${activeMovement.piece}`}
-            style={
-              {
-                left: `${movementPositions.from.leftPct}%`,
-                top: `${movementPositions.from.topPct}%`,
-                '--mv-dx': `${toOwnSquarePercent(movementPositions.to.leftPct - movementPositions.from.leftPct)}%`,
-                '--mv-dy': `${toOwnSquarePercent(movementPositions.to.topPct - movementPositions.from.topPct)}%`,
-              } as React.CSSProperties
-            }
-          >
-            {renderPieceGlyph(activeMovement.piece, activeMovement.color)}
-          </span>
-        </div>
-      )}
-
-      {/*
         Same overlay-sibling pattern as the badge layer above. `key={captureFx.id}`
         (not the square name) is what actually matters here — it's a bump
         counter, so a capture landing on the exact same square as the previous
@@ -873,15 +618,14 @@ export function ChessBoard({
             <span className="capture-fx__ring capture-fx__ring--delay" />
 
             {/*
-              The taken piece itself, drawn twice (in whichever piece art is
-              active) and clipped to opposite triangles of the same diagonal
-              — at rest (frame 0) the two halves overlap exactly and read as
-              the whole intact piece; the keyframe in App.css then carries
-              each half apart along `--capture-fx-piece-end` (see
-              `PIECE_CUT_TRAJECTORY`). Both halves render the *full* art
-              rather than pre-split paths — clip-path, not the art itself,
-              does the cutting — so this works identically for every piece
-              type and every piece set with zero per-piece/per-set art.
+              The taken piece itself, drawn twice and clipped to opposite
+              triangles of the same diagonal — at rest (frame 0) the two
+              halves overlap exactly and read as the whole intact piece; the
+              keyframe in App.css then carries each half apart along
+              `--capture-fx-piece-end` (see `PIECE_CUT_TRAJECTORY`). Both
+              halves render the *full* silhouette rather than pre-split
+              paths — clip-path, not the SVG data, does the cutting — so this
+              works identically for every piece type with zero per-piece art.
             */}
             <span
               className={`capture-fx__piece-half capture-fx__piece-half--a capture-fx__piece-half--${captureFx.orientation}`}
@@ -889,7 +633,7 @@ export function ChessBoard({
                 { '--capture-fx-piece-end': PIECE_CUT_TRAJECTORY[captureFx.orientation].a } as React.CSSProperties
               }
             >
-              {renderPieceGlyph(captureFx.type, captureFx.color)}
+              <PieceSilhouette type={captureFx.type} color={captureFx.color} />
             </span>
             <span
               className={`capture-fx__piece-half capture-fx__piece-half--b capture-fx__piece-half--${captureFx.orientation}`}
@@ -897,7 +641,7 @@ export function ChessBoard({
                 { '--capture-fx-piece-end': PIECE_CUT_TRAJECTORY[captureFx.orientation].b } as React.CSSProperties
               }
             >
-              {renderPieceGlyph(captureFx.type, captureFx.color)}
+              <PieceSilhouette type={captureFx.type} color={captureFx.color} />
             </span>
 
             {/* The blade itself — a bright flash swept along the same
