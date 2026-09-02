@@ -42,6 +42,14 @@ type ChessBoardProps = {
    */
   onPieceDrop?: (args: PieceDropHandlerArgs) => boolean;
   /**
+   * True when `lastMoveUci` took a piece — drives the capture impact effect
+   * (shockwave + shard burst + a small board shake) on that square. Optional
+   * and defaults to `false`, so a caller that never wires this up (there is
+   * none left, but the type doesn't require it) just never sees the effect
+   * rather than crashing on a missing prop.
+   */
+  lastMoveIsCapture?: boolean;
+  /**
    * Legal destinations for a piece the player has just picked up (by drag)
    * or clicked (the first tap of a click-to-move pair), used to draw the
    * chess.com-style dots/capture rings and to decide what a click on a given
@@ -130,9 +138,11 @@ const BADGE_ANCHOR_Y = 0.18;
  * Returns null for anything that is not a well-formed square name, so a
  * malformed UCI string drops the badge instead of positioning it at NaN%.
  */
-function squareBadgePosition(
+function squarePercentPosition(
   square: string,
   boardOrientation: 'white' | 'black',
+  anchorX: number,
+  anchorY: number,
 ): { leftPct: number; topPct: number } | null {
   if (square.length < 2) return null;
 
@@ -145,9 +155,72 @@ function squareBadgePosition(
   const row = flipped ? rankIndex : 7 - rankIndex;
 
   return {
-    leftPct: (column + BADGE_ANCHOR_X) * SQUARE_PCT,
-    topPct: (row + BADGE_ANCHOR_Y) * SQUARE_PCT,
+    leftPct: (column + anchorX) * SQUARE_PCT,
+    topPct: (row + anchorY) * SQUARE_PCT,
   };
+}
+
+function squareBadgePosition(
+  square: string,
+  boardOrientation: 'white' | 'black',
+): { leftPct: number; topPct: number } | null {
+  return squarePercentPosition(square, boardOrientation, BADGE_ANCHOR_X, BADGE_ANCHOR_Y);
+}
+
+/** Dead centre of a square — where the capture impact effect below is anchored. */
+function squareCenterPosition(
+  square: string,
+  boardOrientation: 'white' | 'black',
+): { leftPct: number; topPct: number } | null {
+  return squarePercentPosition(square, boardOrientation, 0.5, 0.5);
+}
+
+/**
+ * `react-chessboard`'s own slide animation for the capturing piece — kept as
+ * one named constant so the capture-impact effect below can wait for it to
+ * finish before it plays, and so the two can never quietly drift apart.
+ */
+const BOARD_MOVE_ANIMATION_MS = 150;
+
+/** How many debris shards fly out of a capture impact. */
+const CAPTURE_FX_SHARD_COUNT = 7;
+/**
+ * Total lifetime of the impact effect once it starts (shockwave + shards
+ * fading out), in ms — must stay roughly in sync with the CSS animation
+ * durations on `.capture-fx__ring`/`.capture-fx__shard` in App.css.
+ */
+const CAPTURE_FX_LIFETIME_MS = 620;
+/** How long the board's own impact shake runs, in ms. */
+const CAPTURE_SHAKE_MS = 220;
+
+type CaptureShard = { dx: number; dy: number; rotate: number; delay: number };
+
+/**
+ * One-off scatter of shard trajectories for a single capture. `dx`/`dy` are
+ * percentages, but deliberately *not* board-relative: a CSS `%` inside
+ * `transform: translate()` always resolves against the element's own box,
+ * never its parent's, so `.capture-fx__shard` is sized in App.css to fill
+ * `.capture-fx` exactly (see that rule's comment) and these percentages are
+ * fractions of *that* — roughly half to three-quarters of one square outward,
+ * which is what `distance` below actually means.
+ *
+ * Spread evenly around the compass with a little jitter on each — enough
+ * that a burst never looks mechanically identical twice, without needing to
+ * be reproducible (this is transient visual flourish, not anything a test or
+ * replay depends on).
+ */
+function buildCaptureShards(): CaptureShard[] {
+  return Array.from({ length: CAPTURE_FX_SHARD_COUNT }, (_, i) => {
+    const angle = (360 / CAPTURE_FX_SHARD_COUNT) * i + (Math.random() * 26 - 13);
+    const radians = (angle * Math.PI) / 180;
+    const distance = 0.46 + Math.random() * 0.26; // fraction of the shard's own box
+    return {
+      dx: Math.cos(radians) * distance * 100,
+      dy: Math.sin(radians) * distance * 100,
+      rotate: Math.round(angle + (Math.random() * 200 - 100)),
+      delay: Math.round(Math.random() * 35),
+    };
+  });
 }
 
 /**
@@ -162,6 +235,7 @@ export function ChessBoard({
   boardOrientation = 'white',
   allowDragging,
   onPieceDrop,
+  lastMoveIsCapture = false,
   legalMovesFor,
   moveBadge = null,
 }: ChessBoardProps) {
@@ -217,6 +291,44 @@ export function ChessBoard({
     clearDragOrigin();
     clearSelection();
   }, [displayFen, clearDragOrigin, clearSelection]);
+
+  // Capture impact effect: a shockwave + shard burst on the destination
+  // square, plus a brief board shake. `id` is a bump counter, not a boolean,
+  // so replaying the exact same capture (e.g. clicking back and forward past
+  // it in the move list) restarts the animation via a changed `key` instead
+  // of silently no-op'ing because "isCapture" never toggled.
+  const [captureFx, setCaptureFx] = useState<{ id: number; square: string; shards: CaptureShard[] } | null>(
+    null,
+  );
+  const captureFxIdRef = useRef(0);
+  const [boardShaking, setBoardShaking] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!lastMoveIsCapture || !lastMoveUci || lastMoveUci.length < 4) return;
+    const square = lastMoveUci.slice(2, 4);
+
+    // Wait out react-chessboard's own slide first, so the burst reads as the
+    // impact of the piece landing rather than announcing the capture before
+    // it visibly arrives.
+    const showTimer = window.setTimeout(() => {
+      captureFxIdRef.current += 1;
+      setCaptureFx({ id: captureFxIdRef.current, square, shards: buildCaptureShards() });
+      setBoardShaking(true);
+      window.setTimeout(() => setBoardShaking(false), CAPTURE_SHAKE_MS);
+    }, BOARD_MOVE_ANIMATION_MS);
+
+    const clearTimer = window.setTimeout(
+      () => setCaptureFx(null),
+      BOARD_MOVE_ANIMATION_MS + CAPTURE_FX_LIFETIME_MS,
+    );
+
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(clearTimer);
+    };
+    // `lastMoveUci` alone would miss a capture replayed onto the very same
+    // square as the previous one; both together fire on every real new move.
+  }, [lastMoveUci, lastMoveIsCapture]);
 
   const handlePieceDrag = useCallback(
     ({ square }: PieceHandlerArgs) => {
@@ -326,8 +438,13 @@ export function ChessBoard({
     [moveBadge, boardOrientation],
   );
 
+  const captureFxPosition = useMemo(
+    () => (captureFx ? squareCenterPosition(captureFx.square, boardOrientation) : null),
+    [captureFx, boardOrientation],
+  );
+
   return (
-    <div className="chessboard-wrapper">
+    <div className={`chessboard-wrapper${boardShaking ? ' chessboard-wrapper--impact' : ''}`}>
       <Chessboard
         options={{
           id: 'chessscope-analysis-board',
@@ -344,7 +461,7 @@ export function ChessBoard({
             : {}),
           allowDrawingArrows: false,
           showNotation: true,
-          animationDurationInMs: 150,
+          animationDurationInMs: BOARD_MOVE_ANIMATION_MS,
           ...(pieces ? { pieces } : {}),
           squareStyles,
           lightSquareStyle: { backgroundColor: colors.light },
@@ -393,6 +510,41 @@ export function ChessBoard({
                 {classificationIcon(moveBadge.classification)}
               </text>
             </svg>
+          </span>
+        </div>
+      )}
+
+      {/*
+        Same overlay-sibling pattern as the badge layer above. `key={captureFx.id}`
+        (not the square name) is what actually matters here — it's a bump
+        counter, so a capture landing on the exact same square as the previous
+        one still gets a fresh DOM node and replays from scratch instead of the
+        browser treating it as the same element with unchanged props.
+      */}
+      {captureFx && captureFxPosition && (
+        <div className="board-fx" aria-hidden="true">
+          <span
+            key={captureFx.id}
+            className="capture-fx"
+            style={{ left: `${captureFxPosition.leftPct}%`, top: `${captureFxPosition.topPct}%` }}
+          >
+            <span className="capture-fx__flash" />
+            <span className="capture-fx__ring" />
+            <span className="capture-fx__ring capture-fx__ring--delay" />
+            {captureFx.shards.map((shard, index) => (
+              <span
+                key={index}
+                className="capture-fx__shard"
+                style={
+                  {
+                    '--capture-fx-dx': `${shard.dx}%`,
+                    '--capture-fx-dy': `${shard.dy}%`,
+                    '--capture-fx-rotate': `${shard.rotate}deg`,
+                    animationDelay: `${shard.delay}ms`,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
           </span>
         </div>
       )}

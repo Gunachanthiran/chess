@@ -2112,6 +2112,192 @@
   }
 }
 
+/* ---------- Capture impact effect ---------- */
+
+/*
+ * A short board-wide "punch" the instant a capturing piece lands: the wrapper
+ * itself jitters a few pixels, so the whole board — pieces, overlays, all of
+ * it — reacts as one physical object rather than just the captured square
+ * lighting up. Purely a paint-time transform (no layout is touched), so it
+ * can never perturb the `min(...)` width formulas above it.
+ */
+@keyframes board-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  20% {
+    transform: translate3d(-3px, 1px, 0);
+  }
+  40% {
+    transform: translate3d(3px, -1px, 0);
+  }
+  60% {
+    transform: translate3d(-2px, 1px, 0);
+  }
+  80% {
+    transform: translate3d(2px, -1px, 0);
+  }
+}
+
+.chessboard-wrapper--impact {
+  animation: board-shake 220ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/*
+ * Same overlay-sibling pattern as `.board-badges` — sized off the wrapper's
+ * width via `aspect-ratio: 1` so it lines up with the board exactly, and
+ * z-indexed one above the classification badges so a capture's impact never
+ * reads as hidden behind one.
+ */
+.board-fx {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/*
+ * Anchored on the destination square's centre (set inline, same convention
+ * as `.board-badge`) and sized a touch larger than one square, so the ring
+ * and flash have room to read as a burst rather than being clipped at the
+ * piece's own edges. Every child below is positioned relative to *this* box,
+ * so a shard's `--capture-fx-dx/dy` (a percentage) travels a fraction of one
+ * square, not of the whole board — deliberately, so the burst stays
+ * proportionate to the piece that was actually captured at any board size.
+ */
+.capture-fx {
+  position: absolute;
+  width: 14.5%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+}
+
+.capture-fx__flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 135%;
+  height: 135%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 65%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 22%, transparent) 45%,
+    transparent 72%
+  );
+  animation: capture-fx-flash 380ms ease-out both;
+}
+
+@keyframes capture-fx-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  35% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
+}
+
+/* A double pulse — the second, delayed ring is what keeps a single expanding
+   circle from reading as flat/mechanical. */
+.capture-fx__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2.5px solid color-mix(in srgb, var(--accent) 85%, white 15%);
+  transform: translate(-50%, -50%);
+  animation: capture-fx-ring 520ms ease-out both;
+}
+
+.capture-fx__ring--delay {
+  animation-delay: 90ms;
+  opacity: 0.65;
+}
+
+@keyframes capture-fx-ring {
+  0% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.9);
+  }
+}
+
+/*
+ * Small debris shards flung out of the impact point. This element itself is
+ * invisible and sized to fill `.capture-fx` exactly (100%) — deliberately,
+ * because a CSS `%` inside `transform: translate()` always resolves against
+ * the *translated element's own* box, never its parent's. Filling `.capture-fx`
+ * is what makes `--capture-fx-dx/dy` (set inline per-shard from
+ * `buildCaptureShards()` in ChessBoard.tsx, as fractions of that same box)
+ * come out as sensible travel distances instead of nearly nothing. The
+ * visible diamond lives on `::before`, small and centred within.
+ */
+.capture-fx__shard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  animation: capture-fx-shard 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.capture-fx__shard::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22%;
+  height: 22%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(135deg, #fff6d8, var(--accent));
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+@keyframes capture-fx-shard {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(0, 0) rotate(0deg) scale(1);
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--capture-fx-dx), var(--capture-fx-dy))
+      rotate(var(--capture-fx-rotate)) scale(0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chessboard-wrapper--impact {
+    animation: none;
+  }
+  .capture-fx__flash,
+  .capture-fx__ring,
+  .capture-fx__shard {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 .eval-bar {
   position: relative;
   width: 26px;

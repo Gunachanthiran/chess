@@ -133,6 +133,7 @@ export function GameAnalysisPage({
     if (!preview) return null;
     const chess = new Chess(preview.baseFen);
     let lastMoveUci: string | null = null;
+    let lastMoveIsCapture = false;
     for (let i = 0; i < previewStep; i += 1) {
       let move;
       try {
@@ -144,8 +145,9 @@ export function GameAnalysisPage({
         break;
       }
       lastMoveUci = move.lan;
+      lastMoveIsCapture = move.captured !== undefined;
     }
-    return { fen: chess.fen(), lastMoveUci };
+    return { fen: chess.fen(), lastMoveUci, lastMoveIsCapture };
   }, [preview, previewStep]);
 
   /** Whatever position is actually on the board right now — the real game's,
@@ -350,6 +352,12 @@ export function GameAnalysisPage({
       ? { square: lastMoveUci.slice(2, 4), classification: currentMove.classification }
       : null;
 
+  // Drives the capture impact effect (see `ChessBoard`) for the real game
+  // position. SAN's own `x` is the same signal `useSoundEffects` keys its
+  // capture sound off of, so the board's ears and eyes never disagree about
+  // whether a given move was a capture.
+  const lastMoveIsCapture = currentMove ? currentMove.san.includes('x') : false;
+
   // Chess.com-style flanking bars instead of a name row in the page header:
   // whichever side sits at the bottom of the board (`orientation`) gets the
   // bottom bar, the other side gets the top bar. Flipping the board swaps them.
@@ -471,6 +479,9 @@ export function GameAnalysisPage({
             <ChessBoard
               displayFen={boardFen}
               lastMoveUci={previewPosition ? previewPosition.lastMoveUci : lastMoveUci}
+              lastMoveIsCapture={
+                previewPosition ? previewPosition.lastMoveIsCapture : lastMoveIsCapture
+              }
               boardOrientation={orientation}
               moveBadge={previewPosition ? null : moveBadge}
               allowDragging

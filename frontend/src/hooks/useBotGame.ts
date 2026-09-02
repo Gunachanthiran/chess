@@ -19,6 +19,8 @@ export type BotGameHook = {
   displayFen: string;
   /** UCI of the last move played, for the board highlight. */
   lastMoveUci: string | null;
+  /** Whether that last move took a piece — drives the board's capture effect. */
+  lastMoveIsCapture: boolean;
   /** True while POST /moves is in flight — covers "accepted?" and "bot replying". */
   botThinking: boolean;
   /** True while POST /api/bot-games is in flight. */
@@ -188,7 +190,9 @@ export function useBotGame(): BotGameHook {
   const [claimingDraw, setClaimingDraw] = useState(false);
   const [resigning, setResigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [optimistic, setOptimistic] = useState<{ fen: string; uci: string } | null>(null);
+  const [optimistic, setOptimistic] = useState<
+    { fen: string; uci: string; isCapture: boolean } | null
+  >(null);
 
   // Board mirroring `botGame.moves`. Rebuilt from scratch whenever the game
   // changes, so it is structurally incapable of accumulating drift.
@@ -208,6 +212,10 @@ export function useBotGame(): BotGameHook {
     return {
       fen: chess.fen(),
       lastUci: moves.length > 0 ? moves[moves.length - 1].uci : null,
+      // Same `x`-in-SAN convention `useSoundEffects` keys its capture sound
+      // off of — see `GameAnalysisPage`'s identical comment for why that's
+      // deliberate rather than an independent guess.
+      lastIsCapture: moves.length > 0 ? moves[moves.length - 1].san.includes('x') : false,
       // A best-effort client-side hint for the "Claim Draw" button's enabled
       // state only — the server (bot_game_service.claim_draw) is still the
       // real arbiter on click. Threefold repetition and the fifty-move rule
@@ -220,6 +228,7 @@ export function useBotGame(): BotGameHook {
 
   const displayFen = optimistic?.fen ?? serverBoard.fen;
   const lastMoveUci = optimistic?.uci ?? serverBoard.lastUci;
+  const lastMoveIsCapture = optimistic?.isCapture ?? serverBoard.lastIsCapture;
 
   const isLegalMove = useCallback(
     (sourceSquare: string, targetSquare: string, promotion?: string): boolean => {
@@ -354,7 +363,7 @@ export function useBotGame(): BotGameHook {
       setBotThinking(true);
       setError(null);
       // Display-only; discarded in `finally` whatever happens.
-      setOptimistic({ fen: legal.after, uci });
+      setOptimistic({ fen: legal.after, uci, isCapture: legal.captured !== undefined });
 
       try {
         // 2 + 3. The response carries the player's move *and* the bot's reply.
@@ -474,6 +483,7 @@ export function useBotGame(): BotGameHook {
     botGame,
     displayFen,
     lastMoveUci,
+    lastMoveIsCapture,
     botThinking,
     creating,
     undoing,
