@@ -14,13 +14,20 @@ export type PieceSetInfo = {
 
 export const PIECE_SETS: Record<PieceSet, PieceSetInfo> = {
   classic: { label: 'Classic', pieces: undefined },
-  line: { label: 'Line', pieces: LINE_ART_PIECES },
+  // Internal key stays `line` (existing `localStorage` values already use
+  // it, and it's what `lineArt.tsx`'s own file/export names refer to) — only
+  // the label changed, to match what the set actually looks like now.
+  line: { label: 'Roman', pieces: LINE_ART_PIECES },
 };
 
 export const PIECE_SET_ORDER: PieceSet[] = ['classic', 'line'];
 
 const PIECE_SET_STORAGE_KEY = 'chessscope.board.pieceSet';
-const DEFAULT_PIECE_SET: PieceSet = 'classic';
+// The Roman-themed set is the one actually designed for this app (every
+// other piece here is hand-authored for ChessScope); `defaultPieces`
+// (`classic`) is `react-chessboard`'s own bundled cburnett-style art, kept
+// only as a fallback for whoever prefers the familiar look.
+const DEFAULT_PIECE_SET: PieceSet = 'line';
 
 function isPieceSet(value: string | null): value is PieceSet {
   return value !== null && Object.prototype.hasOwnProperty.call(PIECE_SETS, value);
