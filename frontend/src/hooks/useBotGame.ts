@@ -10,8 +10,8 @@ import {
   undoBotMove,
 } from '../api/botGame';
 import { ApiError, errorMessage } from '../api/client';
-import { capturedPieceFromMove } from '../components/board/ChessBoard';
-import type { CapturedPiece } from '../components/board/ChessBoard';
+import { lastMoveInfoFromMove } from '../components/board/ChessBoard';
+import type { LastMoveInfo } from '../components/board/ChessBoard';
 import type { BotColor, BotGame, BotGameMove, LegalMoveTarget } from '../types';
 
 export type BotGameHook = {
@@ -21,8 +21,9 @@ export type BotGameHook = {
   displayFen: string;
   /** UCI of the last move played, for the board highlight. */
   lastMoveUci: string | null;
-  /** The piece that last move took, or `null` — drives the board's capture-cut effect. */
-  lastCapture: CapturedPiece | null;
+  /** Full detail of the last move played — drives the board's per-piece
+   * movement flourish and, when it took something, the capture-cut effect. */
+  lastMove: LastMoveInfo | null;
   /** True while POST /moves is in flight — covers "accepted?" and "bot replying". */
   botThinking: boolean;
   /** True while POST /api/bot-games is in flight. */
@@ -200,7 +201,7 @@ export function useBotGame(): BotGameHook {
   const [resigning, setResigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<
-    { fen: string; uci: string; capture: CapturedPiece | null } | null
+    { fen: string; uci: string; move: LastMoveInfo | null } | null
   >(null);
 
   // Board mirroring `botGame.moves`. Rebuilt from scratch whenever the game
@@ -214,14 +215,14 @@ export function useBotGame(): BotGameHook {
   const inFlightRef = useRef(false);
 
   const serverBoard = useMemo(() => {
-    const { chess, lastMove } = buildBoard(botGame?.moves ?? []);
+    const { chess, lastMove: lastPlayedMove } = buildBoard(botGame?.moves ?? []);
     chessRef.current = chess;
     botGameRef.current = botGame;
     const moves = botGame?.moves ?? [];
     return {
       fen: chess.fen(),
       lastUci: moves.length > 0 ? moves[moves.length - 1].uci : null,
-      lastCapture: lastMove ? capturedPieceFromMove(lastMove) : null,
+      lastMove: lastPlayedMove ? lastMoveInfoFromMove(lastPlayedMove) : null,
       // A best-effort client-side hint for the "Claim Draw" button's enabled
       // state only — the server (bot_game_service.claim_draw) is still the
       // real arbiter on click. Threefold repetition and the fifty-move rule
@@ -234,7 +235,7 @@ export function useBotGame(): BotGameHook {
 
   const displayFen = optimistic?.fen ?? serverBoard.fen;
   const lastMoveUci = optimistic?.uci ?? serverBoard.lastUci;
-  const lastCapture = optimistic ? optimistic.capture : serverBoard.lastCapture;
+  const lastMove = optimistic ? optimistic.move : serverBoard.lastMove;
 
   const isLegalMove = useCallback(
     (sourceSquare: string, targetSquare: string, promotion?: string): boolean => {
@@ -369,7 +370,7 @@ export function useBotGame(): BotGameHook {
       setBotThinking(true);
       setError(null);
       // Display-only; discarded in `finally` whatever happens.
-      setOptimistic({ fen: legal.after, uci, capture: capturedPieceFromMove(legal) });
+      setOptimistic({ fen: legal.after, uci, move: lastMoveInfoFromMove(legal) });
 
       try {
         // 2 + 3. The response carries the player's move *and* the bot's reply.
@@ -489,7 +490,7 @@ export function useBotGame(): BotGameHook {
     botGame,
     displayFen,
     lastMoveUci,
-    lastCapture,
+    lastMove,
     botThinking,
     creating,
     undoing,
