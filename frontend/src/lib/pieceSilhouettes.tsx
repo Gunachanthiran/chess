@@ -34,17 +34,16 @@ const BLACK_STROKE = '#f4f1ea';
 
 export const PIECE_BASE = <rect x="9" y="36.5" width="27" height="4" rx="1.3" />;
 
-// A small legionary: helmet (a plain head with a thin ridge standing in for
-// a brow band — anything more detailed stopped reading as a helmet at all
-// at board scale) over a simple robed/armoured body.
+// Deliberately the smallest, plainest silhouette of the six — everything
+// else is sized and detailed *relative to this baseline*, the same way a
+// real Staunton set makes the pawn unmistakably "the small plain one" so it
+// never gets confused with a piece that actually has a distinguishing
+// feature. An earlier pass gave this a helmet ridge like the bishop's, which
+// was exactly the mistake: at board scale the two read as the same piece.
 const PAWN_BODY = (
   <>
-    <circle cx="22.5" cy="13" r="5" />
-    <path
-      d="M19.3,8.6 C19.3,6 20.7,4 22.5,4 C24.3,4 25.7,6 25.7,8.6"
-      fill="none"
-    />
-    <path d="M16,38 C16,29 19,22.5 22.5,20.4 C26,22.5 29,29 29,38 Z" />
+    <circle cx="22.5" cy="17.5" r="4.2" />
+    <path d="M18,38 C18,32 19.8,28 22.5,26.7 C25.2,28 27,32 27,38 Z" />
   </>
 );
 
@@ -70,43 +69,48 @@ const KNIGHT_BODY = (
   <path d="M14,38 L14,30 C14,26 16,23 18,21 L15,17 C15,14 17,11 20,10 L23,14 L27,11 C30,11 33,14 33,18 C33,21 31,23 28,23 L30,26 L30,38 Z" />
 );
 
-// A centurion in place of the traditional mitred bishop: a domed helmet
-// with a small crest spike and cheek guards, a sword held point-down in
-// front (a blade + crossguard), over a simple armoured robe.
+// A centurion in place of the traditional mitred bishop: a helmet dome
+// noticeably *wider* than the pawn's plain head (width, not just added
+// detail, is what actually survives being shrunk to board scale), a bold
+// crest, and a sword — one solid tapered blade shape, not a thin outline —
+// held point-down in front. Every one of these three features is sized to
+// still read on its own; the first version's crest and blade were both thin
+// enough to disappear into the stroke outline at real board size.
 const BISHOP_BODY = (
   <>
-    <path d="M21.5,3 L22.5,0.4 L23.5,3 Z" />
-    <path d="M22.5,2 C25.5,2 27.8,4.5 27.8,7.6 L27.8,8.6 C28.8,9 29.4,9.9 29.4,11 L29.4,12.2 L15.6,12.2 L15.6,11 C15.6,9.9 16.2,9 17.2,8.6 L17.2,7.6 C17.2,4.5 19.5,2 22.5,2 Z" />
-    <path d="M17,38 L17,25 C17,19.5 19.2,15.8 22.5,14.4 C25.8,15.8 28,19.5 28,25 L28,38 Z" />
-    <rect x="21" y="13.5" width="3" height="22" rx="1" />
-    <rect x="18.5" y="13.5" width="8" height="2.2" rx="0.7" />
+    <path d="M22.5,0 L26,7 L22.5,9 L19,7 Z" />
+    <path d="M22.5,3.4 C27.2,3.4 30.6,7 30.6,11.2 L30.6,12.4 C32,13 32.8,14.1 32.8,15.4 L32.8,17 L12.2,17 L12.2,15.4 C12.2,14.1 13,13 14.4,12.4 L14.4,11.2 C14.4,7 17.8,3.4 22.5,3.4 Z" />
+    <path d="M16,38 L16,25.5 C16,19 18.7,14.6 22.5,12.8 C26.3,14.6 29,19 29,25.5 L29,38 Z" />
+    <path d="M22.5,12 L25.6,15.5 L23.6,15.5 L23.6,33 L21.4,33 L21.4,15.5 L19.4,15.5 Z" />
+    <rect x="17" y="10.6" width="11" height="3" rx="1" />
   </>
 );
 
-// A soft rounded hood/veil in place of a spiked crown — a Roman matron's
-// headdress reads more like an arch than a zigzag, so this trades the old
-// set's five-point crown for one continuous dome over the head.
+// Taller than the bishop and topped with the widest head silhouette of the
+// six — a big rounded hood/veil, wider than the bishop's helmet dome and
+// with no crest or weapon on it — so width and softness are what read as
+// "queen" instead of a smaller, subtler version of the centurion next to her.
 const QUEEN_BODY = (
   <>
-    <path d="M13.5,10 C13.5,4.5 17.5,1 22.5,1 C27.5,1 31.5,4.5 31.5,10 L31.5,11 C31.5,12 30.5,12.6 29.3,12.6 L15.7,12.6 C14.5,12.6 13.5,12 13.5,11 Z" />
-    <circle cx="22.5" cy="13.5" r="4.4" />
-    <path d="M15,37 C15,29 18,24 22.5,22 C27,24 30,29 30,37 Z" />
+    <path d="M10.5,10.5 C10.5,4 15.7,0 22.5,0 C29.3,0 34.5,4 34.5,10.5 L34.5,12 C34.5,13.3 33.2,14.2 31.5,14.2 L13.5,14.2 C11.8,14.2 10.5,13.3 10.5,12 Z" />
+    <circle cx="22.5" cy="16.2" r="5.4" />
+    <path d="M14.5,38 L14.5,29.5 C14.5,22.5 17.8,17 22.5,14.7 C27.2,17 30.5,22.5 30.5,29.5 L30.5,38 Z" />
   </>
 );
 
-// A standard-bearer: the staff (topped with a small orb, the way a legion's
-// standard reads at this scale better than an eagle would) stands beside the
-// king rather than on his head, which is what actually distinguishes this
-// piece from the queen at a glance — the crown-on-head convention doesn't
-// survive simplification nearly as well as "this one is holding something."
+// The tallest piece on the board, via a bold staff (a thick shaft and a big
+// orb, not a hairline that vanishes at board scale) standing well above
+// every other piece's own tallest point — the one silhouette cue proven to
+// survive simplification, rather than a crown-on-head convention that
+// doesn't.
 const KING_BODY = (
   <>
-    <rect x="29.2" y="1" width="1.8" height="19" rx="0.9" />
-    <circle cx="30.1" cy="1.8" r="2.3" />
-    <rect x="26.7" y="9" width="6.6" height="1.6" rx="0.6" />
-    <circle cx="18.5" cy="9.5" r="5" />
-    <path d="M9,23 C9,19 12.8,16.3 18.5,16.3 C24.2,16.3 28,19 28,23 L28,26.5 L9,26.5 Z" />
-    <path d="M11,38 C11,29.5 13.7,24 18.5,22.3 C23.3,24 26,29.5 26,38 Z" />
+    <rect x="29.6" y="0.3" width="2.8" height="22" rx="1.2" />
+    <circle cx="31" cy="1.6" r="3.1" />
+    <rect x="25.4" y="10.6" width="11.2" height="2.8" rx="1" />
+    <circle cx="16.5" cy="11" r="5.8" />
+    <path d="M5,26 C5,20.7 9.8,17 16.5,17 C23.2,17 28,20.7 28,26 L28,29.6 L5,29.6 Z" />
+    <path d="M7.7,38 L7.7,28.8 C7.7,22 11.2,17.5 16.5,15.5 C21.8,17.5 25.3,22 25.3,28.8 L25.3,38 Z" />
   </>
 );
 
