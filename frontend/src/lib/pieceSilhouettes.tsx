@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * Shared piece-body path data — the same shapes `pieceSets/lineArt.tsx` draws
  * as the "Line" piece set, pulled out here so a second consumer (the board's
@@ -10,14 +12,14 @@
  * shape per piece type regardless of art style, the same way `moveBadge`'s
  * classification glyph is independent of piece art.
  *
- * Roman-themed, in the same spirit as a classic pewter Roman Empire chess
- * set (a standard-bearing king, a robed queen, a helmeted centurion in place
- * of a bishop, a rearing-horse knight, a fluted column for a rook, a small
- * legionary pawn) — reinterpreted as flat single-colour silhouettes rather
- * than an attempt at sculptural, photorealistic detail, the same
- * "deliberately simplified" philosophy this file has always used, just on a
- * new theme. Every path here is hand-authored for this app; nothing is
- * traced from an existing piece set or a specific manufactured product.
+ * Roman-themed, in the spirit of a Roman-military mood board (a
+ * standard-bearing king, a robed matron queen, a centurion carrying a shield
+ * in place of a bishop, a rearing-horse knight, a crenellated tower rook, a
+ * small legionary pawn) rather than a copy of any one specific set —
+ * reinterpreted as flat gradient-shaded silhouettes rather than an attempt at
+ * sculptural, photorealistic detail, the same "deliberately simplified"
+ * philosophy this file has always used. Every path here is hand-authored
+ * geometry for this app; nothing is traced from a photograph.
  *
  * One shared coordinate system (viewBox 0 0 45 45) and one shared base
  * plinth — the same convention react-chessboard's own bundled set uses —
@@ -27,9 +29,7 @@
 export type PieceType = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
 export type PieceColor = 'w' | 'b';
 
-const WHITE_FILL = '#f4f1ea';
 const WHITE_STROKE = '#2a2a2a';
-const BLACK_FILL = '#2a2a2a';
 const BLACK_STROKE = '#f4f1ea';
 
 export const PIECE_BASE = <rect x="9" y="36.5" width="27" height="4" rx="1.3" />;
@@ -38,8 +38,7 @@ export const PIECE_BASE = <rect x="9" y="36.5" width="27" height="4" rx="1.3" />
 // else is sized and detailed *relative to this baseline*, the same way a
 // real Staunton set makes the pawn unmistakably "the small plain one" so it
 // never gets confused with a piece that actually has a distinguishing
-// feature. An earlier pass gave this a helmet ridge like the bishop's, which
-// was exactly the mistake: at board scale the two read as the same piece.
+// feature.
 const PAWN_BODY = (
   <>
     <circle cx="22.5" cy="17.5" r="4.2" />
@@ -47,49 +46,46 @@ const PAWN_BODY = (
   </>
 );
 
-// A fluted classical column, not a crenellated tower — the "rook" of a
-// Roman-themed set, per the reference set this theme is drawn from: a
-// stepped capital, a shaft with two flute lines for texture, and a flared
-// base sitting on the shared plinth.
+// A crenellated tower rather than a plain column: a shaft with brick-course
+// lines and a battlement crown, topped with a small eagle finial.
 const ROOK_BODY = (
   <>
-    <path d="M15.5,9.5 C15.5,7.5 17.7,6 20.4,6 L24.6,6 C27.3,6 29.5,7.5 29.5,9.5 L29.5,11.3 L15.5,11.3 Z" />
-    <rect x="17.5" y="11.3" width="10" height="2.6" rx="0.8" />
-    <rect x="18.7" y="14.4" width="7.6" height="19.6" />
-    <line x1="20.7" y1="15.5" x2="20.7" y2="33" fill="none" />
-    <line x1="24.3" y1="15.5" x2="24.3" y2="33" fill="none" />
-    <rect x="15.8" y="34.5" width="13.4" height="2.8" rx="0.8" />
+    <path d="M20.5,4 C20.5,2.5 21.5,1.5 22.5,1.5 C23.5,1.5 24.5,2.5 24.5,4 L24.5,6 L20.5,6 Z" />
+    <path d="M12,7.5 L15,4.5 L18,7.5 L18,4 L27,4 L27,7.5 L30,4.5 L33,7.5 L30,9.5 L15,9.5 Z" />
+    <rect x="14.5" y="9.5" width="16" height="2.6" rx="0.7" />
+    <path d="M16,12.4 L16,34 C16,34 18,35.5 22.5,35.5 C27,35.5 29,34 29,34 L29,12.4 Z" />
+    <line x1="16" y1="18" x2="29" y2="18" fill="none" />
+    <line x1="16" y1="24" x2="29" y2="24" fill="none" />
+    <line x1="16" y1="30" x2="29" y2="30" fill="none" />
   </>
 );
 
 // Unchanged from the original set: already a clean, recognisable rearing
-// horse/knight silhouette at board scale, so the Roman redesign leaves it
-// alone rather than risk a "improvement" that reads worse in play.
+// horse/knight silhouette at board scale, so the redesign leaves it alone
+// rather than risk an "improvement" that reads worse in play.
 const KNIGHT_BODY = (
   <path d="M14,38 L14,30 C14,26 16,23 18,21 L15,17 C15,14 17,11 20,10 L23,14 L27,11 C30,11 33,14 33,18 C33,21 31,23 28,23 L30,26 L30,38 Z" />
 );
 
-// A centurion in place of the traditional mitred bishop: a helmet dome
-// noticeably *wider* than the pawn's plain head (width, not just added
-// detail, is what actually survives being shrunk to board scale), a bold
-// crest, and a sword — one solid tapered blade shape, not a thin outline —
-// held point-down in front. Every one of these three features is sized to
-// still read on its own; the first version's crest and blade were both thin
-// enough to disappear into the stroke outline at real board size.
+// A centurion carrying a shield at his side in place of the traditional
+// mitred bishop: a helmet dome noticeably wider than the pawn's plain head,
+// a bold crest, and a curved shield panel with a boss — the shield's own
+// asymmetric bulge is what makes this silhouette unmistakable even in solid
+// colour, more than a straight sword ever did.
 const BISHOP_BODY = (
   <>
     <path d="M22.5,0 L26,7 L22.5,9 L19,7 Z" />
     <path d="M22.5,3.4 C27.2,3.4 30.6,7 30.6,11.2 L30.6,12.4 C32,13 32.8,14.1 32.8,15.4 L32.8,17 L12.2,17 L12.2,15.4 C12.2,14.1 13,13 14.4,12.4 L14.4,11.2 C14.4,7 17.8,3.4 22.5,3.4 Z" />
-    <path d="M16,38 L16,25.5 C16,19 18.7,14.6 22.5,12.8 C26.3,14.6 29,19 29,25.5 L29,38 Z" />
-    <path d="M22.5,12 L25.6,15.5 L23.6,15.5 L23.6,33 L21.4,33 L21.4,15.5 L19.4,15.5 Z" />
-    <rect x="17" y="10.6" width="11" height="3" rx="1" />
+    <path d="M14,38 L14,26 C14,20 16.3,15.8 19.8,14 C22.9,15.8 24.8,20 24.8,26 L24.8,38 Z" />
+    <path d="M27,16.5 C30.5,17 33,20.5 33,25 C33,29.5 30.5,33 27,33.5 C25.8,33.5 25,32.6 25,31.4 L25,18.6 C25,17.4 25.8,16.5 27,16.5 Z" />
+    <circle cx="29" cy="25" r="1.6" fill="none" />
   </>
 );
 
-// Taller than the bishop and topped with the widest head silhouette of the
-// six — a big rounded hood/veil, wider than the bishop's helmet dome and
-// with no crest or weapon on it — so width and softness are what read as
-// "queen" instead of a smaller, subtler version of the centurion next to her.
+// Topped with the widest head silhouette of the six — a big rounded
+// hood/veil, wider than the centurion's helmet dome and with no crest or
+// weapon on it — so width and softness read as "queen" instead of a
+// quieter version of the piece next to her.
 const QUEEN_BODY = (
   <>
     <path d="M10.5,10.5 C10.5,4 15.7,0 22.5,0 C29.3,0 34.5,4 34.5,10.5 L34.5,12 C34.5,13.3 33.2,14.2 31.5,14.2 L13.5,14.2 C11.8,14.2 10.5,13.3 10.5,12 Z" />
@@ -98,15 +94,14 @@ const QUEEN_BODY = (
   </>
 );
 
-// The tallest piece on the board, via a bold staff (a thick shaft and a big
-// orb, not a hairline that vanishes at board scale) standing well above
-// every other piece's own tallest point — the one silhouette cue proven to
-// survive simplification, rather than a crown-on-head convention that
-// doesn't.
+// A standard-bearer: a bold staff (thick shaft, not a hairline) topped with
+// a small spread-winged eagle rather than a plain orb, standing well above
+// every other piece's own tallest point — the tallest piece on the board,
+// which is the one silhouette cue proven to survive simplification.
 const KING_BODY = (
   <>
-    <rect x="29.6" y="0.3" width="2.8" height="22" rx="1.2" />
-    <circle cx="31" cy="1.6" r="3.1" />
+    <rect x="29.6" y="4" width="2.8" height="18" rx="1.2" />
+    <path d="M31,0.3 C29,1.3 27.4,2.9 27.7,4.5 C29,3.7 30.2,3.7 31,4.5 C31.8,3.7 33,3.7 34.3,4.5 C34.6,2.9 33,1.3 31,0.3 Z" />
     <rect x="25.4" y="10.6" width="11.2" height="2.8" rx="1" />
     <circle cx="16.5" cy="11" r="5.8" />
     <path d="M5,26 C5,20.7 9.8,17 16.5,17 C23.2,17 28,20.7 28,26 L28,29.6 L5,29.6 Z" />
@@ -133,7 +128,26 @@ export type PieceSilhouetteProps = {
   includeBase?: boolean;
 };
 
-/** One piece, drawn from the shared body/base shapes above. */
+/**
+ * One piece, drawn from the shared body/base shapes above with a metallic
+ * gradient fill (warm silver/pewter for white, dark gunmetal for black) and
+ * a soft drop shadow, rather than a flat single colour — what actually reads
+ * as "premium" in a hand-drawn silhouette, short of full sculptural
+ * rendering.
+ *
+ * The gradient is defined fresh per rendered instance via `useId()`, not as
+ * one fixed, shared `<linearGradient id="...">`: a real board has many
+ * pieces of the same colour on screen at once, all rendering their own
+ * `<svg>`, and an HTML/SVG `id` is unique per *document*, not per element —
+ * two elements sharing one hard-coded id resolve any `url(#id)` reference to
+ * whichever one happens to be first in the DOM. That "happens to work" only
+ * by coincidence (every white piece's gradient looks identical anyway) right
+ * up until the first piece in DOM order is captured and removed, at which
+ * point every *other* piece referencing its id would suddenly render with no
+ * fill at all. `useId()` sidesteps that class of bug entirely. Its own output
+ * contains `:`, which is valid in an `id` attribute but not safely usable
+ * unescaped inside a CSS `url(#...)` reference, hence the strip below.
+ */
 export function PieceSilhouette({
   type,
   color,
@@ -141,15 +155,39 @@ export function PieceSilhouette({
   svgStyle,
   includeBase = true,
 }: PieceSilhouetteProps) {
+  const rawId = useId();
+  const gradientId = `piece-fill-${rawId.replace(/:/g, '')}`;
+  const isWhite = color === 'w';
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="100%" height="100%" style={svgStyle}>
+      <defs>
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="15%" y2="100%">
+          {isWhite ? (
+            <>
+              <stop offset="0%" stopColor="#fffdf6" />
+              <stop offset="35%" stopColor="#eee7d3" />
+              <stop offset="70%" stopColor="#c9bd9e" />
+              <stop offset="100%" stopColor="#a89a76" />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor="#5c5850" />
+              <stop offset="35%" stopColor="#38352f" />
+              <stop offset="70%" stopColor="#1c1a17" />
+              <stop offset="100%" stopColor="#0d0c0b" />
+            </>
+          )}
+        </linearGradient>
+      </defs>
       <g
         style={{
-          fill: fill ?? (color === 'w' ? WHITE_FILL : BLACK_FILL),
-          stroke: color === 'w' ? WHITE_STROKE : BLACK_STROKE,
+          fill: fill ?? `url(#${gradientId})`,
+          stroke: isWhite ? WHITE_STROKE : BLACK_STROKE,
           strokeWidth: 1.4,
           strokeLinejoin: 'round',
           strokeLinecap: 'round',
+          filter: 'drop-shadow(0 1.6px 1.2px rgba(0, 0, 0, 0.4))',
         }}
       >
         {PIECE_BODY[type]}
