@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PieceDropHandlerArgs } from 'react-chessboard';
 import { ChessBoard } from '../board/ChessBoard';
 import { BoardThemePicker } from '../board/BoardThemePicker';
@@ -8,7 +8,7 @@ import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { PanelSkeleton } from '../common/Skeleton';
 import type { BotGameHook } from '../../hooks/useBotGame';
 import { isGrandmasterElo } from '../../lib/botConstants';
-import type { BotGame, BotGameMove, GambitStatus } from '../../types';
+import type { BotColor, BotGame, BotGameMove, GambitStatus } from '../../types';
 
 type PlayBotPageProps = {
   bot: BotGameHook;
@@ -188,6 +188,19 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
   // never worse off for it.
   const justPlayedRef = useRef(false);
 
+  // Board orientation is independent of which colour the player is actually
+  // playing — "flipped" just means "look at the board from the other side",
+  // same as GameAnalysisPage's own Flip button. Reset on every new game (by
+  // id, not just existence) so starting another game always opens with the
+  // player's own pieces at the bottom, regardless of how the previous game
+  // was left — this page's `PlayBotPage` instance is not guaranteed to
+  // remount between games (only the URL's `:gameId` changes), so without
+  // this a flip from a previous game would silently carry over.
+  const [flipped, setFlipped] = useState(false);
+  useEffect(() => {
+    setFlipped(false);
+  }, [botGame?.id]);
+
   // Sound for the bot's reply (and anything else that lands without a local
   // drop causing it — the bot's opening move when the player is Black, or a
   // move set restored after a page reload).
@@ -259,6 +272,13 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
   const isLive = botGame.status === 'in_progress';
   const playerColor = botGame.player_color;
   const opponentColor = playerColor === 'white' ? 'black' : 'white';
+  // Which colour's pieces are drawn at the *bottom* of the board — the
+  // player's own by default, the opponent's once flipped. Everything below
+  // that lays the board out (which `PlayerBar` goes where, `ChessBoard`'s own
+  // `boardOrientation`) reads from this rather than `playerColor` directly.
+  const boardOrientation: BotColor = flipped ? opponentColor : playerColor;
+  const topColor: BotColor = boardOrientation === 'white' ? 'black' : 'white';
+  const bottomColor: BotColor = boardOrientation;
 
   // `react-chessboard` needs a synchronous verdict, so the client-side legality
   // check answers the board immediately and the network call runs behind it. A
@@ -321,42 +341,45 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
       <div className="analysis__body">
         <section className="analysis__board-column">
           {/*
-            Opponent above the board, player below. The board is drawn from the
-            player's own perspective (`boardOrientation={playerColor}`) and is
-            never flipped here — there is no Flip button on this page — so the
-            bot's pieces are always the ones at the top of the board and this
-            pairing is fixed rather than orientation-dependent.
+            Whichever colour sits at the bottom (`boardOrientation`, the
+            player's own by default, swapped by the Flip button below) gets
+            the bottom bar; the other colour gets the top one. Each bar's own
+            content (name/meta/captured pieces) is keyed off *whose* colour it
+            is, not fixed top/bottom roles, so the two bars swap places
+            cleanly on flip instead of swapping content in place.
           */}
           <div className="player-bar">
-            <span
-              className={`player-bar__disc player-bar__disc--${opponentColor}`}
-              aria-hidden="true"
-            />
-            <span className="player-bar__name">Tal bot</span>
-            <span className="player-bar__meta">
-              ({isGrandmasterElo(botGame.bot_elo) ? 'Grandmaster' : botGame.bot_elo}, aggression{' '}
-              {botGame.bot_aggression})
-            </span>
-            <CapturedPieces fen={displayFen} side={opponentColor} />
+            <span className={`player-bar__disc player-bar__disc--${topColor}`} aria-hidden="true" />
+            <span className="player-bar__name">{topColor === playerColor ? 'You' : 'Tal bot'}</span>
+            {topColor === opponentColor && (
+              <span className="player-bar__meta">
+                ({isGrandmasterElo(botGame.bot_elo) ? 'Grandmaster' : botGame.bot_elo}, aggression{' '}
+                {botGame.bot_aggression})
+              </span>
+            )}
+            <CapturedPieces fen={displayFen} side={topColor} />
           </div>
 
           <ChessBoard
             displayFen={displayFen}
             lastMoveUci={lastMoveUci}
             lastCapture={lastCapture}
-            boardOrientation={playerColor}
+            boardOrientation={boardOrientation}
             allowDragging={isLive && !botThinking}
             onPieceDrop={handlePieceDrop}
             legalMovesFor={legalMovesFrom}
           />
 
           <div className="player-bar">
-            <span
-              className={`player-bar__disc player-bar__disc--${playerColor}`}
-              aria-hidden="true"
-            />
-            <span className="player-bar__name">You</span>
-            <CapturedPieces fen={displayFen} side={playerColor} />
+            <span className={`player-bar__disc player-bar__disc--${bottomColor}`} aria-hidden="true" />
+            <span className="player-bar__name">{bottomColor === playerColor ? 'You' : 'Tal bot'}</span>
+            {bottomColor === opponentColor && (
+              <span className="player-bar__meta">
+                ({isGrandmasterElo(botGame.bot_elo) ? 'Grandmaster' : botGame.bot_elo}, aggression{' '}
+                {botGame.bot_aggression})
+              </span>
+            )}
+            <CapturedPieces fen={displayFen} side={bottomColor} />
           </div>
 
           <div className="controls">
@@ -420,6 +443,14 @@ export function PlayBotPage({ bot, onNewGame, onExit }: PlayBotPageProps) {
               aria-pressed={muted}
             >
               {muted ? '🔇' : '🔊'}
+            </button>
+            <button
+              className="button"
+              type="button"
+              onClick={() => setFlipped((current) => !current)}
+              title="Flip the board"
+            >
+              Flip
             </button>
             <BoardThemePicker />
             <PieceSetPicker />
