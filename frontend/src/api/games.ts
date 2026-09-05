@@ -1,5 +1,12 @@
 import { apiFetch } from './client';
-import type { Game, GameListResponse, GameSource, GameStats, OpeningPerformanceList } from '../types';
+import type {
+  Game,
+  GameListResponse,
+  GameSource,
+  GameStats,
+  OpeningPerformanceList,
+  PhaseBreakdownList,
+} from '../types';
 
 type GameEnvelope = { game: Game };
 
@@ -47,6 +54,12 @@ export async function getOpeningPerformance(
     signal,
   });
   return data.openings;
+}
+
+/** GET /api/games/phases — error-rate breakdown by game phase. */
+export async function getPhaseBreakdown(signal?: AbortSignal): Promise<PhaseBreakdownList> {
+  const data = await apiFetch<{ phases: PhaseBreakdownList }>('/api/games/phases', { signal });
+  return data.phases;
 }
 
 /** POST /api/lichess/import — by explicit game id. */

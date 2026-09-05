@@ -3207,6 +3207,47 @@
   color: var(--text-dim);
 }
 
+/* ---------- Phase breakdown ---------- */
+
+.phase-breakdown__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.phase-breakdown__row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.phase-breakdown__phase {
+  font-weight: 600;
+}
+
+.phase-breakdown__count {
+  color: var(--text-dim);
+}
+
+.phase-breakdown__rate {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.phase-breakdown__bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-sunken);
+}
+
+.phase-breakdown__segment {
+  height: 100%;
+}
+
 /* ---------- Tactics trainer ---------- */
 
 .tactics__subtitle {

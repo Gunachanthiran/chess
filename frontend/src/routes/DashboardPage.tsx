@@ -12,6 +12,7 @@ import { AccuracyBadge } from '../components/common/AccuracyBadge';
 import { IconRefresh } from '../components/common/Icons';
 import { DashboardStats } from '../components/layout/DashboardStats';
 import { OpeningPerformancePanel } from '../components/layout/OpeningPerformancePanel';
+import { PhaseBreakdownPanel } from '../components/layout/PhaseBreakdownPanel';
 import { AccuracyTrendChart } from '../components/layout/AccuracyTrendChart';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
 import { isGrandmasterElo } from '../lib/botConstants';
@@ -398,6 +399,7 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
 
       <DashboardStats stats={stats} />
       <AccuracyTrendChart points={stats?.accuracy_trend ?? []} />
+      <PhaseBreakdownPanel />
       <OpeningPerformancePanel />
 
       {importJobId && (

@@ -73,6 +73,18 @@ export type OpeningPerformance = {
 
 export type OpeningPerformanceList = OpeningPerformance[];
 
+/** One row of GET /api/games/phases — your own moves in one game phase. */
+export type PhaseBreakdown = {
+  phase: 'opening' | 'middlegame' | 'endgame';
+  total_moves: number;
+  inaccuracies: number;
+  mistakes: number;
+  blunders: number;
+  error_rate_pct: number;
+};
+
+export type PhaseBreakdownList = PhaseBreakdown[];
+
 /** One tactics-trainer puzzle: a real Mistake/Blunder your own side played
  * in an analysed game, replayed from the position just before it — see
  * GET /api/puzzles. `Classification`/`Side` are declared further down this

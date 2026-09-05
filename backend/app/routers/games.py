@@ -12,6 +12,7 @@ from app.db import get_db
 from app.errors import NotFoundError, ValidationError
 from app.models.analysis_job import AnalysisJob, JobStatus
 from app.models.game import Game, GameSource
+from app.models.move_analysis import MoveAnalysis
 from app.schemas.game import (
     GameListResponse,
     GameOut,
@@ -21,6 +22,8 @@ from app.schemas.game import (
     OpeningPerformanceListResponse,
     OpeningPerformanceOut,
     PGNUploadRequest,
+    PhaseBreakdownListResponse,
+    PhaseBreakdownOut,
 )
 
 # `create_game_from_pgn` moved to app.services.game_service (the bulk import task
@@ -28,6 +31,7 @@ from app.schemas.game import (
 from app.services.game_service import create_game_from_pgn
 from app.services.game_stats import GameStatsRow, compute_stats
 from app.services.opening_stats import OpeningStatsRow, compute_opening_performance
+from app.services.phase_stats import PhaseStatsRow, compute_phase_breakdown
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -233,6 +237,54 @@ def opening_performance(db: Session = Depends(get_db)) -> OpeningPerformanceList
                 avg_accuracy=performance.avg_accuracy,
             )
             for performance in performances
+        ]
+    )
+
+
+@router.get("/phases", response_model=PhaseBreakdownListResponse)
+def phase_breakdown(db: Session = Depends(get_db)) -> PhaseBreakdownListResponse:
+    """Every move you've played in a completed analysis, bucketed by game
+    phase (opening/middlegame/endgame) and classification - "where do your
+    real errors actually happen". Registered before `/{game_id}` for the
+    same reason `/stats` and `/openings` are.
+
+    Unlike those two, this needs every move of every analysed game (not one
+    row per game), since the phase split and the error-rate denominator are
+    both per-move - still one query, just a different join.
+    """
+    rows = db.execute(
+        select(MoveAnalysis, Game)
+        .join(AnalysisJob, MoveAnalysis.job_id == AnalysisJob.id)
+        .join(Game, AnalysisJob.game_id == Game.id)
+        .where(AnalysisJob.status == JobStatus.completed)
+    ).all()
+
+    breakdown = compute_phase_breakdown(
+        [
+            PhaseStatsRow(
+                fen_before=move.fen_before,
+                ply=move.ply,
+                side=move.side,
+                classification=move.classification,
+                white_name=game.white_name,
+                black_name=game.black_name,
+                imported_username=game.imported_username,
+            )
+            for move, game in rows
+        ]
+    )
+
+    return PhaseBreakdownListResponse(
+        phases=[
+            PhaseBreakdownOut(
+                phase=entry.phase,
+                total_moves=entry.total_moves,
+                inaccuracies=entry.inaccuracies,
+                mistakes=entry.mistakes,
+                blunders=entry.blunders,
+                error_rate_pct=entry.error_rate_pct,
+            )
+            for entry in breakdown
         ]
     )
 

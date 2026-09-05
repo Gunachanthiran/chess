@@ -130,3 +130,20 @@ class OpeningPerformanceOut(BaseModel):
 
 class OpeningPerformanceListResponse(BaseModel):
     openings: list[OpeningPerformanceOut]
+
+
+class PhaseBreakdownOut(BaseModel):
+    """One row of the phase-breakdown report (see
+    `services/phase_stats.py`) — your own moves in one game phase
+    (opening/middlegame/endgame), bucketed by classification."""
+
+    phase: str
+    total_moves: int
+    inaccuracies: int
+    mistakes: int
+    blunders: int
+    error_rate_pct: float
+
+
+class PhaseBreakdownListResponse(BaseModel):
+    phases: list[PhaseBreakdownOut]
