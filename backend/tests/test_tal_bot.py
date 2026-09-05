@@ -682,3 +682,98 @@ class TestGrandmasterRealEngine:
             board, elo=tal_bot.GRANDMASTER_ELO, aggression=3
         )
         assert board.is_legal(move)
+
+
+# White: Kb1, Rh1 (safe - not attacked by anything). Black: Ke8, Qd8. Rd1
+# walks the rook along the back rank onto the one square the queen reaches
+# down the open d-file, with no White piece defending it - a clean
+# ~5-pawn-unit sacrifice for nothing, the exact shape Full Attack Mode
+# exists to admit and every ordinary aggression level (even Grandmaster's)
+# does not. Ka1 is the quiet alternative: it leaves Rh1 exactly as safe as
+# it already was, so it carries no sacrifice of its own to confound the
+# comparison (unlike a rook already hanging *before* either candidate,
+# which every move would then "sacrifice" equally).
+ROOK_SAC_FEN = "3qk3/8/8/8/8/8/8/1K5R w - - 0 1"
+
+
+class TestFullAttackMode:
+    """A separate, opt-in override - not another aggression level."""
+
+    def test_tolerance_ignores_aggression_and_elo_when_full_attack(self):
+        for aggression in range(1, 6):
+            for elo in (None, 1500, tal_bot.GRANDMASTER_ELO):
+                assert (
+                    tal_bot.tolerance_for(aggression, elo, full_attack=True)
+                    == tal_bot.FULL_ATTACK_TOLERANCE_CP
+                )
+
+    def test_personality_gain_ignores_aggression_when_full_attack(self):
+        for aggression in range(1, 6):
+            assert (
+                tal_bot.personality_gain_for(aggression, full_attack=True)
+                == tal_bot.FULL_ATTACK_PERSONALITY_GAIN
+            )
+
+    def test_full_attack_tolerance_is_wider_than_every_aggression_level(self):
+        for level in range(1, 6):
+            assert tal_bot.FULL_ATTACK_TOLERANCE_CP > tal_bot.AGGRESSION_TOLERANCE_CP[level]
+            assert (
+                tal_bot.FULL_ATTACK_TOLERANCE_CP
+                > tal_bot.GRANDMASTER_AGGRESSION_TOLERANCE_CP[level]
+            )
+
+    def test_a_rook_sacrifice_is_chosen_under_full_attack(self):
+        board = chess.Board(ROOK_SAC_FEN)
+        pool = candidates(board, ("Ka1", 0), ("Rd1", -450))
+        move = tal_bot.select_move(board, pool, aggression=5, full_attack=True)
+        assert board.san(move) == "Rd1"
+
+    @pytest.mark.parametrize("aggression", [1, 3, 5])
+    def test_the_same_rook_sacrifice_is_refused_without_full_attack(self, aggression):
+        board = chess.Board(ROOK_SAC_FEN)
+        pool = candidates(board, ("Ka1", 0), ("Rd1", -450))
+        move = tal_bot.select_move(board, pool, aggression=aggression, full_attack=False)
+        assert board.san(move) == "Ka1"
+
+    def test_the_same_rook_sacrifice_is_refused_at_grandmaster_without_full_attack(self):
+        board = chess.Board(ROOK_SAC_FEN)
+        pool = candidates(board, ("Ka1", 0), ("Rd1", -450))
+        move = tal_bot.select_move(
+            board, pool, aggression=5, elo=tal_bot.GRANDMASTER_ELO, full_attack=False
+        )
+        assert board.san(move) == "Ka1"
+
+    def test_full_attack_still_has_a_real_ceiling(self):
+        """A candidate beyond even FULL_ATTACK_TOLERANCE_CP stays excluded -
+        a wide ceiling, not an unconditional pass for anything at all."""
+        board = chess.Board(ROOK_SAC_FEN)
+        pool = candidates(board, ("Ka1", 0), ("Rd1", -450), ("Kb2", -700))
+        move = tal_bot.select_move(board, pool, aggression=5, full_attack=True)
+        assert board.san(move) != "Kb2"
+
+    def test_aggression_one_still_engages_personality_under_full_attack(self):
+        """Full Attack Mode overrides aggression=1's own "no personality,
+        just the engine's top choice" contract - it is a real mode, not
+        something the slider can silently cancel."""
+        board = chess.Board(ROOK_SAC_FEN)
+        pool = candidates(board, ("Ka1", 0), ("Rd1", -450))
+        move = tal_bot.select_move(board, pool, aggression=1, full_attack=True)
+        assert board.san(move) == "Rd1"
+
+    def test_full_attack_defaults_to_off(self):
+        """Omitting the parameter entirely reproduces every existing call's
+        behaviour - exercised for real by the rest of this file's tests,
+        every one of which omits `full_attack` and still passes unchanged."""
+        board = chess.Board(ROOK_SAC_FEN)
+        pool = candidates(board, ("Ka1", 0), ("Rd1", -450))
+        move = tal_bot.select_move(board, pool, aggression=5)
+        assert board.san(move) == "Ka1"
+
+    def test_choose_bot_move_full_attack_plays_a_legal_move(self):
+        """One genuine unrestricted search, matching the repo's real-engine
+        habit (see TestGrandmasterRealEngine above)."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        move = tal_bot.choose_bot_move(
+            board, elo=tal_bot.GRANDMASTER_ELO, aggression=5, full_attack=True
+        )
+        assert board.is_legal(move)

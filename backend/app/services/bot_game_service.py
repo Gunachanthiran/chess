@@ -107,23 +107,33 @@ def strategy_status(bot_game: BotGame) -> tuple[str | None, str, list[str], str 
     tags = list(context.opponent.tags)
 
     if context.gambit is None:
-        return None, "no_gambit", tags, None
+        summary = _full_attack_summary() if bot_game.full_attack_mode else None
+        return None, "no_gambit", tags, summary
 
-    return context.gambit.name, context.status, tags, _strategy_summary(context)
+    return context.gambit.name, context.status, tags, _strategy_summary(context, bot_game.full_attack_mode)
 
 
-def _strategy_summary(context: gambit_strategy.StrategyContext) -> str:
+def _full_attack_summary() -> str:
+    return "Full Attack Mode: no holds barred — real sacrifices, including a rook, for a direct attack."
+
+
+def _strategy_summary(context: gambit_strategy.StrategyContext, full_attack_mode: bool = False) -> str:
     gambit = context.gambit
     assert gambit is not None
     opponent_desc = ", ".join(context.opponent.tags)
     if context.status == "active":
-        return f"Following {gambit.name} — opponent reads {opponent_desc}."
-    if context.status == "extended":
+        summary = f"Following {gambit.name} — opponent reads {opponent_desc}."
+    elif context.status == "extended":
         style_desc = ", ".join(gambit.style)
-        return f"{gambit.name} line complete — keeping its {style_desc} character against a {opponent_desc} opponent."
-    if context.status == "deviated":
-        return f"Off the {gambit.name} line — adapting to a {opponent_desc} opponent."
-    return "Free play."
+        summary = f"{gambit.name} line complete — keeping its {style_desc} character against a {opponent_desc} opponent."
+    elif context.status == "deviated":
+        summary = f"Off the {gambit.name} line — adapting to a {opponent_desc} opponent."
+    else:
+        summary = "Free play."
+
+    if full_attack_mode:
+        summary += " Full Attack Mode: sacrificing on sight for a direct attack."
+    return summary
 
 
 def load_moves(db: Session, bot_game: BotGame) -> list[BotGameMove]:
@@ -181,6 +191,7 @@ def create_bot_game(
     bot_aggression: int,
     gambit_id: str | None = None,
     adapt_to_opponent: bool = True,
+    full_attack_mode: bool = False,
 ) -> BotGame:
     """Create a game; if the bot has White, it plays the opening move at once."""
     bot_game = BotGame(
@@ -189,6 +200,7 @@ def create_bot_game(
         bot_aggression=bot_aggression,
         gambit_id=gambit_id,
         adapt_to_opponent=adapt_to_opponent,
+        full_attack_mode=full_attack_mode,
         status=BotGameStatus.in_progress,
     )
     db.add(bot_game)
@@ -198,7 +210,9 @@ def create_bot_game(
     if player_color is BotColor.black:
         board = chess.Board()
         context = _strategy_context(bot_game, board, [])
-        bot_move = tal_bot.choose_bot_move(board, bot_elo, bot_aggression, context)
+        bot_move = tal_bot.choose_bot_move(
+            board, bot_elo, bot_aggression, context, bot_game.full_attack_mode
+        )
         _record_move(db, bot_game, board, bot_move, ply=1, is_bot_move=True)
         db.commit()
 
@@ -319,7 +333,11 @@ def submit_player_move(db: Session, bot_game: BotGame, uci: str) -> BotGame:
     if not _finish_if_over(bot_game, board):
         context = _strategy_context(bot_game, board, [*moves, played_move])
         bot_move = tal_bot.choose_bot_move(
-            board, bot_game.bot_elo, bot_game.bot_aggression, context
+            board,
+            bot_game.bot_elo,
+            bot_game.bot_aggression,
+            context,
+            bot_game.full_attack_mode,
         )
         _record_move(db, bot_game, board, bot_move, ply=next_ply, is_bot_move=True)
         _finish_if_over(bot_game, board)

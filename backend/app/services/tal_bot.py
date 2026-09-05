@@ -237,6 +237,37 @@ MIN_AGGRESSION = 1
 MAX_AGGRESSION = 5
 
 
+# --- Full Attack Mode -------------------------------------------------------
+#
+# A separate, opt-in "go for the kill" setting - not another aggression
+# level. The aggression slider's own top end has already been widened and
+# reverted twice this session; the user's own call was to leave it exactly
+# as it is and add this instead as a distinct, separately-selectable mode
+# that overrides the slider rather than extending it. Off by default, and
+# every function below defaults its new `full_attack` parameter to `False`,
+# so every existing caller (the analysis pipeline, every existing test, a
+# game with Full Attack off) is byte-for-byte unaffected.
+
+# A much wider ceiling than any aggression level offers - wide enough to
+# admit a genuine rook sacrifice (~500cp of raw material) with real, if
+# imperfect, compensation. Still a real ceiling, not unconditional: an
+# outright hung queen with nothing for it stays excluded.
+FULL_ATTACK_TOLERANCE_CP = 600
+
+# Roughly doubled from the standard weights - sacrifices, and the king
+# attack they're usually made for, are the entire point of this mode, not
+# just barely-permitted personality flavour.
+FULL_ATTACK_SACRIFICE_WEIGHT = 90.0
+FULL_ATTACK_KING_EXPOSURE_WEIGHT = 60.0
+FULL_ATTACK_KING_PRESSURE_WEIGHT = 24.0
+
+# Higher than even aggression 5's gain (3.6), so the much wider tolerance
+# above actually gets used rather than just adding losing-tiebreak
+# candidates to the pool - the same "a wider gate needs a matching gain"
+# lesson AGGRESSION_PERSONALITY_GAIN's own comment already documents.
+FULL_ATTACK_PERSONALITY_GAIN = 5.0
+
+
 # --- Repetition avoidance --------------------------------------------------
 #
 # The bot used to drift into threefold repetitions simply because a shuffling
@@ -327,6 +358,7 @@ def choose_bot_move(
     elo: int,
     aggression: int,
     strategy_context: StrategyContext | None = None,
+    full_attack: bool = False,
 ) -> chess.Move:
     """Pick the bot's move: elo-capped engine first, aggression re-rank second.
 
@@ -342,6 +374,12 @@ def choose_bot_move(
     folded into the personality re-rank as one more preference. `None` (the
     default) reproduces this function's exact prior behaviour - every existing
     caller is unaffected.
+
+    `full_attack=True` is Full Attack Mode (see `score_candidates`) - a real
+    sacrifice, up to a whole rook, for a direct attack, overriding the
+    aggression slider's own tolerance rather than extending it. Composes
+    cleanly with a selected gambit: a game can have a gambit, Full Attack
+    Mode, both, or neither, independently.
     """
     if is_grandmaster(elo):
         engine = StockfishEngine(
@@ -370,7 +408,7 @@ def choose_bot_move(
             {"fen": board.fen(), "elo": elo, "aggression": aggression},
         )
 
-    return select_move(board, candidates, aggression, elo, strategy_context)
+    return select_move(board, candidates, aggression, elo, strategy_context, full_attack)
 
 
 def _ensure_gambit_candidate(
@@ -423,6 +461,7 @@ def select_move(
     aggression: int,
     elo: int | None = None,
     strategy_context: StrategyContext | None = None,
+    full_attack: bool = False,
 ) -> chess.Move:
     """Choose among an already-fetched candidate pool. Pure, so it unit-tests.
 
@@ -434,11 +473,12 @@ def select_move(
     `elo` is passed through purely so the Grandmaster tier gets its own tighter
     tolerance table; omitting it keeps the practice-tier behaviour. `None` for
     `strategy_context` reproduces the exact prior behaviour (see `choose_bot_move`).
+    `full_attack=True` is Full Attack Mode - see `score_candidates`.
     """
     if not candidates:
         raise EngineError("No candidate moves to choose from.", {"fen": board.fen()})
 
-    scored = score_candidates(board, candidates, aggression, elo, strategy_context)
+    scored = score_candidates(board, candidates, aggression, elo, strategy_context, full_attack)
     pool = _prefer_non_repeating(scored)
 
     # An active gambit's own next scripted move, once actually in the pool
@@ -461,8 +501,11 @@ def select_move(
                 return item.candidate.move
 
     # Aggression 1 is plain elo-limited Stockfish: no personality at all, just
-    # the engine's own ranking over whatever the repetition filter left.
-    if aggression <= MIN_AGGRESSION:
+    # the engine's own ranking over whatever the repetition filter left. Full
+    # Attack Mode overrides this too - it's a real, separate mode, so it still
+    # engages personality-driven selection even if the aggression slider
+    # happens to sit at 1.
+    if aggression <= MIN_AGGRESSION and not full_attack:
         return _engine_preference(pool)
 
     eligible = [item for item in pool if item.eligible]
@@ -525,6 +568,7 @@ def score_candidates(
     aggression: int,
     elo: int | None = None,
     strategy_context: StrategyContext | None = None,
+    full_attack: bool = False,
 ) -> list[ScoredCandidate]:
     """Score every candidate for Tal-ness and mark tolerance eligibility.
 
@@ -542,11 +586,23 @@ def score_candidates(
     concession the eligibility exception just decided was fine), so a real
     gambit's book cost doesn't quietly outweigh `GAMBIT_LINE_BONUS` and get
     outscored by a quieter alternative anyway.
+
+    `full_attack=True` swaps in `FULL_ATTACK_TOLERANCE_CP`/
+    `FULL_ATTACK_PERSONALITY_GAIN` (via `tolerance_for`/`personality_gain_for`)
+    and the `FULL_ATTACK_*` personality weights below, in place of the
+    aggression-indexed tables and the standard `SACRIFICE_WEIGHT`/
+    `KING_EXPOSURE_WEIGHT`/`KING_PRESSURE_WEIGHT` - bypassing the aggression
+    slider entirely rather than extending it. `CP_LOSS_WEIGHT`, `THREAT_WEIGHT`
+    and `QUEEN_TRADE_PENALTY` are unchanged either way: the boost is scoped to
+    sacrifice-and-king-attack specifically, not a blanket rewrite of every term.
     """
     mover = board.turn
-    tolerance = tolerance_for(aggression, elo)
-    aggression_gain = personality_gain_for(aggression)
+    tolerance = tolerance_for(aggression, elo, full_attack)
+    aggression_gain = personality_gain_for(aggression, full_attack)
     gambit_gain = gambit_strategy.personality_multiplier(strategy_context)
+    sacrifice_weight = FULL_ATTACK_SACRIFICE_WEIGHT if full_attack else SACRIFICE_WEIGHT
+    king_exposure_weight = FULL_ATTACK_KING_EXPOSURE_WEIGHT if full_attack else KING_EXPOSURE_WEIGHT
+    king_pressure_weight = FULL_ATTACK_KING_PRESSURE_WEIGHT if full_attack else KING_PRESSURE_WEIGHT
 
     cp_movers = [_mover_cp(candidate, mover) for candidate in candidates]
     # The gate references the pool's best score rather than candidates[0]: a
@@ -589,9 +645,9 @@ def score_candidates(
         )
 
         personality = (
-            SACRIFICE_WEIGHT * sacrifice
-            + KING_EXPOSURE_WEIGHT * exposure_delta
-            + KING_PRESSURE_WEIGHT * pressure_delta
+            sacrifice_weight * sacrifice
+            + king_exposure_weight * exposure_delta
+            + king_pressure_weight * pressure_delta
             + THREAT_WEIGHT * threats
             - (QUEEN_TRADE_PENALTY if queen_trade else 0.0)
         )
@@ -631,22 +687,32 @@ def score_candidates(
     return scored
 
 
-def tolerance_for(aggression: int, elo: int | None = None) -> int:
+def tolerance_for(aggression: int, elo: int | None = None, full_attack: bool = False) -> int:
     """Centipawn tolerance for an aggression level, clamped to the 1-5 range.
 
     `elo` selects *which* table applies: the Grandmaster tier gets the tight
     one, every practice tier keeps the original (looser) bands. `None` means
     "tier unknown", which reads the practice table - the safe default, since a
     caller with no elo in hand is never the Grandmaster path.
+
+    `full_attack=True` bypasses both the elo tier and the aggression slider
+    entirely, returning `FULL_ATTACK_TOLERANCE_CP` regardless of either -
+    Full Attack Mode is a real override, not one more aggression level.
     """
+    if full_attack:
+        return FULL_ATTACK_TOLERANCE_CP
     level = max(MIN_AGGRESSION, min(MAX_AGGRESSION, aggression))
     if elo is not None and is_grandmaster(elo):
         return GRANDMASTER_AGGRESSION_TOLERANCE_CP[level]
     return AGGRESSION_TOLERANCE_CP[level]
 
 
-def personality_gain_for(aggression: int) -> float:
-    """Personality multiplier for an aggression level, clamped to the 1-5 range."""
+def personality_gain_for(aggression: int, full_attack: bool = False) -> float:
+    """Personality multiplier for an aggression level, clamped to the 1-5
+    range - or `FULL_ATTACK_PERSONALITY_GAIN` outright when `full_attack` is
+    set, same override relationship as `tolerance_for`."""
+    if full_attack:
+        return FULL_ATTACK_PERSONALITY_GAIN
     level = max(MIN_AGGRESSION, min(MAX_AGGRESSION, aggression))
     return AGGRESSION_PERSONALITY_GAIN[level]
 

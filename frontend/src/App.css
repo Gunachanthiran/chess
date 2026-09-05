@@ -3284,6 +3284,11 @@
   color: var(--text-dim);
 }
 
+.bot-strategy__value--full-attack {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .bot-strategy__summary {
   margin: 2px 0 0;
   padding-top: 8px;
