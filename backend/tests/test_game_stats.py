@@ -118,3 +118,26 @@ class TestComputeStats:
         rows = [row(days_ago=2)]
         stats = compute_stats(rows, today=TODAY)
         assert stats.current_streak_days == 0
+
+
+class TestAccuracyTrend:
+    def test_oldest_first(self):
+        rows = [
+            row(days_ago=0, white_accuracy=70.0),
+            row(days_ago=2, white_accuracy=90.0),
+            row(days_ago=1, white_accuracy=80.0),
+        ]
+        stats = compute_stats(rows, today=TODAY)
+        assert [point.accuracy for point in stats.accuracy_trend] == [90.0, 80.0, 70.0]
+
+    def test_excludes_games_with_no_determinable_accuracy(self):
+        rows = [
+            row(days_ago=0, imported_username="Nobody", white_accuracy=90.0),
+            row(days_ago=1, white_accuracy=80.0),
+        ]
+        stats = compute_stats(rows, today=TODAY)
+        assert [point.accuracy for point in stats.accuracy_trend] == [80.0]
+
+    def test_empty_when_nothing_analysed(self):
+        stats = compute_stats([row(white_accuracy=None, black_accuracy=None)], today=TODAY)
+        assert stats.accuracy_trend == []

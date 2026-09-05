@@ -14,11 +14,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
-from app.schemas.game import GameStatsOut
+from app.schemas.game import AccuracyTrendPointOut, GameStatsOut
 
 # How many of the most recent analysed games "recent form" averages over -
 # recent play, not an all-time blend a game from a year ago still drags on.
 RECENT_ACCURACY_WINDOW = 20
+
+# How many of the most recent analysed games the dashboard's trend chart
+# plots. Wider than RECENT_ACCURACY_WINDOW on purpose - the single-number
+# average above wants a short, current-form window, while a chart reads
+# better with more points to actually show a trend over.
+TREND_WINDOW = 30
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,11 @@ def compute_stats(rows: list[GameStatsRow], *, today: date | None = None) -> Gam
     recent = [accuracy for _when, accuracy in dated[:RECENT_ACCURACY_WINDOW]]
     recent_accuracy = sum(recent) / len(recent) if recent else None
 
+    # Chronological (oldest first) - a trend chart reads left-to-right as
+    # "then to now", the opposite of `dated`'s own most-recent-first order
+    # (which `recent`'s slice above wants instead).
+    trend = list(reversed(dated[:TREND_WINDOW]))
+
     streak = _current_streak(all_dates, today or datetime.now(UTC).date())
 
     return GameStatsOut(
@@ -83,6 +94,9 @@ def compute_stats(rows: list[GameStatsRow], *, today: date | None = None) -> Gam
         analyzed_games=analyzed,
         recent_accuracy=recent_accuracy,
         current_streak_days=streak,
+        accuracy_trend=[
+            AccuracyTrendPointOut(played_at=when, accuracy=accuracy) for when, accuracy in trend
+        ],
     )
 
 

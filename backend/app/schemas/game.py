@@ -86,6 +86,14 @@ class GameListResponse(BaseModel):
     total: int
 
 
+class AccuracyTrendPointOut(BaseModel):
+    """One point of the dashboard's accuracy trend chart — your side's
+    accuracy in one analysed game, oldest-first."""
+
+    played_at: datetime
+    accuracy: float
+
+
 class GameStatsOut(BaseModel):
     """Aggregate, all-games stats for the dashboard's stats widget — deliberately
     *not* derivable from a paginated `GameListResponse` page, since "how many
@@ -100,6 +108,9 @@ class GameStatsOut(BaseModel):
     # a year ago would still be dragging on today.
     recent_accuracy: float | None
     current_streak_days: int
+    # Up to `game_stats.TREND_WINDOW` most recent analysed games, oldest
+    # first — the dashboard's trend chart's entire data source.
+    accuracy_trend: list[AccuracyTrendPointOut] = []
 
 
 class OpeningPerformanceOut(BaseModel):

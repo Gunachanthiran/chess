@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { getGameStats } from '../../api/games';
 import { IconGames, IconStreak, IconTarget } from '../common/Icons';
 import type { GameStats } from '../../types';
 
@@ -34,27 +32,15 @@ function StatCard({
  * computed server-side from the *whole* game history (`GET /api/games/stats`,
  * see `game_stats.py`), not just the page of games currently on screen.
  *
- * A best-effort widget, not a critical one: renders nothing while loading
- * and nothing on failure or an empty account, the same degrade-gracefully
- * contract `RecommendationsPanel` uses for its own optional data.
+ * Takes `stats` as a prop rather than fetching its own copy: `/stats` scans
+ * every game in the account, and `DashboardPage` also feeds the same
+ * response to `AccuracyTrendChart` — fetching once and sharing it avoids
+ * running that query twice on every dashboard load. `null` (still loading,
+ * or the fetch failed) and an empty account both render nothing, the same
+ * degrade-gracefully contract `RecommendationsPanel` uses for its own
+ * optional data.
  */
-export function DashboardStats() {
-  const [stats, setStats] = useState<GameStats | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    getGameStats()
-      .then((data) => {
-        if (active) setStats(data);
-      })
-      .catch(() => {
-        // Non-fatal — the widget just doesn't render (see below).
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
+export function DashboardStats({ stats }: { stats: GameStats | null }) {
   if (!stats || stats.total_games === 0) return null;
 
   const streakLabel = stats.current_streak_days === 1 ? 'day streak' : 'day streak';

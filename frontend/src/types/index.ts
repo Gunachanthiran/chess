@@ -38,6 +38,12 @@ export type Game = {
   black_accuracy: number | null;
 };
 
+/** One point of the dashboard's accuracy trend chart. */
+export type AccuracyTrendPoint = {
+  played_at: string;
+  accuracy: number;
+};
+
 /** Response shape of GET /api/games/stats — the dashboard stats widget.
  * Computed across *every* game, not a paginated page of them. */
 export type GameStats = {
@@ -47,6 +53,8 @@ export type GameStats = {
    * `null` when nothing qualifies yet. */
   recent_accuracy: number | null;
   current_streak_days: number;
+  /** Up to ~30 most recent analysed games, oldest first. */
+  accuracy_trend: AccuracyTrendPoint[];
 };
 
 /** One row of GET /api/games/openings — your side's record with one opening,

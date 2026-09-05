@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { listGames } from '../api/games';
+import { getGameStats, listGames } from '../api/games';
 import { listBotGames } from '../api/botGames';
 import { createAnalysisJob } from '../api/analysis';
 import { createImportJob } from '../api/imports';
@@ -12,9 +12,10 @@ import { AccuracyBadge } from '../components/common/AccuracyBadge';
 import { IconRefresh } from '../components/common/Icons';
 import { DashboardStats } from '../components/layout/DashboardStats';
 import { OpeningPerformancePanel } from '../components/layout/OpeningPerformancePanel';
+import { AccuracyTrendChart } from '../components/layout/AccuracyTrendChart';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
 import { isGrandmasterElo } from '../lib/botConstants';
-import type { BotGameSummary, Game, GameSource, ImportSource } from '../types';
+import type { BotGameSummary, Game, GameSource, GameStats, ImportSource } from '../types';
 
 /** One connected account queued for `handleSync`. */
 type SyncTarget = { source: ImportSource; username: string };
@@ -203,6 +204,11 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
   const [syncQueue, setSyncQueue] = useState<SyncTarget[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  // Fetched once here, not inside `DashboardStats`/`AccuracyTrendChart`
+  // individually — both read from this same `GET /api/games/stats` response
+  // (see `DashboardStats`'s own comment), and that endpoint scans every game
+  // in the account, so sharing one fetch avoids paying for that query twice.
+  const [stats, setStats] = useState<GameStats | null>(null);
 
   const importJobId = searchParams.get('import_job');
 
@@ -319,6 +325,19 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
     return () => controller.abort();
   }, [reloadToken]);
 
+  // Independent of the active tab for the same reason the banner above is —
+  // shared by `DashboardStats` and `AccuracyTrendChart` (see the `stats`
+  // state's own comment), so both re-render together once this resolves.
+  useEffect(() => {
+    const controller = new AbortController();
+    getGameStats(controller.signal)
+      .then(setStats)
+      .catch(() => {
+        // Non-critical — both stats widgets just stay hidden.
+      });
+    return () => controller.abort();
+  }, [reloadToken]);
+
   const handleAnalyse = async (game: Game) => {
     setStartingId(game.id);
     setStartError(null);
@@ -377,7 +396,8 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
         </div>
       </div>
 
-      <DashboardStats />
+      <DashboardStats stats={stats} />
+      <AccuracyTrendChart points={stats?.accuracy_trend ?? []} />
       <OpeningPerformancePanel />
 
       {importJobId && (
