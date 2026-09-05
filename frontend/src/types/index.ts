@@ -85,6 +85,20 @@ export type PhaseBreakdown = {
 
 export type PhaseBreakdownList = PhaseBreakdown[];
 
+/** One row of GET /api/games/time-pressure — your own moves made with a
+ * given amount of clock remaining. Only ever populated from games whose PGN
+ * carries `%clk` annotations (Chess.com/Lichess exports do). */
+export type TimeBucket = {
+  bucket: 'plenty' | 'low' | 'critical';
+  total_moves: number;
+  inaccuracies: number;
+  mistakes: number;
+  blunders: number;
+  error_rate_pct: number;
+};
+
+export type TimeBucketList = TimeBucket[];
+
 /** Response shape of GET /api/games/head-to-head — `games: 0` is a
  * legitimate "no resolvable game against this name" answer, not an error. */
 export type HeadToHead = {

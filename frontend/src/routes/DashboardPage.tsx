@@ -13,6 +13,7 @@ import { IconRefresh } from '../components/common/Icons';
 import { DashboardStats } from '../components/layout/DashboardStats';
 import { OpeningPerformancePanel } from '../components/layout/OpeningPerformancePanel';
 import { PhaseBreakdownPanel } from '../components/layout/PhaseBreakdownPanel';
+import { TimePressurePanel } from '../components/layout/TimePressurePanel';
 import { HeadToHeadPanel } from '../components/layout/HeadToHeadPanel';
 import { AccuracyTrendChart } from '../components/layout/AccuracyTrendChart';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
@@ -401,6 +402,7 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
       <DashboardStats stats={stats} />
       <AccuracyTrendChart points={stats?.accuracy_trend ?? []} />
       <PhaseBreakdownPanel />
+      <TimePressurePanel />
       <OpeningPerformancePanel />
       <HeadToHeadPanel />
 

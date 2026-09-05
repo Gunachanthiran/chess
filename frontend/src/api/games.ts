@@ -7,6 +7,7 @@ import type {
   HeadToHead,
   OpeningPerformanceList,
   PhaseBreakdownList,
+  TimeBucketList,
 } from '../types';
 
 type GameEnvelope = { game: Game };
@@ -61,6 +62,14 @@ export async function getOpeningPerformance(
 export async function getPhaseBreakdown(signal?: AbortSignal): Promise<PhaseBreakdownList> {
   const data = await apiFetch<{ phases: PhaseBreakdownList }>('/api/games/phases', { signal });
   return data.phases;
+}
+
+/** GET /api/games/time-pressure — error-rate breakdown by clock remaining. */
+export async function getTimePressure(signal?: AbortSignal): Promise<TimeBucketList> {
+  const data = await apiFetch<{ buckets: TimeBucketList }>('/api/games/time-pressure', {
+    signal,
+  });
+  return data.buckets;
 }
 
 /** GET /api/games/head-to-head?opponent= — your record against one player. */

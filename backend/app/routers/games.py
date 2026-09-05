@@ -12,7 +12,7 @@ from app.db import get_db
 from app.errors import NotFoundError, ValidationError
 from app.models.analysis_job import AnalysisJob, JobStatus
 from app.models.game import Game, GameSource
-from app.models.move_analysis import MoveAnalysis
+from app.models.move_analysis import MoveAnalysis, Side
 from app.schemas.game import (
     GameListResponse,
     GameOut,
@@ -25,6 +25,8 @@ from app.schemas.game import (
     PGNUploadRequest,
     PhaseBreakdownListResponse,
     PhaseBreakdownOut,
+    TimeBucketOut,
+    TimePressureListResponse,
 )
 
 # `create_game_from_pgn` moved to app.services.game_service (the bulk import task
@@ -34,6 +36,11 @@ from app.services.game_stats import GameStatsRow, compute_stats
 from app.services.head_to_head_stats import HeadToHeadStatsRow, compute_head_to_head
 from app.services.opening_stats import OpeningStatsRow, compute_opening_performance
 from app.services.phase_stats import PhaseStatsRow, compute_phase_breakdown
+from app.services.time_pressure_stats import (
+    MoveInput,
+    TimePressureGameInput,
+    compute_time_pressure,
+)
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -280,6 +287,66 @@ def phase_breakdown(db: Session = Depends(get_db)) -> PhaseBreakdownListResponse
         phases=[
             PhaseBreakdownOut(
                 phase=entry.phase,
+                total_moves=entry.total_moves,
+                inaccuracies=entry.inaccuracies,
+                mistakes=entry.mistakes,
+                blunders=entry.blunders,
+                error_rate_pct=entry.error_rate_pct,
+            )
+            for entry in breakdown
+        ]
+    )
+
+
+@router.get("/time-pressure", response_model=TimePressureListResponse)
+def time_pressure(db: Session = Depends(get_db)) -> TimePressureListResponse:
+    """Your own moves, bucketed by how much clock you had left when you
+    made them - "do your real errors cluster when you're low on time".
+    Registered before `/{game_id}` for the same reason the other reports
+    are.
+
+    Needs each game's actual `pgn` text (clock data lives in PGN move
+    comments, see `time_pressure_stats.clock_seconds_by_ply`), so unlike
+    `/stats`/`/openings`/`/phases` this does *not* `defer(Game.pgn)`.
+    """
+    rows = db.execute(
+        select(MoveAnalysis, Game)
+        .join(AnalysisJob, MoveAnalysis.job_id == AnalysisJob.id)
+        .join(Game, AnalysisJob.game_id == Game.id)
+        .where(AnalysisJob.status == JobStatus.completed)
+    ).all()
+
+    games_by_id: dict[uuid.UUID, Game] = {}
+    moves_by_game: dict[uuid.UUID, list[MoveInput]] = {}
+
+    for move, game in rows:
+        who = (game.imported_username or "").strip().lower()
+        if not who:
+            continue
+        is_white = game.white_name.strip().lower() == who
+        is_black = game.black_name.strip().lower() == who
+        if is_white == is_black:
+            continue
+        my_side = Side.white if is_white else Side.black
+        if move.side != my_side:
+            continue
+
+        games_by_id[game.id] = game
+        moves_by_game.setdefault(game.id, []).append(
+            MoveInput(ply=move.ply, side=move.side, classification=move.classification)
+        )
+
+    breakdown = compute_time_pressure(
+        [
+            TimePressureGameInput(pgn=games_by_id[game_id].pgn, moves=moves)
+            for game_id, moves in moves_by_game.items()
+        ]
+    )
+
+    return TimePressureListResponse(
+        buckets=[
+            TimeBucketOut(
+                bucket=entry.bucket,
                 total_moves=entry.total_moves,
                 inaccuracies=entry.inaccuracies,
                 mistakes=entry.mistakes,

@@ -149,6 +149,25 @@ class PhaseBreakdownListResponse(BaseModel):
     phases: list[PhaseBreakdownOut]
 
 
+class TimeBucketOut(BaseModel):
+    """One row of the time-pressure report (see
+    `services/time_pressure_stats.py`) — your own moves made with a given
+    amount of clock remaining, bucketed by classification. Only ever
+    computed from games whose PGN actually carries `%clk` annotations
+    (Chess.com/Lichess exports do; uploads and bot games generally don't)."""
+
+    bucket: str
+    total_moves: int
+    inaccuracies: int
+    mistakes: int
+    blunders: int
+    error_rate_pct: float
+
+
+class TimePressureListResponse(BaseModel):
+    buckets: list[TimeBucketOut]
+
+
 class HeadToHeadOut(BaseModel):
     """Your real record against one opponent (see
     `services/head_to_head_stats.py`) — `games == 0` means no resolvable
