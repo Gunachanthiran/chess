@@ -100,3 +100,22 @@ class GameStatsOut(BaseModel):
     # a year ago would still be dragging on today.
     recent_accuracy: float | None
     current_streak_days: int
+
+
+class OpeningPerformanceOut(BaseModel):
+    """One row of the opening-performance report (see
+    `services/opening_stats.py`) — every analysed game grouped by opening
+    name, with your own side's win/loss/draw record and average accuracy."""
+
+    opening_name: str
+    eco: str | None
+    games: int
+    wins: int
+    losses: int
+    draws: int
+    score_pct: float
+    avg_accuracy: float | None
+
+
+class OpeningPerformanceListResponse(BaseModel):
+    openings: list[OpeningPerformanceOut]

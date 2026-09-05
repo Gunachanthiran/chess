@@ -49,6 +49,22 @@ export type GameStats = {
   current_streak_days: number;
 };
 
+/** One row of GET /api/games/openings — your side's record with one opening,
+ * across every analysed game. */
+export type OpeningPerformance = {
+  opening_name: string;
+  eco: string | null;
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Standard chess "score" percentage: a win counts 1, a draw 0.5. */
+  score_pct: number;
+  avg_accuracy: number | null;
+};
+
+export type OpeningPerformanceList = OpeningPerformance[];
+
 /** One tactics-trainer puzzle: a real Mistake/Blunder your own side played
  * in an analysed game, replayed from the position just before it — see
  * GET /api/puzzles. `Classification`/`Side` are declared further down this

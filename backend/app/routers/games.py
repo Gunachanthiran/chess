@@ -18,6 +18,8 @@ from app.schemas.game import (
     GameResponse,
     GameStatsOut,
     GameSummaryOut,
+    OpeningPerformanceListResponse,
+    OpeningPerformanceOut,
     PGNUploadRequest,
 )
 
@@ -25,6 +27,7 @@ from app.schemas.game import (
 # needs it too); re-exported here so existing callers keep working unchanged.
 from app.services.game_service import create_game_from_pgn
 from app.services.game_stats import GameStatsRow, compute_stats
+from app.services.opening_stats import OpeningStatsRow, compute_opening_performance
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -178,6 +181,58 @@ def game_stats(db: Session = Depends(get_db)) -> GameStatsOut:
                 black_accuracy=black_accuracy,
             )
             for game, white_accuracy, black_accuracy in rows
+        ]
+    )
+
+
+@router.get("/openings", response_model=OpeningPerformanceListResponse)
+def opening_performance(db: Session = Depends(get_db)) -> OpeningPerformanceListResponse:
+    """Every analysed game grouped by opening name, with your own side's
+    win/loss/draw record and average accuracy - "which openings should I
+    stop playing". Registered before `/{game_id}` for the same reason
+    `/stats` is.
+
+    Same one-query, `defer(Game.pgn)`'d shape as `/stats` above - the
+    aggregation needs every game's result and opening, not a page of them.
+    """
+    rows = db.execute(
+        select(Game)
+        .options(defer(Game.pgn))
+        .add_columns(
+            _latest_completed_job_accuracy_subquery("white").label("white_accuracy"),
+            _latest_completed_job_accuracy_subquery("black").label("black_accuracy"),
+        )
+    ).all()
+
+    performances = compute_opening_performance(
+        [
+            OpeningStatsRow(
+                opening_name=game.opening_name,
+                eco=game.eco,
+                result=game.result,
+                white_name=game.white_name,
+                black_name=game.black_name,
+                imported_username=game.imported_username,
+                white_accuracy=white_accuracy,
+                black_accuracy=black_accuracy,
+            )
+            for game, white_accuracy, black_accuracy in rows
+        ]
+    )
+
+    return OpeningPerformanceListResponse(
+        openings=[
+            OpeningPerformanceOut(
+                opening_name=performance.opening_name,
+                eco=performance.eco,
+                games=performance.games,
+                wins=performance.wins,
+                losses=performance.losses,
+                draws=performance.draws,
+                score_pct=performance.score_pct,
+                avg_accuracy=performance.avg_accuracy,
+            )
+            for performance in performances
         ]
     )
 

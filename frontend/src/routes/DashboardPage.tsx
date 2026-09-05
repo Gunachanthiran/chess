@@ -11,6 +11,7 @@ import { DashboardGridSkeleton } from '../components/common/Skeleton';
 import { AccuracyBadge } from '../components/common/AccuracyBadge';
 import { IconRefresh } from '../components/common/Icons';
 import { DashboardStats } from '../components/layout/DashboardStats';
+import { OpeningPerformancePanel } from '../components/layout/OpeningPerformancePanel';
 import { describeMatchup, formatTimeAgo } from '../lib/gameDisplay';
 import { isGrandmasterElo } from '../lib/botConstants';
 import type { BotGameSummary, Game, GameSource, ImportSource } from '../types';
@@ -377,6 +378,7 @@ export function DashboardPage({ account }: { account: UseAccountStatusResult }) 
       </div>
 
       <DashboardStats />
+      <OpeningPerformancePanel />
 
       {importJobId && (
         <ImportProgress

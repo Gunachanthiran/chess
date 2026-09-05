@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Game, GameListResponse, GameSource, GameStats } from '../types';
+import type { Game, GameListResponse, GameSource, GameStats, OpeningPerformanceList } from '../types';
 
 type GameEnvelope = { game: Game };
 
@@ -37,6 +37,16 @@ export function listGames(
 /** GET /api/games/stats — dashboard stats widget's data source. */
 export function getGameStats(signal?: AbortSignal): Promise<GameStats> {
   return apiFetch<GameStats>('/api/games/stats', { signal });
+}
+
+/** GET /api/games/openings — win/loss/draw + accuracy grouped by opening. */
+export async function getOpeningPerformance(
+  signal?: AbortSignal,
+): Promise<OpeningPerformanceList> {
+  const data = await apiFetch<{ openings: OpeningPerformanceList }>('/api/games/openings', {
+    signal,
+  });
+  return data.openings;
 }
 
 /** POST /api/lichess/import — by explicit game id. */
