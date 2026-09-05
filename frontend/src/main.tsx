@@ -18,3 +18,18 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+// Production only: registering a service worker under Vite's dev server
+// would cache dev-mode module requests, which is exactly the kind of
+// stale-asset confusion HMR exists to avoid. `import.meta.env.PROD` is
+// statically replaced at build time, so this whole branch (including the
+// import) is dead code - and the browser never even requests `sw.js` - in
+// `npm run dev`.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Non-fatal — the app works identically without it, just without the
+      // "Add to Home Screen" install prompt and offline app-shell caching.
+    });
+  });
+}

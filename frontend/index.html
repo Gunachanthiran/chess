@@ -3,8 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="ChessScope — self-hosted chess game analysis" />
+    <!-- Matches the manifest's background_color/theme_color and index.css's
+         dark --bg default: the browser paints this before any CSS loads
+         (the address bar chrome on Android, the splash-screen background
+         for an installed app), so it has to be a literal hex, not a custom
+         property nothing has resolved yet. -->
+    <meta name="theme-color" content="#14161a" />
     <title>ChessScope</title>
     <!--
       Applies the persisted colour scheme before any CSS/React loads, so a
