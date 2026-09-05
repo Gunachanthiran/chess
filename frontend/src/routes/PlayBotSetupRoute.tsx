@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlayBotSetupForm } from '../components/upload/PlayBotSetupForm';
+import { BotPerformancePanel } from '../components/layout/BotPerformancePanel';
 import type { BotGameHook } from '../hooks/useBotGame';
 import type { BotColor } from '../types';
 
@@ -40,6 +41,7 @@ export function PlayBotSetupRoute({ bot }: PlayBotSetupRouteProps) {
         error={bot.error}
         onCancel={() => navigate('/analyze')}
       />
+      <BotPerformancePanel />
     </div>
   );
 }

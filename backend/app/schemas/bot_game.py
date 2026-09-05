@@ -151,3 +151,35 @@ class BotGameSummaryOut(BaseModel):
 class BotGameSummaryListResponse(BaseModel):
     bot_games: list[BotGameSummaryOut]
     total: int
+
+
+class BotAccuracyPointOut(BaseModel):
+    played_at: datetime
+    accuracy: float
+
+
+class BotPhaseBreakdownOut(BaseModel):
+    phase: str
+    total_moves: int
+    inaccuracies: int
+    mistakes: int
+    blunders: int
+    error_rate_pct: float
+
+
+class BotPerformanceOut(BaseModel):
+    """How the Tal bot itself is actually playing, across every analysed
+    bot game (see services/bot_performance_stats.py) — a report, not a
+    control: nothing here changes bot behaviour."""
+
+    games: int
+    wins: int
+    losses: int
+    draws: int
+    score_pct: float
+    avg_accuracy: float | None
+    # Keyed by MoveClassification value ("brilliant", "blunder", ...) —
+    # every one of the bot's own moves, not the opponent's.
+    classification_counts: dict[str, int]
+    phases: list[BotPhaseBreakdownOut]
+    accuracy_trend: list[BotAccuracyPointOut]

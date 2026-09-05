@@ -10,20 +10,35 @@ from app.db import get_db
 from app.errors import ConflictError, NotFoundError
 from app.models.analysis_job import AnalysisJob, JobStatus
 from app.models.bot_game import BotGame, BotGameStatus
-from app.models.game import GameSource
+from app.models.game import Game, GameSource
+from app.models.move_analysis import MoveAnalysis
 from app.routers.games import parse_uuid
 from app.schemas.analysis_job import AnalysisJobOut, AnalysisJobResponse
 from app.schemas.bot_game import (
+    BotAccuracyPointOut,
     BotGameOut,
     BotGameResponse,
     BotGameSummaryListResponse,
     BotGameSummaryOut,
+    BotPerformanceOut,
+    BotPhaseBreakdownOut,
     CreateBotGameRequest,
     SubmitBotMoveRequest,
 )
 from app.services import bot_game_service
+from app.services.bot_performance_stats import (
+    BotAnalysisRow,
+    compute_bot_accuracy_trend,
+    compute_bot_classification_breakdown,
+    compute_bot_phase_breakdown,
+    compute_bot_record,
+)
 from app.services.game_service import create_game_from_pgn
 from app.tasks.analyze_game import analyze_game
+
+# How many of the most recent analysed bot games the performance dashboard's
+# accuracy trend plots - same window as game_stats.py's own accuracy_trend.
+BOT_ACCURACY_TREND_WINDOW = 30
 
 router = APIRouter(prefix="/bot-games", tags=["bot-games"])
 
@@ -105,6 +120,73 @@ def list_bot_games(
         )
 
     return BotGameSummaryListResponse(bot_games=summaries, total=total)
+
+
+@router.get("/performance", response_model=BotPerformanceOut)
+def bot_performance(db: Session = Depends(get_db)) -> BotPerformanceOut:
+    """How the Tal bot itself is actually playing, across every analysed
+    bot game (see services/bot_performance_stats.py) - registered before
+    `/{bot_game_id}` below, otherwise FastAPI would match "performance" as
+    a `bot_game_id` and fail UUID parsing.
+
+    Identifies a bot game the same way pgn_for_analysis names it - a
+    "Tal Bot (...)" prefix on whichever side isn't "You" - not by any
+    stored reference back to the originating `bot_games` row, since
+    exporting to `games`/`move_analysis` (see bot_games.py's own
+    `/analyze` endpoint) never kept one.
+    """
+    rows = db.execute(
+        select(MoveAnalysis, Game, AnalysisJob.white_accuracy, AnalysisJob.black_accuracy)
+        .join(AnalysisJob, MoveAnalysis.job_id == AnalysisJob.id)
+        .join(Game, AnalysisJob.game_id == Game.id)
+        .where(AnalysisJob.status == JobStatus.completed)
+    ).all()
+
+    analysis_rows = [
+        BotAnalysisRow(
+            game_id=game.id,
+            ply=move.ply,
+            side=move.side,
+            classification=move.classification,
+            fen_before=move.fen_before,
+            white_name=game.white_name,
+            black_name=game.black_name,
+            result=game.result,
+            played_at=game.played_at,
+            white_accuracy=white_accuracy,
+            black_accuracy=black_accuracy,
+        )
+        for move, game, white_accuracy, black_accuracy in rows
+    ]
+
+    record = compute_bot_record(analysis_rows)
+    classification_counts = compute_bot_classification_breakdown(analysis_rows)
+    phases = compute_bot_phase_breakdown(analysis_rows)
+    trend = compute_bot_accuracy_trend(analysis_rows, BOT_ACCURACY_TREND_WINDOW)
+
+    return BotPerformanceOut(
+        games=record.games,
+        wins=record.wins,
+        losses=record.losses,
+        draws=record.draws,
+        score_pct=record.score_pct,
+        avg_accuracy=record.avg_accuracy,
+        classification_counts={c.value: n for c, n in classification_counts.items()},
+        phases=[
+            BotPhaseBreakdownOut(
+                phase=p.phase,
+                total_moves=p.total_moves,
+                inaccuracies=p.inaccuracies,
+                mistakes=p.mistakes,
+                blunders=p.blunders,
+                error_rate_pct=p.error_rate_pct,
+            )
+            for p in phases
+        ],
+        accuracy_trend=[
+            BotAccuracyPointOut(played_at=p.played_at, accuracy=p.accuracy) for p in trend
+        ],
+    )
 
 
 @router.get("/{bot_game_id}", response_model=BotGameResponse)

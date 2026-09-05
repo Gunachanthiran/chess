@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { BotGameSummaryListResponse } from '../types';
+import type { BotGameSummaryListResponse, BotPerformance } from '../types';
 
 /** GET /api/bot-games?limit=&offset= — most-recently-active first. */
 export function listBotGames(
@@ -13,4 +13,10 @@ export function listBotGames(
   return apiFetch<BotGameSummaryListResponse>(`/api/bot-games${suffix ? `?${suffix}` : ''}`, {
     signal,
   });
+}
+
+/** GET /api/bot-games/performance — how the bot itself is actually playing,
+ * across every analysed bot game. A report; never changes bot behaviour. */
+export function getBotPerformance(signal?: AbortSignal): Promise<BotPerformance> {
+  return apiFetch<BotPerformance>('/api/bot-games/performance', { signal });
 }

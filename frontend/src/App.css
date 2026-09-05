@@ -3297,6 +3297,45 @@
   color: var(--text-dim);
 }
 
+/* ---------- Bot performance ---------- */
+
+.bot-performance {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.bot-performance__classifications {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.bot-performance__classification {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.bot-performance__count {
+  min-width: 1.4em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bot-performance__count--zero {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.bot-performance__icon {
+  font-weight: 700;
+}
+
 /* ---------- Phase breakdown ---------- */
 
 .phase-breakdown__rows {

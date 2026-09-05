@@ -351,6 +351,33 @@ export type SubmitBotMoveRequest = {
   uci: string;
 };
 
+/** One row of GET /api/bot-games/performance's phase breakdown — the bot's
+ * own moves in one game phase. */
+export type BotPhaseBreakdown = {
+  phase: 'opening' | 'middlegame' | 'endgame';
+  total_moves: number;
+  inaccuracies: number;
+  mistakes: number;
+  blunders: number;
+  error_rate_pct: number;
+};
+
+/** Response shape of GET /api/bot-games/performance — how the Tal bot
+ * itself is actually playing, across every analysed bot game. A report;
+ * never changes bot behaviour. */
+export type BotPerformance = {
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  score_pct: number;
+  avg_accuracy: number | null;
+  /** Keyed by Classification value — every one of the bot's own moves. */
+  classification_counts: Record<Classification, number>;
+  phases: BotPhaseBreakdown[];
+  accuracy_trend: AccuracyTrendPoint[];
+};
+
 /** Envelope returned by every /api/bot-games endpoint. */
 export type BotGameResponse = {
   bot_game: BotGame;
