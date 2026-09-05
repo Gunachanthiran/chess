@@ -86,11 +86,21 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # quietly making GRANDMASTER_SEARCH_DEPTH decorative. This tier gets a longer
 # leash; it still bounds the synchronous HTTP request.
 #
-# Was 20s, then 10s, then 5s, then 2s, now 0.5s — each cut for the same
-# reason (a live opponent felt every move as a real wait). The search
-# essentially always spends its *entire* requested budget before reaching
-# depth 26 regardless of host, so this constant is, in practice, choosing
-# "how many seconds of search" outright, not a rarely-hit safety ceiling.
+# Was 20s, then 10s, then 5s, then 2s, then 0.5s — each cut for the same
+# reason (a live opponent felt every move as a real wait). Raised back to 1.5s
+# after 0.5s was measured to be the actual cause of a different, worse
+# complaint ("it plays a real sacrifice, then hangs pieces right after"): a
+# real test game plus a direct depth probe on the exact position where the
+# bot's follow-up first went wrong (see the analysis in this repo's session
+# history around the fix, position after 17...Bg4) showed the search reaching
+# only depth 14-15 at GRANDMASTER_MULTIPV=6 within 0.5s, in a genuinely sharp,
+# forcing position - exactly where more depth matters most and where a
+# shallow search's evaluation is least trustworthy (the same position's true
+# eval, per this app's own deep post-game analysis, was already ~65cp worse
+# for the mover than the 0.5s search believed). 1.5s measured depth 18 at the
+# same multipv, and is still far short of the old 5-20s that made moves feel
+# unusably slow - the target here is "materially deeper without being a
+# perceptible wait", not a return to the old budgets.
 #
 # On the free-tier host this is not a clean 1:1 mapping, though: this is
 # *requested* engine time, not *delivered* wall-clock time there. A
@@ -99,10 +109,10 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # between search iterations happens less frequently too — by the time it
 # next checks the clock and notices the deadline passed, more real time has
 # elapsed than the deadline itself. Measured overshoot so far: 5s requested
-# -> 10-15s real, then 2s requested -> 7s real (~3.5x). 0.5s here is that
-# measured ratio applied forward, aimed at landing near ~2s real wall-clock
-# time — an estimate again, not a guarantee, since the ratio itself has
-# varied between measurements (position complexity, host load).
+# -> 10-15s real, then 2s requested -> 7s real (~3.5x). If that ratio still
+# roughly holds, 1.5s requested lands near ~5s real wall-clock time - slower
+# than 0.5s's ~2s, and worth re-measuring on the live host if it starts
+# feeling slow again, but a deliberate trade for the accuracy fix above.
 #
 # Below roughly this point, the fixed per-move cost of spawning a fresh
 # Stockfish process and completing the UCI handshake (~0.4s measured
@@ -116,7 +126,7 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # Nothing between the browser and uvicorn imposes a shorter deadline
 # (`apiFetch` sets no timeout, no proxy sits in front of the app), so the
 # request survives whatever this ends up actually taking.
-GRANDMASTER_TIME_LIMIT_S = 0.5
+GRANDMASTER_TIME_LIMIT_S = 1.5
 
 
 def is_grandmaster(elo: int) -> bool:
@@ -145,10 +155,19 @@ BOT_MULTIPV = 10
 # MultiPV is not free: the engine must keep N separate lines alive to the same
 # depth, so a wide search spends most of its budget proving that moves 7-14 are
 # bad instead of calculating the move it is actually going to play. At this tier
-# strength wins that trade - 6 still gives the personality scorer a real choice
+# strength wins that trade - 4 still gives the personality scorer a real choice
 # (a sound sacrifice that the engine rates near-equal is, by definition, in the
 # top handful of lines), while returning a much deeper evaluation of each.
-GRANDMASTER_MULTIPV = 6
+#
+# Narrowed from 6, alongside GRANDMASTER_TIME_LIMIT_S being raised, after a
+# direct measurement on a real mid-game position: within the same time budget,
+# multipv=6 reached depth 14-15 and rated the position dead equal, while
+# multipv=1 reached depth 16 and correctly saw the mover already slightly
+# worse - the extra lines were spending search effort proving weaker
+# alternatives were weaker instead of resolving the top line further. 4 is a
+# middle point between that accuracy gain and keeping enough breadth for
+# personality re-ranking to still have real alternatives to choose from.
+GRANDMASTER_MULTIPV = 4
 
 # Centipawn loss (vs. the engine's own best move) a candidate may cost and still
 # be eligible, indexed by aggression level 1-5.

@@ -624,13 +624,16 @@ class TestGrandmasterRouting:
         assert engine.calls[0]["depth"] == tal_bot.GRANDMASTER_SEARCH_DEPTH
         assert engine.calls[0]["time_limit"] == tal_bot.GRANDMASTER_TIME_LIMIT_S
         assert engine.calls[0]["multipv"] == tal_bot.GRANDMASTER_MULTIPV
-        # Deliberately *narrower* than the practice tiers (it used to be wider).
-        # MultiPV costs depth: every extra line has to be refuted to the same
-        # depth as the line actually being played. This is the tier that has to
-        # be strong, so it spends the budget on the top lines instead - while
-        # still leaving the personality scorer several candidates to pick from.
+        # Deliberately *narrower* than the practice tiers (it used to be wider,
+        # then narrower still: measured directly against a real position, a
+        # 6-line search reached only depth 14-15 within the time budget and
+        # misjudged the position as equal, while a 1-line search reached depth
+        # 16 and correctly saw it as already slightly worse - see
+        # GRANDMASTER_MULTIPV's own comment). This is the tier that has to be
+        # strong, so it spends the budget on the top lines instead - while
+        # still leaving the personality scorer a few candidates to pick from.
         assert tal_bot.GRANDMASTER_MULTIPV < tal_bot.BOT_MULTIPV
-        assert tal_bot.GRANDMASTER_MULTIPV >= 5
+        assert tal_bot.GRANDMASTER_MULTIPV >= 3
 
     @pytest.mark.parametrize("elo", [800, 1500, 2000, 2500, tal_bot.GRANDMASTER_ELO - 1])
     def test_normal_tiers_still_take_the_elo_capped_path(self, recording_engine, elo):
