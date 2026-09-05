@@ -30,15 +30,27 @@ export async function getGame(gameId: string, signal?: AbortSignal): Promise<Gam
   return data.game;
 }
 
-/** GET /api/games?limit=&offset=&source= */
+export type GameOutcomeFilter = 'win' | 'loss' | 'draw';
+
+/** GET /api/games?limit=&offset=&source=&opponent=&opening=&result= */
 export function listGames(
-  params: { limit?: number; offset?: number; source?: GameSource } = {},
+  params: {
+    limit?: number;
+    offset?: number;
+    source?: GameSource;
+    opponent?: string;
+    opening?: string;
+    result?: GameOutcomeFilter;
+  } = {},
   signal?: AbortSignal,
 ): Promise<GameListResponse> {
   const query = new URLSearchParams();
   if (params.limit !== undefined) query.set('limit', String(params.limit));
   if (params.offset !== undefined) query.set('offset', String(params.offset));
   if (params.source !== undefined) query.set('source', params.source);
+  if (params.opponent) query.set('opponent', params.opponent);
+  if (params.opening) query.set('opening', params.opening);
+  if (params.result !== undefined) query.set('result', params.result);
   const suffix = query.toString();
   return apiFetch<GameListResponse>(`/api/games${suffix ? `?${suffix}` : ''}`, { signal });
 }

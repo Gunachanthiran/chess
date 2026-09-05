@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import uuid
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, defer
 
 from app.db import get_db
@@ -115,11 +117,40 @@ def _game_summary_out(
     )
 
 
+def _my_outcome_expression():
+    """SQL `CASE` computing 'win'/'loss'/'draw'/NULL for `Game`, mirroring
+    `game_stats.my_accuracy`'s matching rule (case/whitespace-insensitive,
+    exactly one side matches `imported_username`) entirely in SQL rather
+    than in Python — unlike the aggregate report endpoints (which already
+    fetch every game unconditionally), `list_games` is paginated and called
+    on every page navigation, so filtering has to happen before `LIMIT`/
+    `OFFSET`, not after.
+    """
+    username = func.lower(func.trim(Game.imported_username))
+    white = func.lower(func.trim(Game.white_name))
+    black = func.lower(func.trim(Game.black_name))
+
+    is_white_mine = and_(Game.imported_username.isnot(None), white == username, black != username)
+    is_black_mine = and_(Game.imported_username.isnot(None), black == username, white != username)
+
+    return case(
+        (and_(is_white_mine, Game.result == "1-0"), "win"),
+        (and_(is_black_mine, Game.result == "0-1"), "win"),
+        (and_(is_white_mine, Game.result == "0-1"), "loss"),
+        (and_(is_black_mine, Game.result == "1-0"), "loss"),
+        (and_(or_(is_white_mine, is_black_mine), Game.result == "1/2-1/2"), "draw"),
+        else_=None,
+    )
+
+
 @router.get("", response_model=GameListResponse)
 def list_games(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     source: GameSource | None = Query(default=None),
+    opponent: str | None = Query(default=None, min_length=1),
+    opening: str | None = Query(default=None, min_length=1),
+    result: Literal["win", "loss", "draw"] | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> GameListResponse:
     # `defer(Game.pgn)`: no page anywhere reads a listed game's PGN text, so
@@ -130,9 +161,23 @@ def list_games(
     # `chessscope-api` hitting its 512MB limit on Render's free tier.
     base_query = select(Game).options(defer(Game.pgn))
     count_query = select(func.count()).select_from(Game)
-    if source is not None:
-        base_query = base_query.where(Game.source == source)
-        count_query = count_query.where(Game.source == source)
+
+    def _apply(query):
+        if source is not None:
+            query = query.where(Game.source == source)
+        if opponent is not None:
+            pattern = f"%{opponent.strip()}%"
+            query = query.where(
+                or_(Game.white_name.ilike(pattern), Game.black_name.ilike(pattern))
+            )
+        if opening is not None:
+            query = query.where(Game.opening_name.ilike(f"%{opening.strip()}%"))
+        if result is not None:
+            query = query.where(_my_outcome_expression() == result)
+        return query
+
+    base_query = _apply(base_query)
+    count_query = _apply(count_query)
 
     total = db.scalar(count_query) or 0
     rows = db.execute(

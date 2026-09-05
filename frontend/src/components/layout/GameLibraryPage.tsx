@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listGames } from '../../api/games';
+import type { GameOutcomeFilter } from '../../api/games';
 import { createAnalysisJob } from '../../api/analysis';
 import { errorMessage } from '../../api/client';
 import { BulkImportForm } from '../upload/BulkImportForm';
@@ -28,6 +30,16 @@ export function GameLibraryPage() {
   const [mode, setMode] = useState<Mode>('list');
   const [importJobId, setImportJobId] = useState<string | null>(null);
 
+  // Filter *inputs* (what's in the text boxes right now) vs. the *applied*
+  // filters the current fetch actually used — kept separate so typing in
+  // the opponent/opening boxes doesn't refetch on every keystroke; only
+  // submitting the form (or picking a result) applies them.
+  const [opponentInput, setOpponentInput] = useState('');
+  const [openingInput, setOpeningInput] = useState('');
+  const [appliedOpponent, setAppliedOpponent] = useState('');
+  const [appliedOpening, setAppliedOpening] = useState('');
+  const [result, setResult] = useState<GameOutcomeFilter | ''>('');
+
   /** Which row's Analyze button is mid-flight, so only that one shows a spinner. */
   const [startingId, setStartingId] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
@@ -41,7 +53,16 @@ export function GameLibraryPage() {
     setLoading(true);
     setError(null);
 
-    listGames({ limit: PAGE_SIZE, offset }, controller.signal)
+    listGames(
+      {
+        limit: PAGE_SIZE,
+        offset,
+        opponent: appliedOpponent || undefined,
+        opening: appliedOpening || undefined,
+        result: result || undefined,
+      },
+      controller.signal,
+    )
       .then((response) => {
         if (!active) return;
         setGames(response.games);
@@ -60,7 +81,30 @@ export function GameLibraryPage() {
       active = false;
       controller.abort();
     };
-  }, [offset, reloadToken]);
+  }, [offset, reloadToken, appliedOpponent, appliedOpening, result]);
+
+  const handleFilterSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    setOffset(0);
+    setAppliedOpponent(opponentInput.trim());
+    setAppliedOpening(openingInput.trim());
+  };
+
+  const handleResultChange = (next: GameOutcomeFilter | '') => {
+    setOffset(0);
+    setResult(next);
+  };
+
+  const hasActiveFilters = appliedOpponent !== '' || appliedOpening !== '' || result !== '';
+
+  const clearFilters = () => {
+    setOpponentInput('');
+    setOpeningInput('');
+    setAppliedOpponent('');
+    setAppliedOpening('');
+    setResult('');
+    setOffset(0);
+  };
 
   const handleAnalyse = async (game: Game) => {
     setStartingId(game.id);
@@ -137,6 +181,41 @@ export function GameLibraryPage() {
         </div>
       </header>
 
+      <form className="library__filters" onSubmit={handleFilterSubmit}>
+        <input
+          className="library__filter-input"
+          type="text"
+          value={opponentInput}
+          onChange={(event) => setOpponentInput(event.target.value)}
+          placeholder="Opponent"
+        />
+        <input
+          className="library__filter-input"
+          type="text"
+          value={openingInput}
+          onChange={(event) => setOpeningInput(event.target.value)}
+          placeholder="Opening"
+        />
+        <select
+          className="library__filter-select"
+          value={result}
+          onChange={(event) => handleResultChange(event.target.value as GameOutcomeFilter | '')}
+        >
+          <option value="">Any result</option>
+          <option value="win">Wins</option>
+          <option value="loss">Losses</option>
+          <option value="draw">Draws</option>
+        </select>
+        <button className="button button--primary" type="submit">
+          Filter
+        </button>
+        {hasActiveFilters && (
+          <button className="button" type="button" onClick={clearFilters}>
+            Clear
+          </button>
+        )}
+      </form>
+
       {error && (
         <div className="panel">
           <div className="alert alert--error">{error}</div>
@@ -172,8 +251,11 @@ export function GameLibraryPage() {
 
       {!loading && !error && games.length === 0 && (
         <div className="panel library--empty">
-          Nothing here yet. Bulk import your games from Lichess or Chess.com, or upload a
-          PGN.
+          {hasActiveFilters ? (
+            <>No games match these filters. <button className="library__filter-reset" type="button" onClick={clearFilters}>Clear them</button> to see your whole library.</>
+          ) : (
+            'Nothing here yet. Bulk import your games from Lichess or Chess.com, or upload a PGN.'
+          )}
         </div>
       )}
 

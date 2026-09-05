@@ -1143,6 +1143,54 @@
   line-height: 1.5;
 }
 
+.library__filter-reset {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.library__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.library__filter-input,
+.library__filter-select {
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.library__filter-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.library__filter-input:focus,
+.library__filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .library__filters {
+    flex-direction: column;
+  }
+
+  .library__filter-input {
+    width: 100%;
+  }
+}
+
 /* ---------- Dashboard (premium redesign pilot) ----------
  *
  * Scoped deliberately: every rule below lives under `.dashboard*` /
