@@ -58,3 +58,25 @@ self.addEventListener('fetch', (event) => {
     }),
   );
 });
+
+// Fired for a notification shown via `registration.showNotification` (see
+// `lib/notifications.ts`) — focuses an already-open ChessScope tab if there
+// is one, rather than piling up a duplicate, and only opens a new one
+// otherwise. `data.url` is the finished job's own analysis page.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data && event.notification.data.url;
+  if (!targetUrl) return;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(targetUrl);
+    }),
+  );
+});

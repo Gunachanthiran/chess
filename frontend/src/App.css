@@ -919,6 +919,27 @@
   color: var(--text-dim);
 }
 
+.progress__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.progress__notify {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.progress__notify:hover {
+  color: var(--text);
+}
+
 .progress__counts strong {
   color: var(--text);
   font-variant-numeric: tabular-nums;

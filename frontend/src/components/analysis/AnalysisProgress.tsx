@@ -1,4 +1,12 @@
+import { useState } from 'react';
 import { useAnalysisProgress } from '../../hooks/useAnalysisProgress';
+import {
+  disableAnalysisNotifications,
+  enableAnalysisNotifications,
+  notificationsSupported,
+  notifyAnalysisDone,
+  readNotifyPreference,
+} from '../../lib/notifications';
 import type { AnalysisProgressFrame, Game } from '../../types';
 
 type AnalysisProgressProps = {
@@ -15,8 +23,49 @@ const STATUS_COPY: Record<string, string> = {
   failed: 'Analysis failed',
 };
 
+/**
+ * Long analysis jobs (minutes, on a slow enough host — see tal_bot.py's own
+ * comments on the deployed free tier) are exactly the kind of wait a player
+ * switches tabs or apps during; this toggle asks once, remembers the answer
+ * (see `lib/notifications.ts`), and fires a real browser notification on
+ * completion so this panel doesn't have to stay in view for that to matter.
+ */
+function NotifyToggle() {
+  const [enabled, setEnabled] = useState(readNotifyPreference);
+
+  if (!notificationsSupported()) return null;
+
+  const handleClick = async () => {
+    if (enabled) {
+      // Only the app-side preference turns off; the browser permission
+      // itself can only be revoked by the user, from browser settings.
+      disableAnalysisNotifications();
+      setEnabled(false);
+      return;
+    }
+    const granted = await enableAnalysisNotifications();
+    setEnabled(granted);
+  };
+
+  return (
+    <button type="button" className="progress__notify" onClick={handleClick}>
+      {enabled ? '🔔 Notify me when done' : '🔕 Notify me when done'}
+    </button>
+  );
+}
+
 export function AnalysisProgress({ jobId, game, onComplete, onCancel }: AnalysisProgressProps) {
-  const progress = useAnalysisProgress(jobId, { onComplete });
+  const gameLabel = game ? `${game.white_name} vs ${game.black_name}` : 'Your game';
+
+  const progress = useAnalysisProgress(jobId, {
+    onComplete: (frame) => {
+      void notifyAnalysisDone('Analysis complete', gameLabel, `/analysis/${jobId}`);
+      onComplete(frame);
+    },
+    onFailed: () => {
+      void notifyAnalysisDone('Analysis failed', gameLabel, `/analysis/${jobId}`);
+    },
+  });
 
   const failed = progress.status === 'failed';
   const pct = Math.round(progress.progressPct);
@@ -61,9 +110,12 @@ export function AnalysisProgress({ jobId, game, onComplete, onCancel }: Analysis
       )}
       {!failed && progress.error && <div className="alert alert--warn">{progress.error}</div>}
 
-      <button className="button" type="button" onClick={onCancel}>
-        {failed ? 'Back' : 'Analyse a different game'}
-      </button>
+      <div className="progress__actions">
+        <button className="button" type="button" onClick={onCancel}>
+          {failed ? 'Back' : 'Analyse a different game'}
+        </button>
+        {!failed && progress.status !== 'completed' && <NotifyToggle />}
+      </div>
     </div>
   );
 }
