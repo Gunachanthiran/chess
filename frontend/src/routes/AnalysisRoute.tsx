@@ -124,6 +124,7 @@ export function AnalysisRoute() {
       {reanalyseError && <div className="alert alert--error">{reanalyseError}</div>}
       {!analysis.loading && !analysis.error && (
         <GameAnalysisPage
+          jobId={jobId}
           game={game}
           moves={analysis.moves}
           whiteAccuracy={analysis.whiteAccuracy}

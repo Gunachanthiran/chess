@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { API_BASE_URL, apiFetch } from './client';
 import type { AnalysisJob, ExplorePositionResult, MoveAnalysisResponse } from '../types';
 
 type JobEnvelope = { job: AnalysisJob };
@@ -45,6 +45,16 @@ export function getAnalysisMoves(
     `/api/analysis/jobs/${encodeURIComponent(jobId)}/moves`,
     { signal },
   );
+}
+
+/**
+ * GET /api/analysis/jobs/{job_id}/export.pgn — a real URL, not a fetch
+ * wrapper: the endpoint returns the PGN file directly (Content-Disposition:
+ * attachment), so a plain anchor tag lets the browser handle the download
+ * natively rather than this app fetching the bytes just to hand them back.
+ */
+export function exportPgnUrl(jobId: string): string {
+  return `${API_BASE_URL}/api/analysis/jobs/${encodeURIComponent(jobId)}/export.pgn`;
 }
 
 /** POST /api/analysis/explore — a quick, on-demand evaluation of one FEN,

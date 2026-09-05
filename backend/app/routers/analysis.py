@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
+
 import chess
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,6 +28,7 @@ from app.schemas.move_analysis import (
     TopMoveOut,
 )
 from app.services.engine_pool import StockfishEngine
+from app.services.pgn_export import build_annotated_pgn
 from app.tasks.analyze_game import analyze_game
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
@@ -92,6 +95,51 @@ def get_job_moves(job_id: str, db: Session = Depends(get_db)) -> MovesResponse:
         moves=[MoveAnalysisOut.model_validate(move) for move in moves],
         white_accuracy=job.white_accuracy,
         black_accuracy=job.black_accuracy,
+    )
+
+
+def _pgn_filename(game: Game) -> str:
+    """A readable, filesystem-safe filename - browsers otherwise fall back
+    to the URL's last path segment (the job's UUID), which tells a human
+    nothing about which game they just downloaded."""
+    raw = f"{game.white_name}_vs_{game.black_name}"
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-")
+    return f"{safe or 'game'}.pgn"
+
+
+@router.get("/jobs/{job_id}/export.pgn")
+def export_job_pgn(job_id: str, db: Session = Depends(get_db)) -> Response:
+    """The analysed game as a real PGN, each move carrying a Lichess-style
+    `[%eval ...]` comment and a standard NAG for anything worth flagging
+    (see `pgn_export.build_annotated_pgn`) - openable in any chess GUI, or
+    re-importable into Lichess/Chess.com with the same evaluation graph and
+    move markers this app shows.
+    """
+    job = _get_job(db, job_id)
+
+    if job.status is not JobStatus.completed:
+        raise ConflictError(
+            "Analysis is not finished yet.",
+            {
+                "job_id": job_id,
+                "status": job.status.value,
+                "progress_pct": job.progress_pct,
+            },
+            code="JOB_NOT_COMPLETED",
+        )
+
+    moves = db.scalars(
+        select(MoveAnalysis)
+        .where(MoveAnalysis.job_id == job.id)
+        .order_by(MoveAnalysis.ply.asc())
+    ).all()
+
+    pgn_text = build_annotated_pgn(job.game, list(moves))
+
+    return Response(
+        content=pgn_text,
+        media_type="application/x-chess-pgn",
+        headers={"Content-Disposition": f'attachment; filename="{_pgn_filename(job.game)}"'},
     )
 
 

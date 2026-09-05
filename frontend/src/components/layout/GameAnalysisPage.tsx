@@ -17,13 +17,15 @@ import { useGameNavigation } from '../../hooks/useGameNavigation';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { estimatePerformanceRating } from '../../lib/performanceRating';
 import { formatEval } from '../../lib/evaluation';
-import { explorePosition } from '../../api/analysis';
+import { explorePosition, exportPgnUrl } from '../../api/analysis';
 import { evaluatePositionLocally } from '../../lib/localEngine';
 import { accuracyColor, classificationColor, classificationLabel } from '../../styles/classification-colors';
 import { IconRefresh } from '../common/Icons';
 import type { ExplorePositionResult, Game, LegalMoveTarget, MoveAnalysis } from '../../types';
 
 type GameAnalysisPageProps = {
+  /** Undefined only while the route itself hasn't resolved a job id yet. */
+  jobId?: string;
   game: Game | null;
   moves: MoveAnalysis[];
   whiteAccuracy: number | null;
@@ -75,6 +77,7 @@ function PlayerBar({
 }
 
 export function GameAnalysisPage({
+  jobId,
   game,
   moves,
   whiteAccuracy,
@@ -426,6 +429,15 @@ export function GameAnalysisPage({
                 className={reanalysing ? 'dashboard-card__reanalyse-icon--spinning' : undefined}
               />
             </button>
+          )}
+          {jobId && moves.length > 0 && (
+            <a
+              className="button"
+              href={exportPgnUrl(jobId)}
+              title="Download this game as a PGN with evaluation and move-quality annotations"
+            >
+              Download PGN
+            </a>
           )}
           <button className="button" type="button" onClick={onAnalyseAnother}>
             Analyse another game
