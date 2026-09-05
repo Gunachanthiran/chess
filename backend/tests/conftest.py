@@ -1,6 +1,41 @@
 import pytest
+import sqlalchemy as sa
 
 from app.services import engine_pool
+
+
+@pytest.fixture(scope="session")
+def db_engine():
+    """Shared across every test needing a real database - moved here from
+    test_bulk_import.py (its original, and until now only, user) once
+    test_scheduled_sync.py needed the identical fixture rather than a
+    second copy of it. Skips - loudly - if Postgres is not reachable."""
+    from app.db import engine
+
+    try:
+        with engine.connect() as connection:
+            connection.execute(sa.text("select 1"))
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"Postgres is not reachable, skipping tests that need it: {exc}")
+    return engine
+
+
+@pytest.fixture
+def db(db_engine):
+    """A session whose work is rolled back, so the dev database stays clean."""
+    from sqlalchemy.orm import Session
+
+    connection = db_engine.connect()
+    transaction = connection.begin()
+    session = Session(
+        bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
+    )
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture(scope="session", autouse=True)

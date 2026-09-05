@@ -132,6 +132,10 @@ export function LoginPage({ account }: LoginPageProps) {
               disconnecting={disconnectingSource === 'chess_com'}
             />
           )}
+          <p className="login__sync-note">
+            New games sync automatically once a day — "Sync latest games" on the dashboard still
+            works any time you don't want to wait.
+          </p>
           <button className="button button--primary" type="button" onClick={() => navigate('/')}>
             Go to dashboard
           </button>

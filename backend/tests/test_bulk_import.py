@@ -150,35 +150,7 @@ class TestExternalGameIds:
         assert pgn_service.chess_com_game_id_from_pgn(GAME_ONE) is None
 
 
-# --- Dedup (needs the database) --------------------------------------------
-
-
-@pytest.fixture(scope="session")
-def db_engine():
-    from app.db import engine
-
-    try:
-        with engine.connect() as connection:
-            connection.execute(sa.text("select 1"))
-    except Exception as exc:  # noqa: BLE001
-        pytest.skip(f"Postgres is not reachable, skipping dedup tests: {exc}")
-    return engine
-
-
-@pytest.fixture
-def db(db_engine):
-    """A session whose work is rolled back, so the dev database stays clean."""
-    from sqlalchemy.orm import Session
-
-    connection = db_engine.connect()
-    transaction = connection.begin()
-    session = Session(bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint")
-    try:
-        yield session
-    finally:
-        session.close()
-        transaction.rollback()
-        connection.close()
+# --- Dedup (needs the database; `db`/`db_engine` fixtures live in conftest.py) --
 
 
 def unique_id(prefix: str) -> str:

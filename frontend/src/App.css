@@ -1696,6 +1696,15 @@
   color: var(--text-dim);
 }
 
+.login__sync-note {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .login__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

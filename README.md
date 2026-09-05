@@ -48,6 +48,16 @@ itself across `ANALYSIS_POOL_SIZE` Stockfish processes
 default). Running two jobs at once would oversubscribe the CPU and make both
 slower than either alone.
 
+Optionally, run `celery beat` too (separate terminal, same venv) if you want
+your connected Lichess/Chess.com accounts to sync automatically once a day
+instead of only when you click "Sync latest games" — the worker above
+executes tasks, but only `beat` actually schedules the daily one
+(`app/celery_app.py`'s `beat_schedule`):
+
+```bash
+celery -A app.celery_app beat --loglevel=info
+```
+
 Run backend tests:
 
 ```bash

@@ -13,6 +13,7 @@ will happily eat a core.
 """
 
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import worker_process_init
 
 from app.config import settings
@@ -21,7 +22,7 @@ celery_app = Celery(
     "chessscope",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.tasks.analyze_game", "app.tasks.bulk_import"],
+    include=["app.tasks.analyze_game", "app.tasks.bulk_import", "app.tasks.scheduled_sync"],
 )
 
 celery_app.conf.update(
@@ -32,6 +33,16 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     worker_prefetch_multiplier=1,
+    # Only fires at all when a `celery beat` process is actually running
+    # (see scripts/start-worker.sh and the README) - a worker with no beat
+    # alongside it just never triggers this, same as any other task nobody
+    # ever calls.
+    beat_schedule={
+        "sync-connected-accounts-daily": {
+            "task": "sync_all_connections",
+            "schedule": crontab(hour=6, minute=0),
+        },
+    },
 )
 
 
