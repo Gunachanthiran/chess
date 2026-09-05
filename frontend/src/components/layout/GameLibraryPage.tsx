@@ -203,7 +203,9 @@ export function GameLibraryPage() {
                     <td className="library__result">
                       {outcome ? (
                         <>
-                          <strong>{outcome}</strong>{' '}
+                          <strong className={`library__outcome library__outcome--${outcome.toLowerCase()}`}>
+                            {outcome}
+                          </strong>{' '}
                           <span className="library__score">{game.result}</span>
                         </>
                       ) : (

@@ -1017,8 +1017,20 @@
   border-bottom: none;
 }
 
+.library__table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
 .library__table tbody tr:hover {
   background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+/* A left-edge accent on the row's first cell, not the row itself — the
+   same "you're hovering something real" signal `.dashboard-card:hover`'s
+   border-glow gives a card, adapted for a table row where a lift/transform
+   would misalign against the sibling rows around it. */
+.library__table tbody tr:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .library__table tbody tr {
@@ -1050,6 +1062,22 @@
 
 .library__result {
   white-space: nowrap;
+}
+
+/* Same win/loss/draw colour meaning as the dashboard's own card badges
+   (`.dashboard-card__badge--*`), just as plain coloured text rather than a
+   filled pill — a dense table of 25 rows reads better with a lighter touch
+   than repeating a gradient-filled badge in every row would. */
+.library__outcome--win {
+  color: var(--accent);
+}
+
+.library__outcome--loss {
+  color: var(--danger);
+}
+
+.library__outcome--draw {
+  color: var(--text-dim);
 }
 
 .library__score {
