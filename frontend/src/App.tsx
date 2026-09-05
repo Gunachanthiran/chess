@@ -8,10 +8,18 @@ import { PlayerSearchPage } from './routes/PlayerSearchPage';
 import { AnalysisRoute } from './routes/AnalysisRoute';
 import { PlayBotSetupRoute } from './routes/PlayBotSetupRoute';
 import { PlayBotRoute } from './routes/PlayBotRoute';
+import { TacticsPage } from './routes/TacticsPage';
 import { GameLibraryPage } from './components/layout/GameLibraryPage';
 import { ColorSchemeToggle } from './components/layout/ColorSchemeToggle';
 import { PanelSkeleton } from './components/common/Skeleton';
-import { IconAnalyze, IconDashboard, IconLibrary, IconPlay, IconPlayers } from './components/common/Icons';
+import {
+  IconAnalyze,
+  IconDashboard,
+  IconLibrary,
+  IconPlay,
+  IconPlayers,
+  IconTarget,
+} from './components/common/Icons';
 import { useBotGame } from './hooks/useBotGame';
 import { useAccountStatus } from './hooks/useAccountStatus';
 import { unlockAudio } from './lib/sound';
@@ -22,7 +30,7 @@ import './App.css';
  * and reading a finished one back are both "Analyze" as far as the user is
  * concerned.
  */
-type NavSection = 'dashboard' | 'analyze' | 'library' | 'play' | 'players';
+type NavSection = 'dashboard' | 'analyze' | 'library' | 'play' | 'tactics' | 'players';
 
 function sectionForPath(pathname: string): NavSection {
   if (pathname.startsWith('/library')) return 'library';
@@ -31,6 +39,7 @@ function sectionForPath(pathname: string): NavSection {
   // `/players` needs to be ruled out first rather than made a prefix of it.
   if (pathname.startsWith('/players')) return 'players';
   if (pathname.startsWith('/play')) return 'play';
+  if (pathname.startsWith('/tactics')) return 'tactics';
   if (pathname.startsWith('/analyze')) return 'analyze';
   return 'dashboard';
 }
@@ -130,6 +139,7 @@ export default function App() {
     { section: 'analyze', label: 'Analyze', path: '/analyze', Icon: IconAnalyze },
     { section: 'library', label: 'Library', path: '/library', Icon: IconLibrary },
     { section: 'play', label: 'Play Bot', path: '/play', Icon: IconPlay },
+    { section: 'tactics', label: 'Tactics', path: '/tactics', Icon: IconTarget },
     { section: 'players', label: 'Players', path: '/players', Icon: IconPlayers },
   ];
 
@@ -201,6 +211,7 @@ export default function App() {
               <Route path="/analysis/:jobId" element={<AnalysisRoute />} />
               <Route path="/play" element={<PlayBotSetupRoute bot={bot} />} />
               <Route path="/play/:gameId" element={<PlayBotRoute bot={bot} />} />
+              <Route path="/tactics" element={<TacticsPage />} />
               <Route path="/players" element={<PlayerSearchPage />} />
             </Routes>
           )}

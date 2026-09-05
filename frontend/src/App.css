@@ -3186,6 +3186,73 @@
   color: var(--text-dim);
 }
 
+/* ---------- Tactics trainer ---------- */
+
+.tactics__subtitle {
+  margin: 4px 0 20px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.tactics__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tactics__progress {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.tactics__meta {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.tactics__prompt {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.tactics__result {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  font-size: 0.88rem;
+}
+
+.tactics__result p {
+  margin: 6px 0 0;
+  color: var(--text-dim);
+}
+
+.tactics__result--correct {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.tactics__result--wrong {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+.tactics__tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.tactics__score {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
 /* ---------- Eval graph ---------- */
 
 .eval-graph__svg {

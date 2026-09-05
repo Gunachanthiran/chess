@@ -49,6 +49,34 @@ export type GameStats = {
   current_streak_days: number;
 };
 
+/** One tactics-trainer puzzle: a real Mistake/Blunder your own side played
+ * in an analysed game, replayed from the position just before it — see
+ * GET /api/puzzles. `Classification`/`Side` are declared further down this
+ * file; referenced here ahead of their declaration since type declarations
+ * are not order-sensitive in TypeScript. */
+export type Puzzle = {
+  id: string;
+  game_id: string;
+  fen: string;
+  side_to_move: Side;
+  played_san: string;
+  played_uci: string;
+  correct_uci: string;
+  correct_san: string;
+  classification: Classification;
+  opening_name: string | null;
+  white_name: string;
+  black_name: string;
+  played_at: string | null;
+};
+
+export type PuzzleListResponse = {
+  puzzles: Puzzle[];
+  /** Total Mistakes/Blunders available across every analysed game, before
+   * capping to this one batch — e.g. to show "1 of 47". */
+  total_available: number;
+};
+
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export type AnalysisJob = {
