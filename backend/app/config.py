@@ -79,13 +79,21 @@ class Settings(BaseSettings):
     # itself happens in separate OS processes. Threads, not processes, are
     # therefore the right tool here.
     #
-    # Sizing on this 10-core machine: 4 engines x 2 search threads = 8 threads
-    # for one job's pool. That leaves headroom for OS overhead and for a
-    # concurrent bot move, which runs its own single engine at
-    # STOCKFISH_THREADS (3). The Celery worker runs at --concurrency=1 so two
-    # such pools can never overlap; raising either number means revisiting that.
-    ANALYSIS_POOL_SIZE: int = 4
-    ANALYSIS_POOL_THREADS_PER_ENGINE: int = 2
+    # Sizing on this 10-core machine: 8 engines x 1 search thread = 8 threads
+    # for one job's pool - same total thread budget as the previous 4x2, but
+    # measurably faster, because a full-game analysis is an "embarrassingly
+    # parallel" workload (many independent positions, not one position needing
+    # a deeper single search): benchmarked directly against a real 30-ply game
+    # on this machine, 4x2 took 50.4s versus 8x1's 34.2s (32% faster) and
+    # 10x1's 32.4s - Stockfish's own multi-threaded search has diminishing
+    # returns per extra thread, so spending threads on more independent
+    # engines instead of a deeper search per engine wins here. 8 rather than
+    # 10 keeps the same headroom for OS overhead and a concurrent bot move
+    # (its own single engine at STOCKFISH_THREADS, 3) that the old 4x2 had.
+    # The Celery worker runs at --concurrency=1 so two such pools can never
+    # overlap; raising either number means revisiting that.
+    ANALYSIS_POOL_SIZE: int = 8
+    ANALYSIS_POOL_THREADS_PER_ENGINE: int = 1
 
     # Wall-clock ceiling for a single position's search in the full-game
     # analysis pipeline (`engine_pool.StockfishEngine.analyse`). Whichever

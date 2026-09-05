@@ -1838,7 +1838,7 @@
  * collapsed move list cannot bring the sidebar's *other* content under the
  * available space. `max-height` + `overflow-y: auto` here is the fallback for
  * that case: it bounds the sidebar to exactly the space beside the board (the
- * same `100vh - 201px` the move-list clamp is tuned against — 137px above the
+ * same `100svh - 201px` the move-list clamp is tuned against — 137px above the
  * side column, 64px of page bottom padding below it), so if content still
  * overflows, the *sidebar* scrolls as a unit instead of the page — the board
  * stays fully visible and fixed either way.
@@ -1848,7 +1848,7 @@
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  max-height: calc(100vh - 201px);
+  max-height: calc(100svh - 201px);
   overflow-y: auto;
 }
 
@@ -2033,8 +2033,21 @@
      comment thread already documents once, just with a new column added to
      the budget. The absolute-pixel ceiling (1520px) is untouched: it's
      derived from `.app__main`'s own max-width, which the sidebar sits
-     outside of and never changes. */
-  width: min(100vw - 724px, 1520px, 100vh - 340px);
+     outside of and never changes.
+
+     `svh`, not `vh`: on a phone, `100vh` includes the space the browser's
+     own address/toolbar chrome can hide behind, so it silently changes
+     value whenever that chrome shows or hides — which taps, drags and
+     scrolling all trigger, i.e. exactly the gestures of playing a move. A
+     board sized from `vh` therefore visibly resizes on its own mid-game,
+     which is what was reported as the board/screen "shaking" while moving
+     pieces. `svh` ("small viewport height") is the viewport with that
+     chrome assumed *shown*, so it never changes for this reason - the
+     board settles at one size and stays there, matching this whole
+     section's already-stated goal of a board that "must never move".
+     Universally supported since 2022 (Safari 15.4, Chrome 108); no
+     fallback needed. */
+  width: min(100vw - 724px, 1520px, 100svh - 340px);
   aspect-ratio: 1;
   min-width: 0;
   /* Containing block for the classification-badge overlay below. */
@@ -2059,7 +2072,7 @@
 @media (min-width: 901px) {
   .analysis__body--with-recommendations .chessboard-wrapper {
     /* 1008 = 764 + `--sidebar-width` (244) — see the base rule above. */
-    width: min(100vw - 1008px, 1236px, 100vh - 340px);
+    width: min(100vw - 1008px, 1236px, 100svh - 340px);
   }
 }
 
@@ -2085,7 +2098,7 @@
        680px cap still comfortably clears a phone's own `100vw - 76px` budget
        (the binding constraint there anyway) while giving a tablet in
        portrait a noticeably bigger board than before. */
-    width: min(100vw - 76px, 100vh - 250px, 680px);
+    width: min(100vw - 76px, 100svh - 250px, 680px);
   }
 }
 
@@ -2923,7 +2936,7 @@
  * evaluation graph) plus this list's own 420px could add up to more than the
  * viewport, forcing the whole page to scroll — carrying the board with it.
  *
- * `calc(100vh - 1086px)` is that "everything else" measured directly
+ * `calc(100svh - 1086px)` is that "everything else" measured directly
  * (`getBoundingClientRect()` on each sidebar piece at a real viewport, added
  * up exactly): side column top offset 137px + accuracy panel 139.9px + move
  * breakdown table 344px + this list's own header/margin 47.7px + combined
@@ -2938,7 +2951,7 @@
  * clamp is the first line of defense, not the only one.
  */
 .move-list__scroll {
-  max-height: clamp(90px, calc(100vh - 1086px), 560px);
+  max-height: clamp(90px, calc(100svh - 1086px), 560px);
   overflow-y: auto;
 }
 

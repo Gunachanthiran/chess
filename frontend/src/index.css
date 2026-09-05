@@ -109,6 +109,18 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Reserves the scrollbar's own width permanently instead of only when a
+     page happens to be tall enough to need one - without this, content
+     that changes height (a move list growing by one row, say) can cross
+     the "needs a scrollbar" threshold and silently change the viewport's
+     effective width, shifting every `vw`-based measurement (the board's
+     own width formula included, see .chessboard-wrapper in App.css) by
+     the scrollbar's width. On platforms with overlay scrollbars (macOS by
+     default) this is a no-op - there's no space to reserve. */
+  scrollbar-gutter: stable;
+}
+
 html,
 body {
   margin: 0;
