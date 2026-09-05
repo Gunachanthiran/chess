@@ -112,6 +112,18 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # removing that boundary-case variance rather than chasing a specific depth
 # number.
 #
+# Brought back down, 3.0s -> 1.5s, on direct feedback right after the above
+# change shipped: the deeper search was a real quality win in isolation, but
+# it made every single bot move a felt, live wait — a worse trade in actual
+# play than the boundary-case variance it fixed. 1.5s is not a new, untested
+# value: it's the exact budget already measured clean at GRANDMASTER_MULTIPV=6
+# (this was before that was narrowed to 4) with the pre-widening aggression
+# tolerance table above. The one thing that combination hadn't seen was
+# today's wider Grandmaster tolerance ceiling (60cp, was 50) and matching
+# gain (4.0, was 3.6) — both verified via real games only at 3.0s. Re-verified
+# after this cut with a fresh real game at 1.5s + the wider tolerance table:
+# clean, no hung material, consistent with the original 1.5s result.
+#
 # On the free-tier host this is not a clean 1:1 mapping, though: this is
 # *requested* engine time, not *delivered* wall-clock time there. A
 # CPU-starved process (this host gets roughly a tenth of a real core) gets
@@ -120,10 +132,9 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # next checks the clock and notices the deadline passed, more real time has
 # elapsed than the deadline itself. Measured overshoot so far: 5s requested
 # -> 10-15s real, then 2s requested -> 7s real (~3.5x). If that ratio still
-# roughly holds, 3.0s requested lands near ~10s real wall-clock time on that
-# host - a real, felt wait, and worth re-measuring there directly if it
-# feels too slow; a deliberate trade for more calculation power, made with
-# eyes open rather than assumed away.
+# roughly holds, 1.5s requested lands somewhere near ~5s real wall-clock time
+# on that host - worth re-measuring there directly if moves still feel slow
+# in production specifically.
 #
 # Below roughly this point, the fixed per-move cost of spawning a fresh
 # Stockfish process and completing the UCI handshake (~0.4s measured
@@ -137,7 +148,7 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # Nothing between the browser and uvicorn imposes a shorter deadline
 # (`apiFetch` sets no timeout, no proxy sits in front of the app), so the
 # request survives whatever this ends up actually taking.
-GRANDMASTER_TIME_LIMIT_S = 3.0
+GRANDMASTER_TIME_LIMIT_S = 1.5
 
 
 def is_grandmaster(elo: int) -> bool:
