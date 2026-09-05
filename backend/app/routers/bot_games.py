@@ -169,7 +169,19 @@ def analyze_bot_game(bot_game_id: str, db: Session = Depends(get_db)) -> Analysi
     # actually rejects a genuinely move-less game — a `ValidationError` from
     # there ("PGN contains no moves") surfaces to the caller unchanged rather
     # than being re-checked here.
-    game = create_game_from_pgn(db, pgn_text, GameSource.upload)
+    #
+    # `imported_username="You"` matches the literal White/Black header
+    # `pgn_for_analysis` always gives the human side, regardless of colour -
+    # without this, the resulting `games` row has no `imported_username` at
+    # all, and every "which side is mine" computation across the app
+    # (game_stats.my_accuracy, opening_stats.my_result,
+    # puzzles_service.is_my_mistake - all matching on this same field) would
+    # silently exclude every bot game from dashboard stats, the opening
+    # report, the accuracy trend, and the tactics trainer. Confirmed as a
+    # real gap: a bot game analysed before this fix genuinely had no
+    # resolvable side, which is why a heavily-bot-played account still saw
+    # almost nothing in the tactics trainer.
+    game = create_game_from_pgn(db, pgn_text, GameSource.upload, imported_username="You")
 
     job = AnalysisJob(game_id=game.id, status=JobStatus.pending, progress_pct=0)
     db.add(job)
