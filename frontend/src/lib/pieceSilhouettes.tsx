@@ -38,11 +38,23 @@ export const PIECE_BASE = <rect x="9" y="36.5" width="27" height="4" rx="1.3" />
 // else is sized and detailed *relative to this baseline*, the same way a
 // real Staunton set makes the pawn unmistakably "the small plain one" so it
 // never gets confused with a piece that actually has a distinguishing
-// feature.
+// feature. Given a legionary's domed galea helmet with a small top crest
+// spike, and two thin banding lines across the tunic echoing lorica
+// segmentata plating, in place of the old bare circle-and-robe — but
+// deliberately no shield: the bishop already owns "carries a shield" as its
+// one distinguishing shape, chosen specifically after a real pawn/bishop
+// mixup at board scale, so the pawn stays the plainest silhouette rather
+// than risk that ambiguity again. An earlier attempt added side cheek-guard
+// bumps to the helmet, but at real board scale (see a real screenshot, not
+// just the source coordinates) those read as ear-like protrusions rather
+// than armour — dropped in favour of this plainer dome-plus-spike shape.
 const PAWN_BODY = (
   <>
-    <circle cx="22.5" cy="17.5" r="4.2" />
+    <path d="M20.9,11.5 C21.1,8.8 21.7,7 22.5,7 C23.3,7 23.9,8.8 24.1,11.5 Z" />
+    <path d="M18,19.2 C18,14.5 19.8,10.9 22.5,10.9 C25.2,10.9 27,14.5 27,19.2 C27,21.1 25.9,22.3 22.5,22.3 C19.1,22.3 18,21.1 18,19.2 Z" />
     <path d="M18,38 C18,32 19.8,28 22.5,26.7 C25.2,28 27,32 27,38 Z" />
+    <line x1="19.4" y1="31" x2="25.6" y2="31" fill="none" />
+    <line x1="18.6" y1="34.6" x2="26.4" y2="34.6" fill="none" />
   </>
 );
 
