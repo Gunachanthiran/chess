@@ -147,3 +147,17 @@ class PhaseBreakdownOut(BaseModel):
 
 class PhaseBreakdownListResponse(BaseModel):
     phases: list[PhaseBreakdownOut]
+
+
+class HeadToHeadOut(BaseModel):
+    """Your real record against one opponent (see
+    `services/head_to_head_stats.py`) — `games == 0` means no resolvable
+    game against this name, not an error."""
+
+    opponent_name: str
+    games: int
+    wins: int
+    losses: int
+    draws: int
+    score_pct: float
+    avg_accuracy: float | None

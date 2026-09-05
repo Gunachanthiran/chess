@@ -19,6 +19,7 @@ from app.schemas.game import (
     GameResponse,
     GameStatsOut,
     GameSummaryOut,
+    HeadToHeadOut,
     OpeningPerformanceListResponse,
     OpeningPerformanceOut,
     PGNUploadRequest,
@@ -30,6 +31,7 @@ from app.schemas.game import (
 # needs it too); re-exported here so existing callers keep working unchanged.
 from app.services.game_service import create_game_from_pgn
 from app.services.game_stats import GameStatsRow, compute_stats
+from app.services.head_to_head_stats import HeadToHeadStatsRow, compute_head_to_head
 from app.services.opening_stats import OpeningStatsRow, compute_opening_performance
 from app.services.phase_stats import PhaseStatsRow, compute_phase_breakdown
 
@@ -286,6 +288,52 @@ def phase_breakdown(db: Session = Depends(get_db)) -> PhaseBreakdownListResponse
             )
             for entry in breakdown
         ]
+    )
+
+
+@router.get("/head-to-head", response_model=HeadToHeadOut)
+def head_to_head(
+    opponent: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+) -> HeadToHeadOut:
+    """Your real record against one specific opponent, across every game
+    against them regardless of source (Lichess, Chess.com, uploaded, bot
+    games). Registered before `/{game_id}` for the same reason `/stats`,
+    `/openings` and `/phases` are.
+
+    `games == 0` in the response is a legitimate answer (a typo'd or
+    never-played name), not an error - no need to 404 on it.
+    """
+    rows = db.execute(
+        select(Game).options(defer(Game.pgn)).add_columns(
+            _latest_completed_job_accuracy_subquery("white").label("white_accuracy"),
+            _latest_completed_job_accuracy_subquery("black").label("black_accuracy"),
+        )
+    ).all()
+
+    summary = compute_head_to_head(
+        [
+            HeadToHeadStatsRow(
+                white_name=game.white_name,
+                black_name=game.black_name,
+                imported_username=game.imported_username,
+                result=game.result,
+                white_accuracy=white_accuracy,
+                black_accuracy=black_accuracy,
+            )
+            for game, white_accuracy, black_accuracy in rows
+        ],
+        opponent,
+    )
+
+    return HeadToHeadOut(
+        opponent_name=summary.opponent_name,
+        games=summary.games,
+        wins=summary.wins,
+        losses=summary.losses,
+        draws=summary.draws,
+        score_pct=summary.score_pct,
+        avg_accuracy=summary.avg_accuracy,
     )
 
 

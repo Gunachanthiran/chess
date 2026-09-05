@@ -85,6 +85,18 @@ export type PhaseBreakdown = {
 
 export type PhaseBreakdownList = PhaseBreakdown[];
 
+/** Response shape of GET /api/games/head-to-head — `games: 0` is a
+ * legitimate "no resolvable game against this name" answer, not an error. */
+export type HeadToHead = {
+  opponent_name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  score_pct: number;
+  avg_accuracy: number | null;
+};
+
 /** One tactics-trainer puzzle: a real Mistake/Blunder your own side played
  * in an analysed game, replayed from the position just before it — see
  * GET /api/puzzles. `Classification`/`Side` are declared further down this

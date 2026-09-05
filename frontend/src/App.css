@@ -3248,6 +3248,78 @@
   height: 100%;
 }
 
+/* ---------- Head-to-head ---------- */
+
+.head-to-head__form {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.head-to-head__input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.head-to-head__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.head-to-head__result {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.head-to-head__empty {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.head-to-head__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.head-to-head__opponent {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.head-to-head__games {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.head-to-head__stats {
+  display: flex;
+  gap: 28px;
+}
+
+.head-to-head__stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.head-to-head__stat-label {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 /* ---------- Tactics trainer ---------- */
 
 .tactics__subtitle {

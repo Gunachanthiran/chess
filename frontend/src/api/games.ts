@@ -4,6 +4,7 @@ import type {
   GameListResponse,
   GameSource,
   GameStats,
+  HeadToHead,
   OpeningPerformanceList,
   PhaseBreakdownList,
 } from '../types';
@@ -60,6 +61,14 @@ export async function getOpeningPerformance(
 export async function getPhaseBreakdown(signal?: AbortSignal): Promise<PhaseBreakdownList> {
   const data = await apiFetch<{ phases: PhaseBreakdownList }>('/api/games/phases', { signal });
   return data.phases;
+}
+
+/** GET /api/games/head-to-head?opponent= — your record against one player. */
+export function getHeadToHead(opponent: string, signal?: AbortSignal): Promise<HeadToHead> {
+  return apiFetch<HeadToHead>(
+    `/api/games/head-to-head?opponent=${encodeURIComponent(opponent)}`,
+    { signal },
+  );
 }
 
 /** POST /api/lichess/import — by explicit game id. */
