@@ -171,16 +171,22 @@ AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 32, 3: 65, 4: 105, 5: 150}
 # the tier whose entire job is to not lose, where handing a strong opponent a
 # pawn for aesthetics is how a won game becomes a lost one.
 #
-# Roughly doubled from the original {0, 8, 15, 25, 35}: those bands were tuned
-# conservatively enough that real, sound sacrifices routinely fell just outside
-# them (measured directly against the gambit feature - a well-known theoretical
-# pawn sacrifice cost more than 35cp in more than one tested position), so at
-# aggression 5 the "maximally Tal-like" setting rarely differed from
-# aggression 1 in practice. Still well short of the practice table's 120cp: a
-# 70cp concession at the top band is under a full pawn's worth of the engine's
-# own evaluation, deliberately staying "a real but sound offer" rather than
-# opening the door to speculative material for aesthetics.
-GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50, 5: 70}
+# Tightened back down from {0, 16, 30, 50, 70}: this app's own post-game
+# analysis (see classification.py) grades every move on win%-drop, and a
+# concession anywhere near the old 70cp ceiling routinely lands in
+# Inaccuracy/Mistake territory (INACCURACY_MAX_DROP=10%, MISTAKE_MAX_DROP=20%)
+# in a roughly balanced middlegame, where the win%-vs-cp curve is steepest -
+# so the bot was earning its own "aggression" by intentionally playing moves
+# its own analysis pipeline would later grade as mistakes. A real, *sound*
+# sacrifice is the whole point of this tier's style and should cost far less
+# than that: `BRILLIANT_MIN_WIN_PCT`'s band only ever fires inside a 1-2%
+# win-drop, which this table's old ceiling was 5-10x wider than. Narrower
+# bands push the personality re-rank (below) to actually search for cheap,
+# real tactical chances instead of just cashing in the whole budget on
+# aesthetics; `AGGRESSION_PERSONALITY_GAIN`'s top end was raised to match, so
+# a genuinely sharp try still gets chosen decisively within this smaller,
+# safer budget rather than the bot quietly reverting to quiet moves instead.
+GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 12, 3: 22, 4: 35, 5: 50}
 
 # How hard the personality terms push, per aggression level.
 #
@@ -188,19 +194,24 @@ GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 16, 3: 30, 4: 50
 # only decides which candidates are allowed, while `CP_LOSS_WEIGHT` still taxes
 # every centipawn given up inside it. With a flat personality weight a 1-pawn
 # sacrifice (45 points) simply loses to the 0.5/cp tax past ~90cp, so raising
-# the ceiling changed nothing on its own. This gain is the second half: at level
-# 5 the personality terms are worth 3.0x (up from 2.4x - the wider tolerance
-# table above needed a matching bump here, for the same reason it needed one the
-# first time: a wider gate with an unchanged gain just adds more losing-tiebreak
-# candidates to the pool without actually picking them more often), which is
-# what buys the sharp move the wider gate opened room for. Level 1 is 0.0 - no
-# personality at all, matching the "plain engine move" contract of that level.
+# the ceiling changed nothing on its own. This gain is the second half - it
+# decides how *eagerly* the bot spends whatever budget the tolerance table
+# above actually allows.
+#
+# Top two levels raised again (4: 2.0->2.3, 5: 3.0->3.6) to go with
+# `GRANDMASTER_AGGRESSION_TOLERANCE_CP` being tightened in the same change:
+# a smaller, safer budget needs a higher gain to still get spent decisively -
+# otherwise the bot would default back to quiet engine moves more often
+# simply because the room to be sharp shrank, which is the opposite of the
+# goal (more decisive aggression, spent on cheaper/sounder tries instead of
+# occasional expensive ones). Level 1 stays 0.0 - no personality at all,
+# matching the "plain engine move" contract of that level.
 AGGRESSION_PERSONALITY_GAIN: dict[int, float] = {
     1: 0.0,
     2: 0.85,
     3: 1.25,
-    4: 2.0,
-    5: 3.0,
+    4: 2.3,
+    5: 3.6,
 }
 
 MIN_AGGRESSION = 1
