@@ -102,6 +102,16 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # unusably slow - the target here is "materially deeper without being a
 # perceptible wait", not a return to the old budgets.
 #
+# Raised again, 1.5s -> 3.0s, on explicit request for more "critical
+# thinking" power, not because 1.5s was measured broken this time. Re-probed
+# the same reference position (post-17...Bg4) at both budgets: 1.5s landed
+# depth 17 and misjudged the position as dead equal (cp 0) in one run, depth
+# 19 in another - the search is close enough to its own iteration boundary
+# there that it can land on either side of it run to run. 3.0s reached depth
+# 20 consistently and correctly saw the mover already worse (cp -90),
+# removing that boundary-case variance rather than chasing a specific depth
+# number.
+#
 # On the free-tier host this is not a clean 1:1 mapping, though: this is
 # *requested* engine time, not *delivered* wall-clock time there. A
 # CPU-starved process (this host gets roughly a tenth of a real core) gets
@@ -110,9 +120,10 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # next checks the clock and notices the deadline passed, more real time has
 # elapsed than the deadline itself. Measured overshoot so far: 5s requested
 # -> 10-15s real, then 2s requested -> 7s real (~3.5x). If that ratio still
-# roughly holds, 1.5s requested lands near ~5s real wall-clock time - slower
-# than 0.5s's ~2s, and worth re-measuring on the live host if it starts
-# feeling slow again, but a deliberate trade for the accuracy fix above.
+# roughly holds, 3.0s requested lands near ~10s real wall-clock time on that
+# host - a real, felt wait, and worth re-measuring there directly if it
+# feels too slow; a deliberate trade for more calculation power, made with
+# eyes open rather than assumed away.
 #
 # Below roughly this point, the fixed per-move cost of spawning a fresh
 # Stockfish process and completing the UCI handshake (~0.4s measured
@@ -126,7 +137,7 @@ GRANDMASTER_SEARCH_DEPTH = 26
 # Nothing between the browser and uvicorn imposes a shorter deadline
 # (`apiFetch` sets no timeout, no proxy sits in front of the app), so the
 # request survives whatever this ends up actually taking.
-GRANDMASTER_TIME_LIMIT_S = 1.5
+GRANDMASTER_TIME_LIMIT_S = 3.0
 
 
 def is_grandmaster(elo: int) -> bool:
@@ -205,7 +216,18 @@ AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 32, 3: 65, 4: 105, 5: 150}
 # aesthetics; `AGGRESSION_PERSONALITY_GAIN`'s top end was raised to match, so
 # a genuinely sharp try still gets chosen decisively within this smaller,
 # safer budget rather than the bot quietly reverting to quiet moves instead.
-GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 12, 3: 22, 4: 35, 5: 50}
+#
+# Widened again on explicit request for more aggression/sacrifices, but not
+# blindly repeating the earlier widen-then-revert cycles this table has its
+# own history of: the two things that actually caused the last "hangs
+# pieces" regression - too little real search time (0.5s) and too wide a
+# multipv pool diluting it (6 lines) - were fixed first (see
+# GRANDMASTER_TIME_LIMIT_S, now 3.0s, and GRANDMASTER_MULTIPV, now 4), and
+# verified clean (one mild inaccuracy across 51 moves in a real test game,
+# zero mistakes/blunders) before this table was touched again. This step is
+# deliberately smaller than the old, reverted {0, 16, 30, 50, 70} - re-check
+# real games after this if aggression goes any higher than here.
+GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 15, 3: 28, 4: 42, 5: 60}
 
 # How hard the personality terms push, per aggression level.
 #
@@ -225,12 +247,18 @@ GRANDMASTER_AGGRESSION_TOLERANCE_CP: dict[int, int] = {1: 0, 2: 12, 3: 22, 4: 35
 # goal (more decisive aggression, spent on cheaper/sounder tries instead of
 # occasional expensive ones). Level 1 stays 0.0 - no personality at all,
 # matching the "plain engine move" contract of that level.
+#
+# Top two raised again (4: 2.3->2.5, 5: 3.6->4.0), a smaller step than the
+# tolerance table's own widening above - this shared table also drives the
+# practice tiers (`personality_gain_for` doesn't know which elo tier called
+# it), which already have a much wider tolerance budget of their own and
+# don't need as much extra push to spend it.
 AGGRESSION_PERSONALITY_GAIN: dict[int, float] = {
     1: 0.0,
     2: 0.85,
     3: 1.25,
-    4: 2.3,
-    5: 3.6,
+    4: 2.5,
+    5: 4.0,
 }
 
 MIN_AGGRESSION = 1
@@ -252,20 +280,33 @@ MAX_AGGRESSION = 5
 # admit a genuine rook sacrifice (~500cp of raw material) with real, if
 # imperfect, compensation. Still a real ceiling, not unconditional: an
 # outright hung queen with nothing for it stays excluded.
-FULL_ATTACK_TOLERANCE_CP = 600
+#
+# Raised from 600 to 850 - room for a rook sacrifice *plus* real follow-up
+# cost (e.g. a further exchange or pawn given up pressing the attack once
+# the rook is already committed), not just the rook alone. This mode's
+# entire premise is "expect to lose more games for a real shot at a direct
+# attack" - a ceiling this wide is deliberately not a safe number.
+FULL_ATTACK_TOLERANCE_CP = 850
 
 # Roughly doubled from the standard weights - sacrifices, and the king
 # attack they're usually made for, are the entire point of this mode, not
 # just barely-permitted personality flavour.
-FULL_ATTACK_SACRIFICE_WEIGHT = 90.0
-FULL_ATTACK_KING_EXPOSURE_WEIGHT = 60.0
-FULL_ATTACK_KING_PRESSURE_WEIGHT = 24.0
+#
+# Raised again (sacrifice 90->130, king exposure 60->85, king pressure
+# 24->34) alongside the wider ceiling above - the same "a wider gate needs a
+# matching gain" reasoning applies a second time: admitting bigger
+# sacrifices without rewarding them proportionally more would just leave
+# the extra room mostly unused.
+FULL_ATTACK_SACRIFICE_WEIGHT = 130.0
+FULL_ATTACK_KING_EXPOSURE_WEIGHT = 85.0
+FULL_ATTACK_KING_PRESSURE_WEIGHT = 34.0
 
 # Higher than even aggression 5's gain (3.6), so the much wider tolerance
 # above actually gets used rather than just adding losing-tiebreak
 # candidates to the pool - the same "a wider gate needs a matching gain"
 # lesson AGGRESSION_PERSONALITY_GAIN's own comment already documents.
-FULL_ATTACK_PERSONALITY_GAIN = 5.0
+# Raised from 5.0 to keep pace with the ceiling/weight increases above.
+FULL_ATTACK_PERSONALITY_GAIN = 7.0
 
 
 # --- Repetition avoidance --------------------------------------------------
