@@ -2,9 +2,11 @@ import { useCallback, useSyncExternalStore } from 'react';
 import type { PieceRenderObject } from 'react-chessboard';
 import { LINE_ART_PIECES } from './pieceSets/lineArt';
 import { ROMAN_LUXURY_PIECES } from './pieceSets/romanLuxury';
+import { THREE_D_PIECES } from './pieceSets/three3d';
+import { useWebglSupported } from './pieceSets/three3d/webglSupport';
 
 /** Selectable piece art styles. */
-export type PieceSet = 'classic' | 'line' | 'romanLuxury';
+export type PieceSet = 'classic' | 'line' | 'romanLuxury' | 'three3d';
 
 export type PieceSetInfo = {
   label: string;
@@ -20,9 +22,10 @@ export const PIECE_SETS: Record<PieceSet, PieceSetInfo> = {
   // the label changed, to match what the set actually looks like now.
   line: { label: 'Roman', pieces: LINE_ART_PIECES },
   romanLuxury: { label: 'Roman (Photo)', pieces: ROMAN_LUXURY_PIECES },
+  three3d: { label: '3D', pieces: THREE_D_PIECES },
 };
 
-export const PIECE_SET_ORDER: PieceSet[] = ['classic', 'line', 'romanLuxury'];
+export const PIECE_SET_ORDER: PieceSet[] = ['classic', 'line', 'romanLuxury', 'three3d'];
 
 const PIECE_SET_STORAGE_KEY = 'chessscope.board.pieceSet';
 // The Roman-themed set is the one actually designed for this app (every
@@ -96,6 +99,7 @@ export type PieceSetHook = {
 /** Owns the site-wide piece-art preference, same pattern as `useBoardTheme`. */
 export function usePieceSet(): PieceSetHook {
   const pieceSet = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const webglSupported = useWebglSupported();
 
   const setPieceSet = useCallback((next: PieceSet) => {
     if (next === currentPieceSet) return;
@@ -104,5 +108,11 @@ export function usePieceSet(): PieceSetHook {
     emit();
   }, []);
 
-  return { pieceSet, pieces: PIECE_SETS[pieceSet].pieces, setPieceSet };
+  // A stored '3D' preference on a browser/session that can't actually run it
+  // (no WebGL, or a context was lost after the picker already offered it)
+  // renders as 'line' instead — silently, and without touching the stored
+  // preference, so it resumes on its own wherever 3D does work again.
+  const effectiveSet = pieceSet === 'three3d' && !webglSupported ? 'line' : pieceSet;
+
+  return { pieceSet, pieces: PIECE_SETS[effectiveSet].pieces, setPieceSet };
 }

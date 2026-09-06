@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import type { PieceDropHandlerArgs, PieceHandlerArgs, SquareHandlerArgs } from 'react-chessboard';
@@ -10,6 +10,8 @@ import {
 import { unlockAudio } from '../../lib/sound';
 import { useBoardTheme } from '../../lib/boardTheme';
 import { usePieceSet } from '../../lib/pieceSet';
+import { LazyPieceCanvasRoot } from '../../lib/pieceSets/three3d';
+import { useWebglSupported } from '../../lib/pieceSets/three3d/webglSupport';
 import { PieceSilhouette } from '../../lib/pieceSilhouettes';
 import type { PieceColor, PieceType } from '../../lib/pieceSilhouettes';
 import type { Classification, LegalMoveTarget } from '../../types';
@@ -318,7 +320,8 @@ export function ChessBoard({
   const [renderedFen, setRenderedFen] = useState(displayFen);
 
   const { colors } = useBoardTheme();
-  const { pieces } = usePieceSet();
+  const { pieceSet, pieces } = usePieceSet();
+  const webglSupported = useWebglSupported();
 
   // Square a piece is currently being dragged from, or null when nothing is in
   // hand. Purely ephemeral view state: it drives the legal-move markers and
@@ -595,6 +598,22 @@ export function ChessBoard({
           },
         }}
       />
+
+      {/*
+        The one shared WebGL canvas every 3D piece renders into — see
+        `PieceCanvasRoot.tsx` for why this is a single canvas rather than one
+        per piece. Mounted only while the 3D set is actually active AND
+        supported, and lazily (`Suspense fallback={null}`) so `three`/
+        `@react-three/fiber`/`@react-three/drei` are never even fetched for
+        anyone using one of the flat piece sets. Placed before the badge/fx
+        overlays below in DOM order, not after, so those still paint on top
+        of it exactly as they already do over every other piece set.
+      */}
+      {pieceSet === 'three3d' && webglSupported && (
+        <Suspense fallback={null}>
+          <LazyPieceCanvasRoot />
+        </Suspense>
+      )}
 
       {/*
         Overlay sibling of the board rather than a child of it, so nothing here
