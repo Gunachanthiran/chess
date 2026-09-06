@@ -44,7 +44,7 @@ import chess
 
 from app.errors import EngineError
 from app.services import gambit_strategy
-from app.services.classification import PIECE_VALUES, material_balance
+from app.services.classification import PIECE_VALUES, SACRIFICE_MIN_PAWNS, material_balance
 from app.services.engine_pool import CandidateMove, StockfishEngine
 from app.services.gambit_strategy import StrategyContext
 
@@ -282,6 +282,23 @@ AGGRESSION_PERSONALITY_GAIN: dict[int, float] = {
 
 MIN_AGGRESSION = 1
 MAX_AGGRESSION = 5
+
+# Grandmaster plays the engine's own top move regardless of aggression (see
+# `select_move`) - this is the one, narrow exception. Among candidates whose
+# `cp_loss` is within this margin of the pool's actual best (engine search
+# noise, not a real concession - contrast with GRANDMASTER_AGGRESSION_TOLERANCE_CP's
+# up-to-60cp band), prefer a genuine sacrifice over a quiet alternative that
+# scored fractionally higher only because Stockfish happened to order its
+# multipv lines that way. This can only ever choose between moves the engine
+# already rates as equal-best, so it cannot introduce a real mistake - it
+# exists purely so a sound, Brilliant-eligible sacrifice (see
+# `classification.BRILLIANT_ELIGIBLE_BANDS`, which the win%-drop this small
+# a cp gap almost always lands inside) doesn't lose a coin-flip to whichever
+# quiet line got listed first. Added on named-after-Tal-himself feedback that
+# the tier plays cleanly now but rarely produces a genuinely brilliant move -
+# the fix isn't reward-seeking (that's what got reverted repeatedly on this
+# exact axis earlier); it's *not discarding* one when it's already free.
+GRANDMASTER_BRILLIANCE_MARGIN_CP = 10
 
 
 # --- Full Attack Mode -------------------------------------------------------
@@ -560,27 +577,40 @@ def select_move(
             if gambit_strategy.is_line_continuation(board, item.candidate.move, strategy_context):
                 return item.candidate.move
 
-    # Aggression 1 is plain elo-limited Stockfish: no personality at all, just
-    # the engine's own ranking over whatever the repetition filter left.
+    # The Grandmaster tier plays the engine's own top choice at *every*
+    # aggression level, not just 1 - added after direct feedback that the bot
+    # still felt weak at the setup form's own default (Grandmaster +
+    # aggression 5): that combination was, by design, letting the bot play a
+    # move up to GRANDMASTER_AGGRESSION_TOLERANCE_CP[5] (60cp - genuinely a
+    # large, felt concession to a strong human) worse than Stockfish's own
+    # best, purely for personality/style. That tradeoff is exactly right for
+    # the practice tiers, where the personality *is* the product alongside
+    # the elo cap - it's wrong for the one tier whose entire job is to play
+    # as strongly as possible.
     #
-    # The Grandmaster tier gets this too, at *every* aggression level, not
-    # just 1 - added after direct feedback that the bot still felt weak at
-    # the setup form's own default (Grandmaster + aggression 5): that
-    # combination was, by design, letting the bot play a move up to
-    # GRANDMASTER_AGGRESSION_TOLERANCE_CP[5] (60cp - genuinely a large,
-    # felt concession to a strong human) worse than Stockfish's own best,
-    # purely for personality/style. That tradeoff is exactly right for the
-    # practice tiers, where the personality *is* the product alongside the
-    # elo cap - it's wrong for the one tier whose entire job is to play as
-    # strongly as possible. Grandmaster now always plays the engine's own
-    # top choice, full stop, regardless of where the slider sits.
+    # One narrow exception, not a reopening of that tradeoff: among moves the
+    # engine already rates as genuinely tied (see GRANDMASTER_BRILLIANCE_MARGIN_CP),
+    # take a real sacrifice over a quiet one, so a sound, Brilliant-eligible
+    # try doesn't lose a coin-flip to whichever line the search happened to
+    # list first. `_prefer_near_tied_sacrifice` only ever chooses among
+    # already-equal-best candidates, so this cannot cost real strength the
+    # way the aggression tolerance table did.
     #
-    # Full Attack Mode overrides both of the above - it's a real, separate,
+    # Full Attack Mode overrides all of the above - it's a real, separate,
     # deliberately opted-into mode (not just the slider's default position),
-    # so it still engages personality-driven selection even at aggression 1
-    # or at the Grandmaster tier.
-    if (aggression <= MIN_AGGRESSION or (elo is not None and is_grandmaster(elo))) and not full_attack:
-        return _engine_preference(pool)
+    # so it still engages full personality-driven selection even at
+    # aggression 1 or at the Grandmaster tier.
+    if not full_attack:
+        if elo is not None and is_grandmaster(elo):
+            brilliant = _prefer_near_tied_sacrifice(pool)
+            return brilliant if brilliant is not None else _engine_preference(pool)
+        # Aggression 1 is plain elo-limited Stockfish: no personality at all,
+        # just the engine's own ranking over whatever the repetition filter
+        # left - deliberately *not* given the brilliance tie-break above,
+        # which is Grandmaster-specific; "no personality" at this level means
+        # none, full stop.
+        if aggression <= MIN_AGGRESSION:
+            return _engine_preference(pool)
 
     eligible = [item for item in pool if item.eligible]
     if not eligible:
@@ -605,6 +635,35 @@ def _engine_preference(pool: list[ScoredCandidate]) -> chess.Move:
     best surviving choice.
     """
     return pool[0].candidate.move
+
+
+def _prefer_near_tied_sacrifice(pool: list[ScoredCandidate]) -> chess.Move | None:
+    """A real sacrifice among `pool`'s genuinely-tied top candidates, or
+    `None` when there isn't one - the caller falls back to
+    `_engine_preference` exactly as before in that case.
+
+    "Tied" means `cp_loss <= GRANDMASTER_BRILLIANCE_MARGIN_CP`: `cp_loss` is
+    already relative to the pool's own best move (see `score_candidates`),
+    so this only ever picks among moves the engine itself calls equal-best -
+    it cannot promote a move that costs real strength. Shares the same
+    caveat `_engine_preference` documents, though: on a wall-clock cutoff,
+    different multipv lines can come from different search iterations, so a
+    shallower line's `cp_loss` is not perfectly comparable to the top line's.
+    That risk already exists everywhere else `cp_loss` drives eligibility
+    (every aggression level above 1, at every tier) - this is a narrower
+    slice of an already-accepted comparison, not a new one.
+
+    Ties broken by smallest `cp_loss` first, so among several qualifying
+    sacrifices this always prefers the one closest to literally-best.
+    """
+    qualifying = [
+        item
+        for item in pool
+        if item.cp_loss <= GRANDMASTER_BRILLIANCE_MARGIN_CP and item.sacrifice_pawns >= SACRIFICE_MIN_PAWNS
+    ]
+    if not qualifying:
+        return None
+    return min(qualifying, key=lambda item: item.cp_loss).candidate.move
 
 
 def _prefer_non_repeating(scored: list[ScoredCandidate]) -> list[ScoredCandidate]:

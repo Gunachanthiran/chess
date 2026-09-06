@@ -165,6 +165,74 @@ class TestGrandmasterToleranceTable:
         assert practice_scored["Bxh7+"].eligible is True
 
 
+class TestGrandmasterBrillianceTiebreak:
+    """A narrow exception to "Grandmaster always plays the literal engine top
+    move": among candidates the engine already rates as genuinely tied,
+    prefer a real sacrifice over a quiet one - see
+    GRANDMASTER_BRILLIANCE_MARGIN_CP's own comment for why this can't cost
+    real strength the way the (now-bypassed-at-this-tier) aggression
+    tolerance table could.
+    """
+
+    def test_a_genuinely_tied_sacrifice_is_preferred(self):
+        """Bxh7+ costs exactly the margin - engine noise, not a real
+        concession - so the tie-break takes it over the nominally-higher-
+        scored but quiet O-O."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        gap = tal_bot.GRANDMASTER_BRILLIANCE_MARGIN_CP
+        pool = candidates(board, ("O-O", 40), ("Bxh7+", 40 - gap))
+
+        chosen = tal_bot.select_move(
+            board, pool, aggression=5, elo=tal_bot.GRANDMASTER_ELO
+        )
+        assert board.san(chosen) == "Bxh7+"
+
+    def test_just_outside_the_margin_falls_back_to_engine_preference(self):
+        board = chess.Board(GREEK_GIFT_FEN)
+        gap = tal_bot.GRANDMASTER_BRILLIANCE_MARGIN_CP
+        pool = candidates(board, ("O-O", 41), ("Bxh7+", 41 - gap - 1))
+
+        chosen = tal_bot.select_move(
+            board, pool, aggression=5, elo=tal_bot.GRANDMASTER_ELO
+        )
+        assert board.san(chosen) == "O-O"
+
+    def test_still_applies_at_aggression_one(self):
+        """Not gated by the slider - it isn't personality re-ranking, it's
+        "don't discard a free brilliancy that's already sitting there"."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        gap = tal_bot.GRANDMASTER_BRILLIANCE_MARGIN_CP
+        pool = candidates(board, ("O-O", 40), ("Bxh7+", 40 - gap))
+
+        chosen = tal_bot.select_move(
+            board, pool, aggression=1, elo=tal_bot.GRANDMASTER_ELO
+        )
+        assert board.san(chosen) == "Bxh7+"
+
+    def test_a_non_sacrifice_near_tie_is_not_reordered(self):
+        """The tie-break only ever fires for a real sacrifice - a quiet move
+        within the same margin must not get reshuffled ahead of the
+        engine's own literal top choice for no reason."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        pool = candidates(board, ("O-O", 40), ("Bd2", 32))  # gap = 8, no sacrifice
+
+        chosen = tal_bot.select_move(
+            board, pool, aggression=5, elo=tal_bot.GRANDMASTER_ELO
+        )
+        assert board.san(chosen) == "O-O"
+
+    def test_practice_tiers_are_unaffected(self):
+        """Grandmaster-specific - a practice tier's aggression=1 ("no
+        personality") must still return the literal engine top choice,
+        tie-break or not."""
+        board = chess.Board(GREEK_GIFT_FEN)
+        gap = tal_bot.GRANDMASTER_BRILLIANCE_MARGIN_CP
+        pool = candidates(board, ("O-O", 40), ("Bxh7+", 40 - gap))
+
+        chosen = tal_bot.select_move(board, pool, aggression=1, elo=1500)
+        assert board.san(chosen) == "O-O"
+
+
 class TestAggressionOne:
     def test_returns_the_engines_own_top_candidate(self):
         board = chess.Board(GREEK_GIFT_FEN)
