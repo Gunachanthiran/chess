@@ -1,13 +1,12 @@
-import { PIECE_SETS, PIECE_SET_ORDER, usePieceSet } from '../../lib/pieceSet';
-import { LINE_ART_PIECES } from '../../lib/pieceSets/lineArt';
+import { PIECE_SETS, PIECE_SET_ORDER, usePieceSet, type PieceSet } from '../../lib/pieceSet';
 
 /** A small preview of one set's king, used as that option's own icon —
  * react-chessboard's bundled set has no standalone export, so "Classic"
  * previews with a plain figurine glyph instead of rendering the real thing
- * twice. */
-function SetPreview({ pieceSet }: { pieceSet: 'classic' | 'line' }) {
-  if (pieceSet === 'line') {
-    const King = LINE_ART_PIECES.wK;
+ * twice. Every other set has a real `pieces.wK` to render directly. */
+function SetPreview({ pieceSet }: { pieceSet: PieceSet }) {
+  const King = PIECE_SETS[pieceSet].pieces?.wK;
+  if (King) {
     return (
       <span className="piece-swatch__preview" aria-hidden="true">
         <King />

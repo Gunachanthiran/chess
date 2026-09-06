@@ -1,9 +1,10 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { PieceRenderObject } from 'react-chessboard';
 import { LINE_ART_PIECES } from './pieceSets/lineArt';
+import { ROMAN_LUXURY_PIECES } from './pieceSets/romanLuxury';
 
 /** Selectable piece art styles. */
-export type PieceSet = 'classic' | 'line';
+export type PieceSet = 'classic' | 'line' | 'romanLuxury';
 
 export type PieceSetInfo = {
   label: string;
@@ -18,9 +19,10 @@ export const PIECE_SETS: Record<PieceSet, PieceSetInfo> = {
   // it, and it's what `lineArt.tsx`'s own file/export names refer to) — only
   // the label changed, to match what the set actually looks like now.
   line: { label: 'Roman', pieces: LINE_ART_PIECES },
+  romanLuxury: { label: 'Roman (Photo)', pieces: ROMAN_LUXURY_PIECES },
 };
 
-export const PIECE_SET_ORDER: PieceSet[] = ['classic', 'line'];
+export const PIECE_SET_ORDER: PieceSet[] = ['classic', 'line', 'romanLuxury'];
 
 const PIECE_SET_STORAGE_KEY = 'chessscope.board.pieceSet';
 // The Roman-themed set is the one actually designed for this app (every
