@@ -21,6 +21,14 @@ blunder sometimes - that is the mechanism that makes it beatable - and a
 blunder-free opponent is what this product is actually for. Every elo below it
 is unchanged and remains available as explicit practice mode.
 
+That tier also opts out of step 2, for the same reason: personality is a
+*strength concession* (the whole point is playing a sound but non-best move
+for style), which is right for a practice opponent and wrong for the one tier
+whose job is to play as strongly as possible. Grandmaster plays the engine's
+own top choice regardless of the aggression slider - see `select_move`. Full
+Attack Mode, being a separate, deliberately opted-into mode rather than the
+slider's default position, still overrides this.
+
 A third, smaller knob sits after both: candidates that would repeat a position
 for the third time are filtered out of the pool when an alternative of
 comparable strength exists (see `_prefer_non_repeating`), so the bot stops
@@ -553,11 +561,25 @@ def select_move(
                 return item.candidate.move
 
     # Aggression 1 is plain elo-limited Stockfish: no personality at all, just
-    # the engine's own ranking over whatever the repetition filter left. Full
-    # Attack Mode overrides this too - it's a real, separate mode, so it still
-    # engages personality-driven selection even if the aggression slider
-    # happens to sit at 1.
-    if aggression <= MIN_AGGRESSION and not full_attack:
+    # the engine's own ranking over whatever the repetition filter left.
+    #
+    # The Grandmaster tier gets this too, at *every* aggression level, not
+    # just 1 - added after direct feedback that the bot still felt weak at
+    # the setup form's own default (Grandmaster + aggression 5): that
+    # combination was, by design, letting the bot play a move up to
+    # GRANDMASTER_AGGRESSION_TOLERANCE_CP[5] (60cp - genuinely a large,
+    # felt concession to a strong human) worse than Stockfish's own best,
+    # purely for personality/style. That tradeoff is exactly right for the
+    # practice tiers, where the personality *is* the product alongside the
+    # elo cap - it's wrong for the one tier whose entire job is to play as
+    # strongly as possible. Grandmaster now always plays the engine's own
+    # top choice, full stop, regardless of where the slider sits.
+    #
+    # Full Attack Mode overrides both of the above - it's a real, separate,
+    # deliberately opted-into mode (not just the slider's default position),
+    # so it still engages personality-driven selection even at aggression 1
+    # or at the Grandmaster tier.
+    if (aggression <= MIN_AGGRESSION or (elo is not None and is_grandmaster(elo))) and not full_attack:
         return _engine_preference(pool)
 
     eligible = [item for item in pool if item.eligible]

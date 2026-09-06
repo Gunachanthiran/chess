@@ -62,11 +62,13 @@ class TestToleranceTable:
 
 
 class TestGrandmasterToleranceTable:
-    """The top tier trades style for strength on a much tighter budget.
-
-    The practice tiers' tolerance is a deliberate handicap - it lets the bot
-    play a move it knows is up to ~1.2 pawns worse. At the tier whose job is to
-    not lose, that same handicap is just a lost pawn, so it gets its own table.
+    """`tolerance_for`/`score_candidates` still compute a Grandmaster-specific
+    table (exercised directly by the tests below), even though `select_move`
+    no longer consults it for its final choice at that tier outside Full
+    Attack Mode - see `TestGrandmasterRouting` and `select_move`'s own
+    comment for why. The practice tiers' tolerance stays a deliberate
+    handicap: it lets the bot play a move it knows is up to ~1.2 pawns worse,
+    which is the point for a practice opponent.
     """
 
     @pytest.mark.parametrize("level", range(1, 6))
@@ -123,11 +125,14 @@ class TestGrandmasterToleranceTable:
         assert board.san(practice) == "Bxh7+"
         assert board.san(grandmaster) == "O-O"
 
-    def test_a_sound_sacrifice_is_still_taken_at_grandmaster(self):
-        """Tightening the gate must not neuter the tier's style entirely.
-
-        A 20cp offer is inside the Grandmaster budget - the engine itself rates
-        it near-equal - so the personality still gets to choose it.
+    def test_even_a_cheap_sound_sacrifice_is_refused_at_grandmaster(self):
+        """Grandmaster now skips personality re-ranking entirely (see
+        `select_move`) - even a 20cp offer well inside the old tolerance
+        table no longer gets chosen over the engine's own top move. Direct
+        feedback that Grandmaster + aggression 5 (the setup form's own
+        default) still felt weak: that combination was, by design, letting
+        the bot concede up to `GRANDMASTER_AGGRESSION_TOLERANCE_CP[5]` for
+        style, which is real strength a 2900-level opponent will feel.
         """
         board = chess.Board(GREEK_GIFT_FEN)
         pool = candidates(board, ("O-O", 30), ("Bxh7+", 10))
@@ -135,7 +140,7 @@ class TestGrandmasterToleranceTable:
         chosen = tal_bot.select_move(
             board, pool, aggression=5, elo=tal_bot.GRANDMASTER_ELO
         )
-        assert board.san(chosen) == "Bxh7+"
+        assert board.san(chosen) == "O-O"
 
     def test_the_tier_gate_reaches_the_eligibility_flag(self):
         """The gate's direct effect: which candidates are allowed at all.
@@ -654,17 +659,20 @@ class TestGrandmasterRouting:
         tal_bot.choose_bot_move(board, elo=9999, aggression=1)
         assert recording_engine.instances[0].kwargs["elo"] is None
 
-    def test_grandmaster_still_applies_the_aggression_rerank(self, recording_engine):
-        """Full strength keeps the Tal flavour: the pool is still re-ranked."""
+    def test_grandmaster_ignores_the_aggression_slider(self, recording_engine):
+        """Full strength means full strength: the engine's own top move,
+        regardless of where the aggression slider sits - see `select_move`.
+        The stub pool has Bxh7+ only 30cp behind O-O (well inside the old
+        Grandmaster tolerance table), so this is a real behavioural check,
+        not just an extreme case."""
         board = chess.Board(GREEK_GIFT_FEN)
-        # The stub pool has Bxh7+ 30cp behind O-O: inside level 5's tolerance.
         sharp = tal_bot.choose_bot_move(
             board, elo=tal_bot.GRANDMASTER_ELO, aggression=5
         )
         precise = tal_bot.choose_bot_move(
             board, elo=tal_bot.GRANDMASTER_ELO, aggression=1
         )
-        assert board.san(sharp) == "Bxh7+"
+        assert board.san(sharp) == "O-O"
         assert board.san(precise) == "O-O"
 
 
