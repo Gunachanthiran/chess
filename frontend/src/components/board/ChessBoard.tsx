@@ -567,6 +567,16 @@ export function ChessBoard({
     [captureFx, boardOrientation],
   );
 
+  // The cut halves render whatever art the board is actually showing right
+  // now — the real photo for the "Roman (Photo)" set, the flat SVG for
+  // "Roman" — rather than always falling back to `PieceSilhouette`, so a
+  // captured piece looks like the piece that was actually on the square.
+  // Excluded for the 3D set: splitting a live WebGL view along a CSS
+  // clip-path isn't the same kind of problem as clipping a flat image/SVG,
+  // and isn't what was asked for here — it keeps the flat-silhouette cut
+  // rather than attempting that.
+  const CapturedPieceArt = captureFx && pieceSet !== 'three3d' ? pieces?.[`${captureFx.color}${captureFx.type.toUpperCase()}`] : undefined;
+
   return (
     <div className={`chessboard-wrapper${boardShaking ? ' chessboard-wrapper--impact' : ''}`}>
       <Chessboard
@@ -678,9 +688,12 @@ export function ChessBoard({
               halves overlap exactly and read as the whole intact piece; the
               keyframe in App.css then carries each half apart along
               `--capture-fx-piece-end` (see `PIECE_CUT_TRAJECTORY`). Both
-              halves render the *full* silhouette rather than pre-split
-              paths — clip-path, not the SVG data, does the cutting — so this
-              works identically for every piece type with zero per-piece art.
+              halves render the *full* art rather than pre-split paths —
+              clip-path does the cutting — so this works identically for
+              every piece type and every piece set with zero per-piece-set
+              splitting logic. `CapturedPieceArt` is the active set's own
+              render function when there is one (falls back to the flat
+              `PieceSilhouette` for "Classic" and the 3D set).
             */}
             <span
               className={`capture-fx__piece-half capture-fx__piece-half--a capture-fx__piece-half--${captureFx.orientation}`}
@@ -688,7 +701,7 @@ export function ChessBoard({
                 { '--capture-fx-piece-end': PIECE_CUT_TRAJECTORY[captureFx.orientation].a } as React.CSSProperties
               }
             >
-              <PieceSilhouette type={captureFx.type} color={captureFx.color} />
+              {CapturedPieceArt ? <CapturedPieceArt /> : <PieceSilhouette type={captureFx.type} color={captureFx.color} />}
             </span>
             <span
               className={`capture-fx__piece-half capture-fx__piece-half--b capture-fx__piece-half--${captureFx.orientation}`}
@@ -696,7 +709,7 @@ export function ChessBoard({
                 { '--capture-fx-piece-end': PIECE_CUT_TRAJECTORY[captureFx.orientation].b } as React.CSSProperties
               }
             >
-              <PieceSilhouette type={captureFx.type} color={captureFx.color} />
+              {CapturedPieceArt ? <CapturedPieceArt /> : <PieceSilhouette type={captureFx.type} color={captureFx.color} />}
             </span>
 
             {/* The blade itself — a drawn gladius swept along the same
